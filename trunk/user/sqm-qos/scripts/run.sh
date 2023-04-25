@@ -24,15 +24,8 @@ stop_statefile() {
 }
 
 runmode_1(){
-export IFACE="eth2"
-nvram set hw_nat_mode=0
-nvram commit
-rmmod hw_nat
-}
-
-runmode_2(){
-export IFACE="br0"
-nvram set hw_nat_mode=2
+export IFACE="eth3"
+nvram set hw_nat_mode=1
 nvram commit
 rmmod hw_nat
 vlanenable="$(nvram get vlan_filter )"
@@ -42,28 +35,19 @@ modprobe -q hw_nat wan_vid="$vlanid"
 else
 modprobe hw_nat
 fi 
-iwpriv ra0 set hw_nat_register=0
-iwpriv rai0 set hw_nat_register=0
-iwpriv rax0 set hw_nat_register=0
+iwpriv ra0 set hw_nat_register=1
+iwpriv rai0 set hw_nat_register=1
+iwpriv rax0 set hw_nat_register=1
 }
 
-runmode_3(){
-export IFACE="br0"
+runmode_2(){
+export IFACE="eth3"
 nvram set hw_nat_mode=0
 nvram commit
 rmmod hw_nat
 }
 
-runmode_4(){
-export IFACE=$(nvram get sqm_active)
-nvram set hw_nat_mode=2
-nvram commit
-rmmod hw_nat
-modprobe hw_nat
-iwpriv ra0 set hw_nat_register=0
-iwpriv rai0 set hw_nat_register=0
-iwpriv rax0 set hw_nat_register=0
-}
+
 
 
 start_sqm_section() {
@@ -73,9 +57,8 @@ start_sqm_section() {
     [ -z "$RUN_IFACE" -o "$RUN_IFACE" = "$IFACE" ] || return
     [ "$(nvram get sqm_enable)" -eq 1 ] || return 0
     [ -f "${SQM_STATE_DIR}/${IFACE}.state" ] && return
-
-    export DOWNLINK=$(nvram get sqm_up_speed)
-    export UPLINK=$(nvram get sqm_down_speed)
+    export DOWNLINK=$(nvram get sqm_down_speed) 
+    export UPLINK=$(nvram get sqm_up_speed) 
     export LLAM=$(nvram get sqm_linklayer_adaptation_mechanism)
     export LINKLAYER=$(nvram get sqm_linklayer)
     export OVERHEAD=$(nvram get sqm_overhead)
@@ -111,6 +94,7 @@ start_sqm_section() {
     
 if [ "$runmode" = "1" ]; then
 	runmode_1
+	/usr/lib/sqm/hwqos.sh start "$DOWNLINK" "$UPLINK" 80
 elif [ "$runmode" = "2" ]; then
 	runmode_2
 elif [ "$runmode" = "3" ]; then
@@ -118,12 +102,12 @@ elif [ "$runmode" = "3" ]; then
 else   
 	runmode_4
 fi
-
-    "${SQM_LIB_DIR}/start-sqm"
+    "${SQM_LIB_DIR}/start-sqm" 
 }
 
 if [ "$ACTION" = "stop" ]; then
     if [ -z "$RUN_IFACE" ]; then
+    /usr/lib/sqm/hwqos.sh stop
         # Stopping all active interfaces
         for f in ${SQM_STATE_DIR}/*.state; do
             stop_statefile "$f"
@@ -131,6 +115,7 @@ if [ "$ACTION" = "stop" ]; then
     else
         stop_statefile "${SQM_STATE_DIR}/${RUN_IFACE}.state"
     fi
+ 
 else
     start_sqm_section
 fi

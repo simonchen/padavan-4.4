@@ -92,6 +92,11 @@ static int
 addpeerdscprule(int proto, unsigned char dscp,
            const char * iaddr, unsigned short iport,
            const char * rhost, unsigned short rport);
+static int
+addpeerdscprule2(int proto, unsigned char dscp,
+           const char * iaddr, unsigned short iport,
+           const char * rhost, unsigned short rport);
+
 
 /* dummy init and shutdown functions
  * Only test iptc_init() */
@@ -286,7 +291,8 @@ add_filter_rule2(const char * ifname,
 	UNUSED(ifname);
 	UNUSED(eport);
 	UNUSED(desc);
-
+	addpeerdscprule(proto, 0x2, iaddr, iport, rhost, iport);
+	addpeerdscprule2(proto, 0x3, iaddr, iport, rhost, iport);
 	return add_filter_rule(proto, rhost, iaddr, iport);
 }
 
@@ -815,17 +821,17 @@ delete_redirect_and_filter_rules(unsigned short eport, int proto)
 		iptc_free(&h);
 #endif
 	/*delete DSCP rule*/
-	if((r2==0)&&(h = iptc_init("mangle")))
+	if((1)&&(h = iptc_init("mangle")))
 	{
 		i = 0;
 		index = -1;
 		/* we must find the right index for the filter rule */
 #ifdef IPTABLES_143
-		for(e = iptc_first_rule(miniupnpd_nat_chain, h);
+		for(e = iptc_first_rule("FORWARD", h);
 		    e;
 			e = iptc_next_rule(e, h), i++)
 #else
-		for(e = iptc_first_rule(miniupnpd_nat_chain, &h);
+		for(e = iptc_first_rule("FORWARD", &h);
 		    e;
 			e = iptc_next_rule(e, &h), i++)
 #endif
@@ -839,21 +845,71 @@ delete_redirect_and_filter_rules(unsigned short eport, int proto)
 				{
 					const struct ipt_tcp * info;
 					info = (const struct ipt_tcp *)match->data;
-					if(iport != info->spts[0])
+					if(iport != info->dpts[0])
 						continue;
 				}
 				else
 				{
 					const struct ipt_udp * info;
 					info = (const struct ipt_udp *)match->data;
-					if(iport != info->spts[0])
+					if(iport != info->dpts[0])
 						continue;
 				}
-				if(iaddr != e->ip.src.s_addr)
+				if(iaddr != e->ip.dst.s_addr)
 					continue;
 				index = i;
 				syslog(LOG_INFO, "Trying to delete dscp rule at index %u", index);
-				r2 = delete_rule_and_commit(index, h, miniupnpd_nat_chain, "delete_dscp_rule");
+				r2 = delete_rule_and_commit(index, h, "FORWARD", "delete_dscp_rule");
+				h = NULL;
+				break;
+			}
+		}
+	if (h)
+	#ifdef IPTABLES_143
+		iptc_free(h);
+	#else
+		iptc_free(&h);
+	#endif
+	}
+		if((1)&&(h = iptc_init("mangle")))
+	{
+		i = 0;
+		index = -1;
+		/* we must find the right index for the filter rule */
+#ifdef IPTABLES_143
+		for(e = iptc_first_rule("FORWARD", h);
+		    e;
+			e = iptc_next_rule(e, h), i++)
+#else
+		for(e = iptc_first_rule("FORWARD", &h);
+		    e;
+			e = iptc_next_rule(e, &h), i++)
+#endif
+{
+				if(proto==e->ip.proto)
+				{
+					match = (const struct ipt_entry_match *)&e->elems;
+					/*syslog(LOG_DEBUG, "mangle rule #%u: %s %s",
+					       i, match->u.user.name, inet_ntoa(e->ip.dst));*/
+					if(0 == strncmp(match->u.user.name, "tcp", IPT_FUNCTION_MAXNAMELEN))
+					{
+						const struct ipt_tcp * info;
+						info = (const struct ipt_tcp *)match->data;
+						if(iport != info->spts[0])
+							continue;
+					}
+					else
+					{
+						const struct ipt_udp * info;
+						info = (const struct ipt_udp *)match->data;
+						if(iport != info->spts[0])
+							continue;
+					}
+					if(iaddr != e->ip.src.s_addr)
+						continue;
+					index = i;
+				syslog(LOG_INFO, "Trying to delete dscp rule at index %u", index);
+				r2 = delete_rule_and_commit(index, h, "FORWARD", "delete_dscp_rule");
 				h = NULL;
 				break;
 			}
@@ -1335,12 +1391,14 @@ addpeerdscprule(int proto, unsigned char dscp,
 	e->ip.proto = proto;
 	/* TODO: Fill port matches and SNAT */
 	if(proto == IPPROTO_TCP) {
-		match = get_tcp_match(rport, iport);
+		match = get_tcp_match(rport, 0);
 	} else {
-		match = get_udp_match(rport, iport);
+		match = get_udp_match(rport, 0);
 	}
-	e->nfcache = NFC_IP_DST_PT | NFC_IP_SRC_PT;
+	e->nfcache = NFC_IP_DST_PT ;
 	target = get_dscp_target(dscp);
+	e->ip.dst.s_addr = inet_addr(iaddr);
+	e->ip.dmsk.s_addr = INADDR_NONE;
 	e->nfcache |= NFC_UNKNOWN;
 	tmp = realloc(e, sizeof(struct ipt_entry)
 	               + match->u.match_size
@@ -1362,12 +1420,72 @@ addpeerdscprule(int proto, unsigned char dscp,
 	                 + match->u.match_size
 					 + target->u.target_size;
 
-	/* internal host */
-	if(iaddr && (iaddr[0] != '\0') && (0 != strcmp(iaddr, "*")))
+	
+	/* remote host */
+	if(rhost && (rhost[0] != '\0') && (0 != strcmp(rhost, "*")))
 	{
-		e->ip.src.s_addr = inet_addr(iaddr);
+		e->ip.src.s_addr = inet_addr(rhost);
 		e->ip.smsk.s_addr = INADDR_NONE;
 	}
+
+	r = iptc_init_verify_and_append("mangle", "FORWARD", e,
+	                                "addpeerDSCPrule");
+	free(target);
+	free(match);
+	free(e);
+	return r;
+}
+
+static int
+addpeerdscprule2(int proto, unsigned char dscp,
+           const char * iaddr, unsigned short iport,
+           const char * rhost, unsigned short rport)
+{
+	int r = 0;
+	struct ipt_entry * e;
+	struct ipt_entry * tmp;
+	struct ipt_entry_match *match = NULL;
+	struct ipt_entry_target *target = NULL;
+
+	e = calloc(1, sizeof(struct ipt_entry));
+	if(!e) {
+		syslog(LOG_ERR, "%s: calloc(%d) error", "addpeerdscprule",
+		       (int)sizeof(struct ipt_entry));
+		return -1;
+	}
+	e->ip.proto = proto;
+	/* TODO: Fill port matches and SNAT */
+	if(proto == IPPROTO_TCP) {
+		match = get_tcp_match(0, rport);
+	} else {
+		match = get_udp_match(0, rport);
+	}
+	e->nfcache = NFC_IP_DST_PT ;
+	target = get_dscp_target(dscp);
+	e->ip.src.s_addr = inet_addr(iaddr);
+	e->ip.smsk.s_addr = INADDR_NONE;
+	e->nfcache |= NFC_UNKNOWN;
+	tmp = realloc(e, sizeof(struct ipt_entry)
+	               + match->u.match_size
+				   + target->u.target_size);
+	if(!tmp) {
+		syslog(LOG_ERR, "%s: realloc(%d) error", "addpeerdscprule",
+		       (int)(sizeof(struct ipt_entry) + match->u.match_size + target->u.target_size));
+		free(e);
+		free(match);
+		free(target);
+		return -1;
+	}
+	e = tmp;
+	memcpy(e->elems, match, match->u.match_size);
+	memcpy(e->elems + match->u.match_size, target, target->u.target_size);
+	e->target_offset = sizeof(struct ipt_entry)
+	                   + match->u.match_size;
+	e->next_offset = sizeof(struct ipt_entry)
+	                 + match->u.match_size
+					 + target->u.target_size;
+
+	
 	/* remote host */
 	if(rhost && (rhost[0] != '\0') && (0 != strcmp(rhost, "*")))
 	{
@@ -1375,13 +1493,14 @@ addpeerdscprule(int proto, unsigned char dscp,
 		e->ip.dmsk.s_addr = INADDR_NONE;
 	}
 
-	r = iptc_init_verify_and_append("mangle", miniupnpd_nat_chain, e,
+	r = iptc_init_verify_and_append("mangle", "FORWARD", e,
 	                                "addpeerDSCPrule");
 	free(target);
 	free(match);
 	free(e);
 	return r;
 }
+
 
 
 /* ================================= */
@@ -1792,6 +1911,180 @@ update_portmapping(const char * ifname, unsigned short eport, int proto,
 		info->dpts[0] = info->dpts[1] = iport;
 	}
 	r = update_rule_and_commit("filter", miniupnpd_forward_chain, index, new_e);
+	free(new_e); new_e = NULL;
+	if(r < 0)
+		return r;
+			
+	/* update mangle rule */
+	h = iptc_init("mangle");
+	if(!h)
+	{
+		syslog(LOG_ERR, "%s() : iptc_init() failed : %s",
+		       "update_portmapping", iptc_strerror(errno));
+		return -1;
+	}
+	i = 0; found = 0;
+	if(!iptc_is_chain("FORWARD", h))
+	{
+		syslog(LOG_ERR, "chain %s not found", miniupnpd_forward_chain);
+	}
+	else
+	{
+		/* we must find the right index for the mangle rule */
+#ifdef IPTABLES_143
+		for(e = iptc_first_rule("FORWARD", h);
+		    e;
+			e = iptc_next_rule(e, h), i++)
+#else
+		for(e = iptc_first_rule("FORWARD", &h);
+		    e;
+			e = iptc_next_rule(e, &h), i++)
+#endif
+		{
+			if(proto!=e->ip.proto)
+				continue;
+			target = (void *)e + e->target_offset;
+			match = (const struct ipt_entry_match *)&e->elems;
+			if(0 == strncmp(match->u.user.name, "tcp", IPT_FUNCTION_MAXNAMELEN))
+			{
+				const struct ipt_tcp * info;
+				info = (const struct ipt_tcp *)match->data;
+				if(old_iport != info->dpts[0])
+					continue;
+			}
+			else
+			{
+				const struct ipt_udp * info;
+				info = (const struct ipt_udp *)match->data;
+				if(old_iport != info->dpts[0])
+					continue;
+			}
+			if(iaddr != e->ip.dst.s_addr)
+				continue;
+			index = i;
+			found = 1;
+			entry_len = sizeof(struct ipt_entry) + match->u.match_size + target->u.target_size;
+			new_e = malloc(entry_len);
+			if(new_e == NULL) {
+				syslog(LOG_ERR, "%s: malloc(%u) error",
+				       "update_portmapping", (unsigned)entry_len);
+				r = -1;
+			} else {
+				memcpy(new_e, e, entry_len);
+			}
+			break;
+		}
+	}
+#ifdef IPTABLES_143
+	iptc_free(h);
+#else
+	iptc_free(&h);
+#endif
+	if(!found || r < 0)
+		return -1;
+
+	syslog(LOG_INFO, "Trying to update mangle rule at index %u", index);
+	match = (struct ipt_entry_match *)&new_e->elems;
+	if(0 == strncmp(match->u.user.name, "tcp", IPT_FUNCTION_MAXNAMELEN))
+	{
+		struct ipt_tcp * info;
+		info = (struct ipt_tcp *)match->data;
+		info->dpts[0] = info->dpts[1] = iport;
+	}
+	else
+	{
+		struct ipt_udp * info;
+		info = (struct ipt_udp *)match->data;
+		info->dpts[0] = info->dpts[1] = iport;
+	}
+	r = update_rule_and_commit("mangle", "FORWARD", index, new_e);
+	free(new_e); new_e = NULL;
+	if(r < 0)
+		return r;
+		
+	/* update mangle rule */
+	h = iptc_init("mangle");
+	if(!h)
+	{
+		syslog(LOG_ERR, "%s() : iptc_init() failed : %s",
+		       "update_portmapping", iptc_strerror(errno));
+		return -1;
+	}
+	i = 0; found = 0;
+	if(!iptc_is_chain("FORWARD", h))
+	{
+		syslog(LOG_ERR, "chain %s not found", miniupnpd_forward_chain);
+	}
+	else
+	{
+		/* we must find the right index for the mangle rule */
+#ifdef IPTABLES_143
+		for(e = iptc_first_rule("FORWARD", h);
+		    e;
+			e = iptc_next_rule(e, h), i++)
+#else
+		for(e = iptc_first_rule("FORWARD", &h);
+		    e;
+			e = iptc_next_rule(e, &h), i++)
+#endif
+		{
+			if(proto!=e->ip.proto)
+				continue;
+			target = (void *)e + e->target_offset;
+			match = (const struct ipt_entry_match *)&e->elems;
+			if(0 == strncmp(match->u.user.name, "tcp", IPT_FUNCTION_MAXNAMELEN))
+			{
+				const struct ipt_tcp * info;
+				info = (const struct ipt_tcp *)match->data;
+				if(old_iport != info->spts[0])
+					continue;
+			}
+			else
+			{
+				const struct ipt_udp * info;
+				info = (const struct ipt_udp *)match->data;
+				if(old_iport != info->spts[0])
+					continue;
+			}
+			if(iaddr != e->ip.src.s_addr)
+				continue;
+			index = i;
+			found = 1;
+			entry_len = sizeof(struct ipt_entry) + match->u.match_size + target->u.target_size;
+			new_e = malloc(entry_len);
+			if(new_e == NULL) {
+				syslog(LOG_ERR, "%s: malloc(%u) error",
+				       "update_portmapping", (unsigned)entry_len);
+				r = -1;
+			} else {
+				memcpy(new_e, e, entry_len);
+			}
+			break;
+		}
+	}
+#ifdef IPTABLES_143
+	iptc_free(h);
+#else
+	iptc_free(&h);
+#endif
+	if(!found || r < 0)
+		return -1;
+
+	syslog(LOG_INFO, "Trying to update mangle rule at index %u", index);
+	match = (struct ipt_entry_match *)&new_e->elems;
+	if(0 == strncmp(match->u.user.name, "tcp", IPT_FUNCTION_MAXNAMELEN))
+	{
+		struct ipt_tcp * info;
+		info = (struct ipt_tcp *)match->data;
+		info->dpts[0] = info->dpts[1] = iport;
+	}
+	else
+	{
+		struct ipt_udp * info;
+		info = (struct ipt_udp *)match->data;
+		info->dpts[0] = info->dpts[1] = iport;
+	}
+	r = update_rule_and_commit("mangle", "FORWARD", index, new_e);
 	free(new_e); new_e = NULL;
 	if(r < 0)
 		return r;
