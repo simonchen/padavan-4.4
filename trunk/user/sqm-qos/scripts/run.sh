@@ -96,6 +96,7 @@ if [ "$runmode" = "1" ]; then
 	runmode_1
 	/usr/lib/sqm/hwqos.sh start "$DOWNLINK" "$UPLINK" 80
 elif [ "$runmode" = "2" ]; then
+	/usr/lib/sqm/hwqos.sh stop
 	runmode_2
 elif [ "$runmode" = "3" ]; then
 	runmode_3
@@ -106,8 +107,8 @@ fi
 }
 
 if [ "$ACTION" = "stop" ]; then
-    if [ -z "$RUN_IFACE" ]; then
     /usr/lib/sqm/hwqos.sh stop
+    if [ -z "$RUN_IFACE" ]; then
         # Stopping all active interfaces
         for f in ${SQM_STATE_DIR}/*.state; do
             stop_statefile "$f"
