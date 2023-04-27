@@ -367,6 +367,7 @@ get_eeprom_params(void)
 		
 		if(count_0xff !=33)	
 		{
+		 count_0xff = 0;
 		i_ret = flash_mtd_read(MTD_PART_NAME_FACTORY, 0x81A0, txbf_para, 33);
 		if (i_ret < 0) {
 			dbg("READ TXBF PARA address: Out of scope\n");
