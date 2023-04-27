@@ -30,8 +30,7 @@ nvram commit
 rmmod hw_nat
 vlanenable="$(nvram get vlan_filter )"
 if [ "$vlanenable" -ne 0 ]; then
-vlanid="$(nvram get vlan_vid_cpu )"
-modprobe -q hw_nat wan_vid="$vlanid"
+modprobe hw_nat
 else
 modprobe hw_nat
 fi 

@@ -1,3 +1,4 @@
+obj-m += mtk_hnat/
 obj-$(CONFIG_RAETH) += raeth.o
 raeth-objs := raether.o raether_pdma.o ra_mac.o mii_mgr.o ra_switch.o ra_dbg_proc.o
 raeth-objs += raether_qdma.o

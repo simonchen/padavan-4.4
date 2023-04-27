@@ -2603,11 +2603,7 @@ ej_firmware_caps_hook(int eid, webs_t wp, int argc, char **argv)
 #if defined(USE_HW_NAT)
 	int has_ipv4_ppe = 1;
 #if defined(USE_IPV6_HW_NAT)
-#if defined(USE_HW_NAT_V2)
 	int has_ipv6_ppe = 2;
-#else
-	int has_ipv6_ppe = 1;
-#endif
 #else
 	int has_ipv6_ppe = 0;
 #endif

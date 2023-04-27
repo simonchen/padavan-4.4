@@ -570,7 +570,7 @@ hwnat_configure(void)
 		return;
 	}
 
-	module_param_set_int("hw_nat", "wan_vid", get_vlan_vid_wan());
+
 
 	hwnat_status = "Enabled, IPoE/PPPoE offload [WAN]<->[LAN/WLAN]";
 	logmessage(LOGNAME, "%s: %s", "Hardware NAT/Routing", hwnat_status);
@@ -611,6 +611,7 @@ reload_nat_modules(void)
 	char hnat_param[80];
 	int hwnat_allow = is_hwnat_allow();
 	int hwnat_loaded = is_hwnat_loaded();
+	int hw_nat_mode = nvram_get_int("hw_nat_mode");
 #endif
 
 	if (!get_ap_mode())
@@ -693,9 +694,7 @@ reload_nat_modules(void)
 #if defined (USE_HW_NAT)
 	if (hwnat_allow)
 	{	if(!hwnat_loaded)
-		{snprintf(hnat_param, sizeof(hnat_param), "wan_vid=%d", get_vlan_vid_wan());
-		module_smart_load("hw_nat", hnat_param);}
-		int hw_nat_mode = nvram_get_int("hw_nat_mode");
+		{module_smart_load("hw_nat", NULL);
 #if defined (USE_MT7615_AP) || defined (USE_MT7915_AP) || defined (USE_MT76X2_AP)
 		if (hw_nat_mode == 1)
 		{doSystem("iwpriv %s set hw_nat_register=%d", IFNAME_2G_MAIN, 1);
@@ -704,6 +703,7 @@ reload_nat_modules(void)
 		{doSystem("iwpriv %s set hw_nat_register=%d", IFNAME_2G_MAIN, 0);
 		doSystem("iwpriv %s set hw_nat_register=%d", IFNAME_5G_MAIN, 0);}
 #endif
+	}
 	}
 
 	hwnat_configure();
