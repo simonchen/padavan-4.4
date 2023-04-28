@@ -2,26 +2,8 @@
 
 txq_num="16"
 
-func_stop() {
-	for i in $(seq 0 $((txq_num - 1)))
-	do
-		if [ "${i}" -le $(((txq_num / 2) - 1)) ] ; then
-			echo 0 0 0 0 0 0 4 > /sys/kernel/debug/hnat/qdma_txq$i
-		else
-			echo 1 0 0 0 0 0 4 > /sys/kernel/debug/hnat/qdma_txq$i
-		fi
-	done
-	
-	echo 0 sp 0 > /sys/kernel/debug/hnat/qdma_sch0
-	echo 0 sp 0 > /sys/kernel/debug/hnat/qdma_sch1
-	echo 0 0 0 0 0 0 4 > /sys/kernel/debug/hnat/qdma_txq0
-	for i in $(seq 1 $((txq_num - 1)))
-	do
-		echo 0 0 0 0 0 0 0 > /sys/kernel/debug/hnat/qdma_txq$i
-	done
-	
-	rmmod hw_nat
-	modprobe hw_nat
+func_stop()
+{	
 	iptables -t mangle -D FORWARD -o br0 -j MARK --set-mark 6
 	iptables -t mangle -D FORWARD -i br0 -j MARK --set-mark 14 
 	iptables -t mangle -D FORWARD -o br0 -p udp -j MARK --set-mark 3
@@ -32,13 +14,19 @@ func_stop() {
 	iptables -t mangle -D FORWARD -i br0 -p tcp --dport 1:65535 -m connlimit --connlimit-above 4 --connlimit-daddr -j MARK --set-mark 9 
 	iptables -t mangle -D FORWARD -o br0 -p udp -m length --length :256 -j MARK --set-mark 7
 	iptables -t mangle -D FORWARD -i br0 -p udp -m length --length :256 -j MARK --set-mark 15
+	qdma sch_rate 0 0 0
+	qdma sch_rate 1 0 0
+	qdma resv 0 4 4
+	for i in $(seq 1 $((txq_num - 1)))
+	do
+		qdma rate $i 0 0 0 0
+		qdma resv $i 0 0
+	done
 	exit 0
 }
 
-
- func_start(){
- 
- 	iptables -t mangle -D FORWARD -o br0 -j MARK --set-mark 6
+func_start()
+{	iptables -t mangle -D FORWARD -o br0 -j MARK --set-mark 6
 	iptables -t mangle -D FORWARD -i br0 -j MARK --set-mark 14 
 	iptables -t mangle -D FORWARD -o br0 -p udp -j MARK --set-mark 3
 	iptables -t mangle -D FORWARD -i br0 -p udp -j MARK --set-mark 11
@@ -48,40 +36,45 @@ func_stop() {
 	iptables -t mangle -D FORWARD -i br0 -p tcp --dport 1:65535 -m connlimit --connlimit-above 4 --connlimit-daddr -j MARK --set-mark 9 
 	iptables -t mangle -D FORWARD -o br0 -p udp -m length --length :256 -j MARK --set-mark 7
 	iptables -t mangle -D FORWARD -i br0 -p udp -m length --length :256 -j MARK --set-mark 15
-        
-
-	echo 0 sp $1 > /sys/kernel/debug/hnat/qdma_sch0
-	echo 0 sp $2 > /sys/kernel/debug/hnat/qdma_sch1
-
-	for i in $(seq 0 $((txq_num - 1)))
+	
+	local dlmin dlmax ulmin ulmax 
+	qdma sch_rate 0 0 0
+	qdma sch_rate 1 0 0
+	qdma resv 0 4 4
+	for i in $(seq 1 $((txq_num - 1)))
 	do
+		qdma rate $i 0 0 0 0
+		qdma resv $i 0 0
+	done
+	
+	for i in $(seq 1 $((txq_num - 1)))
+	do
+		qdma resv $i 4 4
 		if [ "${i}" -le $(((txq_num / 2) - 1)) ] ; then
-			echo 0 0 0 0 0 0 4 > /sys/kernel/debug/hnat/qdma_txq$i
+			qdma sch $i 1
 		else
-			echo 1 0 0 0 0 0 4 > /sys/kernel/debug/hnat/qdma_txq$i
+			qdma sch $i 0
 		fi
 	done
 	
-	
+
 	dlmin=$(($1 * $3))
 	dlmin=$((dlmin / 100))
 	dlmax=$(($1 * 1))
 	ulmin=$(($2 * $3))
 	ulmin=$((ulmin / 100))
 	ulmax=$(($2 * 1))
-	
-	for i in $(seq 0 $((txq_num - 1)))
+	for i in $(seq 1 $((txq_num - 1)))
 	do
 		if [ "${i}" -le $(((txq_num / 2) - 1)) ] ; then
-			echo 0 1 "$dlmin" 1 "$dlmax" 0 4 > /sys/kernel/debug/hnat/qdma_txq$i
+			qdma rate $i 1 "$dlmin" 1 "$dlmax"
 		else
-			echo 1 1 "$ulmin" 1 "$ulmax" 0 4 > /sys/kernel/debug/hnat/qdma_txq$i
+			qdma rate $i 1 "$ulmin" 1 "$ulmax"
 		fi
 	done
+	qdma sch_rate 0 1 "$ulmax"
+	qdma sch_rate 1 1 "$dlmax"
 	
-	echo 1 sp $1 > /sys/kernel/debug/hnat/qdma_sch0
-	echo 1 sp $2 > /sys/kernel/debug/hnat/qdma_sch1
-
 	iptables -t mangle -A FORWARD -o br0 -j MARK --set-mark 6
 	iptables -t mangle -A FORWARD -i br0 -j MARK --set-mark 14 
 	iptables -t mangle -A FORWARD -o br0 -p udp -j MARK --set-mark 3
@@ -92,8 +85,6 @@ func_stop() {
 	iptables -t mangle -A FORWARD -i br0 -p tcp --dport 1:65535 -m connlimit --connlimit-above 4 --connlimit-daddr -j MARK --set-mark 9
 	iptables -t mangle -A FORWARD -o br0 -p udp -m length --length :256 -j MARK --set-mark 7
 	iptables -t mangle -A FORWARD -i br0 -p udp -m length --length :256 -j MARK --set-mark 15
-	rmmod hw_nat
-	modprobe hw_nat
 	exit 0	
 }
 
@@ -106,8 +97,9 @@ stop)
 	func_stop
 	;;
 *)
-	echo "Usage: $0 {start dl ul percentage(70) |stop}"
+	echo "Usage: $0 {start dl ul percentage(0.7) |stop}"
 	exit 1
 	;;
 esac
 
+exit 0
