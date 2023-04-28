@@ -1231,7 +1231,7 @@ void set_fe_qdma_glo_cfg(void)
 
 	/* Enable randon early drop and set drop threshold automatically */
 	if (!(ei_local->features & FE_HW_SFQ))
-		sys_reg_write(QDMA_FC_THRES, 0x4444);
+		sys_reg_write(QDMA_FC_THRES, 0x83834444);
 	sys_reg_write(QDMA_HRED2, 0x0);
 
 	dma_glo_cfg =
