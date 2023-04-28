@@ -209,7 +209,7 @@
 #ifdef	CONFIG_QDMA_SUPPORT_QOS
 #define FE_QDMA_FQOS	BIT(29)
 #else
-#define FE_QDMA_FQOS	(0)
+#define FE_QDMA_FQOS	BIT(29)
 #endif
 
 #ifdef	CONFIG_QDMA_QOS_WEB
