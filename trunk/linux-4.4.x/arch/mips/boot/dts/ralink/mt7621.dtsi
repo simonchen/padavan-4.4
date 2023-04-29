@@ -365,7 +365,8 @@
 
 	pcie: pcie@1e140000 {
 		compatible = "mediatek,mt7621-pci";
-		reg = <0x1e140000 0x40000>;
+		reg = <0x1e140000 0x100
+			0x1e142000 0x100>;
 
 		#address-cells = <3>;
 		#size-cells = <2>;
@@ -392,9 +393,6 @@
 		reset-names = "pcie0", "pcie1", "pcie2";
 		clocks = <&clkctrl 24 &clkctrl 25 &clkctrl 26>;
 		clock-names = "pcie0", "pcie1", "pcie2";
-
-		reset-gpios = <&gpio0 19 1>;
-		reset-gpio-names = "pcie";
 
 		pcie0 {
 			reg = <0x0000 0 0 0 0>;
@@ -423,6 +421,7 @@
 			device_type = "pci";
 		};
 	};
+
 
 	xhci: usb@1e1c0000 {
 		compatible = "mediatek,mt7621-xhci", "mediatek,mt2701-xhci";
@@ -525,7 +524,7 @@
 		pcie_pins: pcie {
 			pcie {
 				mtk,group = "pcie";
-				mtk,function = "gpio";
+				mtk,function = "pcie rst";
 			};
 		};
 
