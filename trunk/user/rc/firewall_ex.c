@@ -1728,11 +1728,9 @@ ip6t_nat_rules(char *man_if)
 	fprintf(fp, ":%s %s [0:0]\n", "INPUT", "ACCEPT");
 	fprintf(fp, ":%s %s [0:0]\n", "OUTPUT", "ACCEPT");
 	fprintf(fp, ":%s %s [0:0]\n", "POSTROUTING", "ACCEPT");
-	fprintf(fp, "-A POSTROUTING -s fc00:101:101::1/64 -j MASQUERADE\n");}
+	fprintf(fp, "-A POSTROUTING -s fc00:101:101::1/64 -j FULLCONENAT\n");
 	fprintf(fp, "COMMIT\n\n");
 	fclose(fp);
-
-	if (is_module_loaded("ip6table_nat"))
 		doSystem("ip6tables-restore %s", ipt_file);
 }
 
@@ -2209,7 +2207,7 @@ start_firewall_ex(void)
 #if defined (USE_IPV6)
 	/* IPv6 Mangle rules */
 	ip6t_mangle_rules(man_if);
-
+	ip6t_nat_rules(man_if);
 	/* IPv6 Filter rules */
 	ip6t_filter_rules(man_if, wan_if, lan_if, logaccept, logdrop, i_tcp_mss);
 #endif
@@ -2240,6 +2238,6 @@ start_firewall_ex(void)
 	module_smart_unload("iptable_raw", 0);
 	module_smart_unload("iptable_mangle", 0);
 	module_smart_unload("ip6table_mangle", 0);
-	module_smart_unload("ip6table_nat", 0);
+	
 }
 
