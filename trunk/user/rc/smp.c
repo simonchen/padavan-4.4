@@ -96,7 +96,7 @@ static const struct smp_irq_layout_t mt7621a_irq[] = {
 };
 
 static const struct smp_trx_layout_t mt7621a_rps[] = {
-	{ IFNAME_MAC,		SMP_MASK_CPU0 | SMP_MASK_CPU1 },	/* eth2 */
+	{ IFNAME_MAC,	        SMP_MASK_CPU1 },	/* eth2 */
 	{ IFNAME_MAC2,		SMP_MASK_CPU0 | SMP_MASK_CPU2 },	/* eth3 */
 	{ IFNAME_2G_MAIN,	SMP_MASK_CPU0 },
 	{ IFNAME_2G_GUEST,	SMP_MASK_CPU0 | SMP_MASK_CPU1 },
