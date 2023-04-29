@@ -678,13 +678,13 @@ include_masquerade(FILE *fp, char *wan_if, char *wan_ip, char *lan_net, int is_f
 	char *dtype = "POSTROUTING";
 
 	if (is_fullcone) {
-		fprintf(fp, "-A %s -o %s -s %s -j MASQUERADE --mode fullcone\n", dtype, wan_if, lan_net);
-	} else {
-		if (wan_ip)
-			fprintf(fp, "-A %s -o %s -s %s -j SNAT --to-source %s\n", dtype, wan_if, lan_net, wan_ip);
-		else
-			fprintf(fp, "-A %s -o %s -s %s -j MASQUERADE\n", dtype, wan_if, lan_net);
-	}
+ 		fprintf(fp, "-A %s -o %s -s %s -j MASQUERADE --mode fullcone\n", dtype, wan_if, lan_net);
+ 	} else {
+ 		if (wan_ip)
+ 			fprintf(fp, "-A %s -o %s -s %s -j SNAT --to-source %s\n", dtype, wan_if, lan_net, wan_ip);
+ 		else
+ 			fprintf(fp, "-A %s -o %s -s %s -j MASQUERADE\n", dtype, wan_if, lan_net);
+ 	}
 }
 
 static int
@@ -1567,6 +1567,7 @@ ip6t_filter_rules(char *man_if, char *wan_if, char *lan_if,
 	/* Clamp TCP MSS to PMTU of WAN interface before accepting RELATED packets */
 	if ((ipv6_type != IPV6_NATIVE_STATIC && ipv6_type != IPV6_NATIVE_DHCP6) || tcp_mss_need)
 		fprintf(fp, "-A %s%s -o %s -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu\n", dtype, " !", lan_if);
+		
 
 	/* Pass related connections, skip rest of checks */
 	fprintf(fp, "-A %s -m %s %s -j %s\n", dtype, CT_STATE, "ESTABLISHED,RELATED", "ACCEPT");
@@ -1712,6 +1713,29 @@ ip6t_mangle_rules(char *man_if)
 	if (is_module_loaded("ip6table_mangle"))
 		doSystem("ip6tables-restore %s", ipt_file);
 }
+
+static void
+ip6t_nat_rules(char *man_if)
+{
+	FILE *fp;
+	const char *ipt_file = "/tmp/ip6t_nat.rules";
+
+	if (!(fp=fopen(ipt_file, "w")))
+		return;
+
+	fprintf(fp, "*%s\n", "nat");
+	fprintf(fp, ":%s %s [0:0]\n", "PREROUTING", "ACCEPT");
+	fprintf(fp, ":%s %s [0:0]\n", "INPUT", "ACCEPT");
+	fprintf(fp, ":%s %s [0:0]\n", "OUTPUT", "ACCEPT");
+	fprintf(fp, ":%s %s [0:0]\n", "POSTROUTING", "ACCEPT");
+	fprintf(fp, "-A POSTROUTING -s fc00:101:101::1/64 -j MASQUERADE\n");}
+	fprintf(fp, "COMMIT\n\n");
+	fclose(fp);
+
+	if (is_module_loaded("ip6table_nat"))
+		doSystem("ip6tables-restore %s", ipt_file);
+}
+
 
 #endif
 
@@ -2216,5 +2240,6 @@ start_firewall_ex(void)
 	module_smart_unload("iptable_raw", 0);
 	module_smart_unload("iptable_mangle", 0);
 	module_smart_unload("ip6table_mangle", 0);
+	module_smart_unload("ip6table_nat", 0);
 }
 

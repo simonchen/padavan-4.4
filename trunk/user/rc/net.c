@@ -612,6 +612,7 @@ reload_nat_modules(void)
 	int hwnat_allow = is_hwnat_allow();
 	int hwnat_loaded = is_hwnat_loaded();
 	int hw_nat_mode = nvram_get_int("hw_nat_mode");
+	int ipv6_nat = nvram_get_int("ip6_lan_auto");
 #endif
 
 	if (!get_ap_mode())
@@ -702,6 +703,10 @@ reload_nat_modules(void)
 		else
 		{doSystem("iwpriv %s set hw_nat_register=%d", IFNAME_2G_MAIN, 0);
 		doSystem("iwpriv %s set hw_nat_register=%d", IFNAME_5G_MAIN, 0);}
+		if(ipv6_nat==1)
+		{doSystem("echo 7 1 > /sys/kernel/debug/hnat/hnat_setting");}
+		else
+		{doSystem("echo 7 0 > /sys/kernel/debug/hnat/hnat_setting");}
 #endif
 	}
 	}
