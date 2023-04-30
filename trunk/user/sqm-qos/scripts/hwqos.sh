@@ -4,6 +4,18 @@ txq_num="16"
 
 func_stop()
 {	
+	ip6tables -t mangle -D FORWARD -o br0 -j MARK --set-mark 6
+	ip6tables -t mangle -D FORWARD -i br0 -j MARK --set-mark 14 
+	ip6tables -t mangle -D FORWARD -o br0 -p udp -j MARK --set-mark 3
+	ip6tables -t mangle -D FORWARD -i br0 -p udp -j MARK --set-mark 11
+	ip6tables -t mangle -D POSTROUTING -o br0 -m dscp --dscp 2 -p udp -j MARK --set-mark 2
+	ip6tables -t mangle -D POSTROUTING -o br0 -m dscp --dscp 2 -p tcp -j MARK --set-mark 2
+	ip6tables -t mangle -D FORWARD -o br0 -p tcp --sport 1:65535 -m connlimit --connlimit-above 4 --connlimit-saddr -j MARK --set-mark 1 
+	ip6tables -t mangle -D FORWARD -i br0 -p tcp --dport 1:65535 -m connlimit --connlimit-above 4 --connlimit-daddr -j MARK --set-mark 9 
+	ip6tables -t mangle -D FORWARD -o br0 -p udp -m length --length :256 -j MARK --set-mark 7
+	ip6tables -t mangle -D FORWARD -i br0 -p udp -m length --length :256 -j MARK --set-mark 15
+	ip6tables -t mangle -D FORWARD -o br0 -p udp -m limit --limit 100/s --limit-burst 200  -j ACCEPT
+        ip6tables -t mangle -D FORWARD -o br0 -p udp -j DROP
 	iptables -t mangle -D FORWARD -o br0 -j MARK --set-mark 6
 	iptables -t mangle -D FORWARD -i br0 -j MARK --set-mark 14 
 	iptables -t mangle -D FORWARD -o br0 -p udp -j MARK --set-mark 3
@@ -28,7 +40,20 @@ func_stop()
 }
 
 func_start()
-{	iptables -t mangle -D FORWARD -o br0 -j MARK --set-mark 6
+{	
+	ip6tables -t mangle -D FORWARD -o br0 -j MARK --set-mark 6
+	ip6tables -t mangle -D FORWARD -i br0 -j MARK --set-mark 14 
+	ip6tables -t mangle -D FORWARD -o br0 -p udp -j MARK --set-mark 3
+	ip6tables -t mangle -D FORWARD -i br0 -p udp -j MARK --set-mark 11
+	ip6tables -t mangle -D POSTROUTING -o br0 -m dscp --dscp 2 -p udp -j MARK --set-mark 2
+	ip6tables -t mangle -D POSTROUTING -o br0 -m dscp --dscp 2 -p tcp -j MARK --set-mark 2
+	ip6tables -t mangle -D FORWARD -o br0 -p tcp --sport 1:65535 -m connlimit --connlimit-above 4 --connlimit-saddr -j MARK --set-mark 1 
+	ip6tables -t mangle -D FORWARD -i br0 -p tcp --dport 1:65535 -m connlimit --connlimit-above 4 --connlimit-daddr -j MARK --set-mark 9 
+	ip6tables -t mangle -D FORWARD -o br0 -p udp -m length --length :256 -j MARK --set-mark 7
+	ip6tables -t mangle -D FORWARD -i br0 -p udp -m length --length :256 -j MARK --set-mark 15
+	ip6tables -t mangle -D FORWARD -o br0 -p udp -m limit --limit 100/s --limit-burst 200  -j ACCEPT
+        ip6tables -t mangle -D FORWARD -o br0 -p udp -j DROP
+	iptables -t mangle -D FORWARD -o br0 -j MARK --set-mark 6
 	iptables -t mangle -D FORWARD -i br0 -j MARK --set-mark 14 
 	iptables -t mangle -D FORWARD -o br0 -p udp -j MARK --set-mark 3
 	iptables -t mangle -D FORWARD -i br0 -p udp -j MARK --set-mark 11
@@ -91,9 +116,21 @@ func_start()
 	iptables -t mangle -A FORWARD -i br0 -p tcp --dport 1:65535 -m connlimit --connlimit-above 4 --connlimit-daddr -j MARK --set-mark 9
 	iptables -t mangle -A FORWARD -o br0 -p udp -m length --length :256 -j MARK --set-mark 7
 	iptables -t mangle -A FORWARD -i br0 -p udp -m length --length :256 -j MARK --set-mark 15
+	ip6tables -t mangle -A FORWARD -o br0 -j MARK --set-mark 6
+	ip6tables -t mangle -A FORWARD -i br0 -j MARK --set-mark 14 
+	ip6tables -t mangle -A FORWARD -o br0 -p udp -j MARK --set-mark 3
+	ip6tables -t mangle -A FORWARD -i br0 -p udp -j MARK --set-mark 11
+	ip6tables -t mangle -A POSTROUTING -o br0 -m dscp --dscp 2 -p udp -j MARK --set-mark 2
+	ip6tables -t mangle -A POSTROUTING -o br0 -m dscp --dscp 2 -p tcp -j MARK --set-mark 2
+	ip6tables -t mangle -A FORWARD -o br0 -p tcp --sport 1:65535 -m connlimit --connlimit-above 4 --connlimit-saddr -j MARK --set-mark 1 
+	ip6tables -t mangle -A FORWARD -i br0 -p tcp --dport 1:65535 -m connlimit --connlimit-above 4 --connlimit-daddr -j MARK --set-mark 9
+	ip6tables -t mangle -A FORWARD -o br0 -p udp -m length --length :256 -j MARK --set-mark 7
+	ip6tables -t mangle -A FORWARD -i br0 -p udp -m length --length :256 -j MARK --set-mark 15
 	if [ $4 -eq 1 ]; then
 	iptables -t mangle -A FORWARD -o br0 -p udp -m limit --limit 100/s --limit-burst 200  -j ACCEPT
         iptables -t mangle -A FORWARD -o br0 -p udp -j DROP
+	ip6tables -t mangle -A FORWARD -o br0 -p udp -m limit --limit 100/s --limit-burst 200  -j ACCEPT
+        ip6tables -t mangle -A FORWARD -o br0 -p udp -j DROP
         fi
 	exit 0	
 }
