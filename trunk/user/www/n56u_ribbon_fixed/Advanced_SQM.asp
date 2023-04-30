@@ -190,7 +190,8 @@ function getHash(){
                                             <th>硬件QOS</th>
                                             <td>
                                                 <select name="sqm_flag" class="input">
-                                                    <option value="1" <% nvram_match_x("", "sqm_flag", "1", "selected"); %>>启用</option>
+                                                    <option value="3" <% nvram_match_x("", "sqm_flag", "3", "selected"); %>>严格P2P模式</option>
+                                                     <option value="1" <% nvram_match_x("", "sqm_flag", "1", "selected"); %>>普通模式</option>
                                                     <option value="2" <% nvram_match_x("", "sqm_flag", "2", "selected"); %>>取消</option>
                                                 </select>
                                             </td>

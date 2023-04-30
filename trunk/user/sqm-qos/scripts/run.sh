@@ -93,12 +93,13 @@ start_sqm_section() {
     
 if [ "$runmode" = "1" ]; then
 	runmode_1
-	/usr/lib/sqm/hwqos.sh start "$DOWNLINK" "$UPLINK" 80
+	/usr/lib/sqm/hwqos.sh start "$DOWNLINK" "$UPLINK" 80 0
 elif [ "$runmode" = "2" ]; then
 	/usr/lib/sqm/hwqos.sh stop
 	runmode_2
 elif [ "$runmode" = "3" ]; then
-	runmode_3
+	runmode_1
+	/usr/lib/sqm/hwqos.sh start "$DOWNLINK" "$UPLINK" 80 1
 else   
 	runmode_4
 fi

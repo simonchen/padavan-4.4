@@ -14,6 +14,8 @@ func_stop()
 	iptables -t mangle -D FORWARD -i br0 -p tcp --dport 1:65535 -m connlimit --connlimit-above 4 --connlimit-daddr -j MARK --set-mark 9 
 	iptables -t mangle -D FORWARD -o br0 -p udp -m length --length :256 -j MARK --set-mark 7
 	iptables -t mangle -D FORWARD -i br0 -p udp -m length --length :256 -j MARK --set-mark 15
+	iptables -t mangle -D FORWARD -o br0 -p udp -m limit --limit 100/s --limit-burst 200  -j ACCEPT
+        iptables -t mangle -D FORWARD -o br0 -p udp -j DROP
 	qdma sch_rate 0 0 0
 	qdma sch_rate 1 0 0
 	qdma resv 0 4 4
@@ -36,7 +38,8 @@ func_start()
 	iptables -t mangle -D FORWARD -i br0 -p tcp --dport 1:65535 -m connlimit --connlimit-above 4 --connlimit-daddr -j MARK --set-mark 9 
 	iptables -t mangle -D FORWARD -o br0 -p udp -m length --length :256 -j MARK --set-mark 7
 	iptables -t mangle -D FORWARD -i br0 -p udp -m length --length :256 -j MARK --set-mark 15
-	
+	iptables -t mangle -D FORWARD -o br0 -p udp -m limit --limit 100/s --limit-burst 200 -j ACCEPT
+        iptables -t mangle -D FORWARD -o br0 -p udp -j DROP
 	local dlmin dlmax ulmin ulmax 
 	qdma sch_rate 0 0 0
 	qdma sch_rate 1 0 0
@@ -88,13 +91,17 @@ func_start()
 	iptables -t mangle -A FORWARD -i br0 -p tcp --dport 1:65535 -m connlimit --connlimit-above 4 --connlimit-daddr -j MARK --set-mark 9
 	iptables -t mangle -A FORWARD -o br0 -p udp -m length --length :256 -j MARK --set-mark 7
 	iptables -t mangle -A FORWARD -i br0 -p udp -m length --length :256 -j MARK --set-mark 15
+	if [ $4 -eq 1 ]; then
+	iptables -t mangle -A FORWARD -o br0 -p udp -m limit --limit 100/s --limit-burst 200  -j ACCEPT
+        iptables -t mangle -A FORWARD -o br0 -p udp -j DROP
+        fi
 	exit 0	
 }
 
 
 case "$1" in
 start)
-	func_start $2 $3 $4
+	func_start $2 $3 $4 $5
 	;;
 stop)
 	func_stop
