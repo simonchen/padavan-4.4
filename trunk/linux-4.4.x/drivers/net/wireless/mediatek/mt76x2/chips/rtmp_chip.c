@@ -512,6 +512,11 @@ int RtmpChipOpsHook(VOID *pCB)
 	}
 #endif /* RT6352 */
 
+#ifdef GREENAP_SUPPORT
+	pChipOps->EnableAPMIMOPS = EnableAPMIMOPSv1;
+	pChipOps->DisableAPMIMOPS = DisableAPMIMOPSv1;
+#endif /* GREENAP_SUPPORT */
+
 #ifdef RTMP_MAC
 	// TODO: default settings for rest of the chips!! change this to really default chip.
 	RTxx_default_Init(pAd);

@@ -32,10 +32,9 @@ INT rlt_get_rxwi_phymode(RXWI_STRUC *rxwi)
 	return rxwi->RXWI_N.phy_mode;
 }
 
-
 INT rlt_get_rxwi_rssi(RXWI_STRUC *rxwi, INT size, CHAR *rssi)
 {
-	if (size < (sizeof(rxwi->RXWI_N.rssi) / sizeof(UINT8)))
+	if (size < sizeof(rxwi->RXWI_N.rssi)/ sizeof(UINT8))
 		NdisMoveMemory(rssi, &rxwi->RXWI_N.rssi[0], size);
 
 	return 0;
@@ -55,7 +54,9 @@ INT rlt_get_rxwi_snr(RTMP_ADAPTER *pAd, RXWI_STRUC *rxwi, INT size, UCHAR *snr)
 	return 0;
 }
 
-#ifdef DBG
+
+
+
 #ifdef RLT_MAC
 VOID dumpRxFCEInfo(RTMP_ADAPTER *pAd, RXFCE_INFO *pRxFceInfo)
 {
@@ -162,7 +163,7 @@ VOID dump_rlt_txinfo(RTMP_ADAPTER *pAd, TXINFO_STRUC *pTxInfo)
 	DBGPRINT(RT_DEBUG_OFF, ("\ttso=%d\n", pkt_txinfo->tso));
 	DBGPRINT(RT_DEBUG_OFF, ("\tpkt_len=0x%x\n", pkt_txinfo->pkt_len));
 }
-#endif /* DBG */
+
 
 #ifdef RTMP_MAC_PCI
 VOID rlt_asic_init_txrx_ring(RTMP_ADAPTER *pAd)
@@ -260,23 +261,19 @@ VOID rlt_asic_init_txrx_ring(RTMP_ADAPTER *pAd)
 
 	/* Init RX Ring0 Base/Size/Index pointer CSR */
 	for (i = 0; i < NUM_OF_RX_RING; i++) {
-		RTMP_RX_RING *rx_ring;
-		UINT16 RxRingSize = (i == 0) ? RX_RING_SIZE : RX1_RING_SIZE;
-
-		rx_ring = &pAd->RxRing[i];
 		offset = i * 0x10;
-		phy_addr = RTMP_GetPhysicalAddressLow(rx_ring->Cell[0].AllocPa);
-		rx_ring->RxSwReadIdx = 0;
-		rx_ring->RxCpuIdx = RxRingSize - 1;
-		rx_ring->hw_desc_base = RX_RING_BASE + offset;
-		rx_ring->hw_cidx_addr = RX_RING_CIDX + offset;
-		rx_ring->hw_didx_addr = RX_RING_DIDX + offset;
-		rx_ring->hw_cnt_addr = RX_RING_CNT + offset;
-		RTMP_IO_WRITE32(pAd, rx_ring->hw_desc_base, phy_addr);
-		RTMP_IO_WRITE32(pAd, rx_ring->hw_cidx_addr, rx_ring->RxCpuIdx);
-		RTMP_IO_WRITE32(pAd, rx_ring->hw_cnt_addr, RxRingSize);
+		phy_addr = RTMP_GetPhysicalAddressLow(pAd->RxRing[i].Cell[0].AllocPa);
+		pAd->RxRing[i].RxSwReadIdx = 0;
+		pAd->RxRing[i].RxCpuIdx = RX_RING_SIZE - 1;
+		pAd->RxRing[i].hw_desc_base = RX_RING_BASE + offset;
+		pAd->RxRing[i].hw_cidx_addr = RX_RING_CIDX + offset;
+		pAd->RxRing[i].hw_didx_addr = RX_RING_DIDX + offset;
+		pAd->RxRing[i].hw_cnt_addr = RX_RING_CNT + offset;
+		RTMP_IO_WRITE32(pAd, pAd->RxRing[i].hw_desc_base, phy_addr);
+		RTMP_IO_WRITE32(pAd, pAd->RxRing[i].hw_cidx_addr, pAd->RxRing[i].RxCpuIdx);
+		RTMP_IO_WRITE32(pAd, pAd->RxRing[i].hw_cnt_addr, RX_RING_SIZE);
 		DBGPRINT(RT_DEBUG_TRACE, ("-->RX_RING%d[0x%x]: Base=0x%x, Cnt=%d\n",
-					i, rx_ring->hw_desc_base, phy_addr, RxRingSize));
+					i, pAd->RxRing[i].hw_desc_base, phy_addr, RX_RING_SIZE));
 	}
 
 	/* Set DMA global configuration except TX_DMA_EN and RX_DMA_EN bits */
@@ -334,6 +331,8 @@ INT rlt_wlan_chip_onoff(RTMP_ADAPTER *pAd, BOOLEAN bOn, BOOLEAN bResetWLAN)
 {
 	UINT32 reg = 0;
 
+#ifdef RTMP_FLASH_SUPPORT
+#endif /* RTMP_FLASH_SUPPORT */
 
 #ifdef RTMP_PCI_SUPPORT
 	if (IS_PCI_INF(pAd))

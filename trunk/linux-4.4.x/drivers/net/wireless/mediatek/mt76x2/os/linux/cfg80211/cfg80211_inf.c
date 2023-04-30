@@ -78,85 +78,12 @@ BOOLEAN CFG80211DRV_OpsChgVirtualInf(RTMP_ADAPTER *pAd, VOID *pData)
 	}
 #endif /* RT_CFG80211_P2P_SINGLE_DEVICE */
 
-#ifdef CONFIG_STA_SUPPORT	
-	/* Change Device Type */
-	if (newType == RT_CMD_80211_IFTYPE_ADHOC)
-	{
-		Set_NetworkType_Proc(pAd, "Adhoc");
-	}	
-	else if ((newType == RT_CMD_80211_IFTYPE_STATION) ||
-		     (newType == RT_CMD_80211_IFTYPE_P2P_CLIENT))
-	{
-		CFG80211DBG(RT_DEBUG_TRACE, ("80211> Change the Interface to STA Mode\n"));
-
-#ifdef CONFIG_AP_SUPPORT
-		if (pAd->cfg80211_ctrl.isCfgInApMode == RT_CMD_80211_IFTYPE_AP && RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_START_UP))
-			CFG80211DRV_DisableApInterface(pAd);
-#endif /* CONFIG_AP_SUPPORT */
-			
-		pAd->cfg80211_ctrl.isCfgInApMode = RT_CMD_80211_IFTYPE_STATION;
-	}
-	else
-#endif /*CONFIG_STA_SUPPORT*/		
 		if ((newType == RT_CMD_80211_IFTYPE_AP) ||
 		     (newType == RT_CMD_80211_IFTYPE_P2P_GO))
 	{
 		CFG80211DBG(RT_DEBUG_TRACE, ("80211> Change the Interface to AP Mode\n"));		
 		pAd->cfg80211_ctrl.isCfgInApMode = RT_CMD_80211_IFTYPE_AP;
 	}	
-#ifdef CONFIG_STA_SUPPORT			
-	else if (newType == RT_CMD_80211_IFTYPE_MONITOR)
-	{
-		/* set packet filter */
-		Set_NetworkType_Proc(pAd, "Monitor");
-
-		if (pVifParm->MonFilterFlag != 0)
-		{
-			UINT32 Filter;
-
-			RTMP_IO_READ32(pAd, RX_FILTR_CFG, &Filter);
-
-			if ((pVifParm->MonFilterFlag & RT_CMD_80211_FILTER_FCSFAIL) == RT_CMD_80211_FILTER_FCSFAIL)
-			{
-				Filter = Filter & (~0x01);
-			}
-			else
-			{
-				Filter = Filter | 0x01;
-			}
-	
-			if ((pVifParm->MonFilterFlag & RT_CMD_80211_FILTER_PLCPFAIL) == RT_CMD_80211_FILTER_PLCPFAIL)
-			{
-				Filter = Filter & (~0x02);
-			}
-			else
-			{
-				Filter = Filter | 0x02;
-			}	
-	
-			if ((pVifParm->MonFilterFlag & RT_CMD_80211_FILTER_CONTROL) == RT_CMD_80211_FILTER_CONTROL)
-			{
-				Filter = Filter & (~0xFF00);
-			}
-			else
-			{
-				Filter = Filter | 0xFF00;
-			}	
-	
-			if ((pVifParm->MonFilterFlag & RT_CMD_80211_FILTER_OTHER_BSS) == RT_CMD_80211_FILTER_OTHER_BSS)
-			{
-				Filter = Filter & (~0x08);
-			}
-			else
-			{
-				Filter = Filter | 0x08;
-			}
-
-			RTMP_IO_WRITE32(pAd, RX_FILTR_CFG, Filter);
-			pVifParm->MonFilterFlag = Filter;
-		} 
-	} 
-#endif /*CONFIG_STA_SUPPORT*/
 
 	if ((newType == RT_CMD_80211_IFTYPE_P2P_CLIENT) ||
 	   (newType == RT_CMD_80211_IFTYPE_P2P_GO))
@@ -415,6 +342,9 @@ static INT CFG80211_VirtualIF_Open(PNET_DEV dev_p)
 
 	/* increase MODULE use count */
 	RT_MOD_INC_USE_COUNT();
+#ifdef CONFIG_RA_HW_NAT_WIFI_NEW_ARCH
+	RT_MOD_HNAT_REG(dev_p);
+#endif
 
 #ifdef RT_CFG80211_P2P_SUPPORT
 	if (dev_p->ieee80211_ptr->iftype == RT_CMD_80211_IFTYPE_P2P_CLIENT)
@@ -455,6 +385,9 @@ static INT CFG80211_VirtualIF_Close(PNET_DEV dev_p)
 	{
 		DBGPRINT(RT_DEBUG_TRACE, ("CFG80211_VirtualIF_Close\n"));
 		CFG80211OS_ScanEnd(pAd->pCfg80211_CB, TRUE);
+#ifdef CONFIG_RA_HW_NAT_WIFI_NEW_ARCH
+		RT_MOD_HNAT_DEREG(dev_p);
+#endif
 		RT_MOD_DEC_USE_COUNT();
 		return ApCli_Close(pAd, dev_p);
 	}
@@ -474,18 +407,14 @@ static INT CFG80211_VirtualIF_Close(PNET_DEV dev_p)
 	
 	if (netif_carrier_ok(dev_p))
 		netif_carrier_off(dev_p);
-#ifdef CONFIG_STA_SUPPORT
-	if (INFRA_ON(pAd))
-		AsicEnableBssSync(pAd);
-
-	else if (ADHOC_ON(pAd))
-		AsicEnableIbssSync(pAd);
-#else
 	else
 		AsicDisableSync(pAd);
-#endif
 
 	//VIRTUAL_IF_DOWN(pAd);
+	
+#ifdef CONFIG_RA_HW_NAT_WIFI_NEW_ARCH
+	RT_MOD_HNAT_DEREG(dev_p);
+#endif
 
 	RT_MOD_DEC_USE_COUNT();
 	return 0;
@@ -804,13 +733,6 @@ static INT CFG80211_DummyP2pIf_Open(
 			
 	wdev->wiphy->interface_modes |= (BIT(NL80211_IFTYPE_P2P_CLIENT)
 				     | BIT(NL80211_IFTYPE_P2P_GO));		
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0))
-        wdev->wiphy->interface_modes |=  BIT(RT_CMD_80211_IFTYPE_P2P_DEVICE);
-#ifndef RT_CFG80211_P2P_STATIC_CONCURRENT_DEVICE
-	wdev->iftype = RT_CMD_80211_IFTYPE_P2P_CLIENT;
-#endif /* RT_CFG80211_P2P_STATIC_CONCURRENT_DEVICE */	
-#endif /* LINUX_VERSION_CODE: 3.7.0 */
 	return 0;
 }
 
@@ -823,12 +745,8 @@ static INT CFG80211_DummyP2pIf_Close(
 			return -EINVAL;
 
 	wdev->wiphy->interface_modes = (wdev->wiphy->interface_modes)
-					& (~(BIT(NL80211_IFTYPE_P2P_CLIENT)
-					| BIT(NL80211_IFTYPE_P2P_GO)
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0))
-					| BIT(RT_CMD_80211_IFTYPE_P2P_DEVICE)
-#endif /* LINUX_VERSION_CODE: 3.7.0 */
-				       ));
+									& (~(BIT(NL80211_IFTYPE_P2P_CLIENT)|
+									BIT(NL80211_IFTYPE_P2P_GO)));
 	return 0;
 }
 
@@ -951,13 +869,7 @@ VOID RTMP_CFG80211_DummyP2pIf_Init(
 	pWdev->wiphy = p80211CB->pCfg80211_Wdev->wiphy;
 	SET_NETDEV_DEV(new_dev_p, wiphy_dev(pWdev->wiphy));	
 	pWdev->netdev = new_dev_p;
-	//pWdev->iftype = RT_CMD_80211_IFTYPE_STATION;	
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0))
-	pWdev->iftype = RT_CMD_80211_IFTYPE_P2P_DEVICE;	
-#else
-	pWdev->iftype = RT_CMD_80211_IFTYPE_P2P_CLIENT;
-#endif /* LINUX_VERSION_CODE: 3.7.0 */
-		/* interface_modes move from IF open to init */
+	pWdev->iftype = RT_CMD_80211_IFTYPE_STATION;	
 	
 	RtmpOSNetDevAttach(pAd->OpMode, new_dev_p, pNetDevOps); 
 	cfg80211_ctrl->dummy_p2p_net_dev = new_dev_p;

@@ -129,6 +129,10 @@ VOID APMlmePeriodicExec(
 		take care all of the client's situation
 		ToDo: need to verify compatibility issue with WiFi product.
 	*/
+#ifdef MWDS
+		UCHAR mbss_idx;
+#endif	
+	
 
 #ifdef CUSTOMER_DCC_FEATURE
 	if(pAd->AllowedStaList.StaCount > 0)
@@ -193,9 +197,22 @@ VOID APMlmePeriodicExec(
     /* MAC table maintenance */
 	if (pAd->Mlme.PeriodicRound % MLME_TASK_EXEC_MULTIPLE == 0)
 	{
+#ifdef BAND_STEERING
+		if(pAd->ApCfg.BandSteering){
+			UINT32 ChBusyTime = 0;
+			RTMP_IO_READ32(pAd, CH_BUSY_STA, &ChBusyTime);
+			pAd->ApCfg.BndStrgOneSecChBusyTime = (pAd->ApCfg.BndStrgOneSecChBusyTime == 0)? \
+						ChBusyTime : ((ChBusyTime + pAd->ApCfg.BndStrgOneSecChBusyTime)>>1);
+		}		
+#endif
 		/* one second timer */
 	    MacTableMaintenance(pAd);
-
+#ifdef WH_EZ_SETUP
+#ifdef NEW_CONNECTION_ALGO
+	if (IS_ADPTR_EZ_SETUP_ENABLED(pAd))
+		EzMlmeEnqueue(pAd, EZ_STATE_MACHINE, EZ_PERIODIC_EXEC_REQ, 0, NULL, 0);
+#endif
+#endif
 #ifdef CONFIG_FPGA_MODE
 	if (pAd->fpga_ctl.fpga_tr_stop)
 	{
@@ -232,9 +249,9 @@ VOID APMlmePeriodicExec(
 #ifdef CLIENT_WDS
 	CliWds_ProxyTabMaintain(pAd);
 #endif /* CLIENT_WDS */
-
 #ifdef MWDS
-		MWDSProxyTabMaintain(pAd);
+	for(mbss_idx = 0; mbss_idx < pAd->ApCfg.BssidNum; mbss_idx++)
+		MWDSProxyTabMaintain(pAd, mbss_idx);
 #endif /* MWDS */
 	}
 	
@@ -312,7 +329,7 @@ VOID APMlmePeriodicExec(
 							{
 									Ac1Cfg.field.Aifsn = 0x1;
 									RTMP_IO_WRITE32(pAd, EDCA_AC1_CFG, Ac1Cfg.word);
-									DBGPRINT(RT_DEBUG_TRACE, ("Change EDCA_AC1_CFG to %x \n", Ac1Cfg.word));
+									printk("Change EDCA_AC1_CFG to %x \n", Ac1Cfg.word);
 							}
 						}
 						else if ((pAd->RalinkCounters.OneSecOsTxCount[QID_AC_VO] == 0) &&
@@ -325,7 +342,7 @@ VOID APMlmePeriodicExec(
 							{
 								Ac1Cfg.field.Aifsn = 0x7;
 								RTMP_IO_WRITE32(pAd, EDCA_AC1_CFG, Ac1Cfg.word);
-								DBGPRINT(RT_DEBUG_TRACE, ("Restore EDCA_AC1_CFG to %x \n", Ac1Cfg.word));
+								printk("Restore EDCA_AC1_CFG to %x \n", Ac1Cfg.word);
 							}
 						}       
 
@@ -425,6 +442,10 @@ VOID APMlmePeriodicExec(
 #endif /* DOT11N_DRAFT3 */
 #endif /* DOT11_N_SUPPORT */
 #endif /* APCLI_SUPPORT */
+#ifdef BAND_STEERING
+	BndStrgHeartBeatMonitor(pAd);
+#endif
+
 }
 
 

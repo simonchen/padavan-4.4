@@ -45,13 +45,14 @@
 
 #define RTMP_MODULE_OS
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0))
+#include <linux/random.h>
+#endif
 #include "rtmp_comm.h"
 #include "rt_os_util.h"
 #include "rt_os_net.h"
 #include "rt_config.h"
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0))
-#include <linux/random.h>
-#endif
+
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,28))
 #ifdef RT_CFG80211_SUPPORT
@@ -201,73 +202,6 @@ static INT32 CFG80211_RegNotifier(
 		}															\
 	}
 
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0))
-static int CFG80211_OpsMonitorChannelSet(struct wiphy *pWiphy,
-					 struct cfg80211_chan_def *chandef)
-{
-	VOID *pAd;
-	CFG80211_CB *p80211CB;
-	CMD_RTPRIV_IOCTL_80211_CHAN ChanInfo;
-	UINT32 ChanId;
-
-	struct device *pDev = pWiphy->dev.parent;
-	struct net_device *pNetDev = dev_get_drvdata(pDev);
-	struct ieee80211_channel		*pChan;
-
-	CFG80211DBG(RT_DEBUG_TRACE, ("80211> %s ==>\n", __FUNCTION__));
-	//return 0;
-	MAC80211_PAD_GET(pAd, pWiphy);
-	pChan=chandef->chan;
-	
-
-	
-	    printk("control:%d MHz width:%d center: %d/%d MHz",
-	     pChan->center_freq, chandef->width,
-	     chandef->center_freq1, chandef->center_freq2);
-	
-
-	/* get channel number */
-	ChanId = ieee80211_frequency_to_channel(pChan->center_freq);
-	CFG80211DBG(RT_DEBUG_TRACE, ("80211> Channel = %d\n", ChanId));
-	CFG80211DBG(RT_DEBUG_TRACE, ("80211> ChannelType = %d\n", chandef->width));
-
-	/* init */
-	memset(&ChanInfo, 0, sizeof(ChanInfo));
-	ChanInfo.ChanId = ChanId;
-
-	p80211CB = NULL;
-	RTMP_DRIVER_80211_CB_GET(pAd, &p80211CB);
-
-	if (p80211CB == NULL)
-	{
-		CFG80211DBG(RT_DEBUG_TRACE, ("80211> p80211CB == NULL!\n"));
-		return 0;
-	} 
-
-	ChanInfo.IfType = pNetDev->ieee80211_ptr->iftype;
-
-	CFG80211DBG(RT_DEBUG_TRACE, ("80211> ChanInfo.IfType == %d!\n",ChanInfo.IfType));
-
-	if (cfg80211_get_chandef_type(chandef) == NL80211_CHAN_NO_HT)
-		ChanInfo.ChanType = RT_CMD_80211_CHANTYPE_NOHT;
-	else if (cfg80211_get_chandef_type(chandef) == NL80211_CHAN_HT20)
-		ChanInfo.ChanType = RT_CMD_80211_CHANTYPE_HT20;
-	else if (cfg80211_get_chandef_type(chandef) == NL80211_CHAN_HT40MINUS)
-		ChanInfo.ChanType = RT_CMD_80211_CHANTYPE_HT40MINUS;
-	else if (cfg80211_get_chandef_type(chandef) == NL80211_CHAN_HT40PLUS)
-		ChanInfo.ChanType = RT_CMD_80211_CHANTYPE_HT40PLUS;
-
-	ChanInfo.MonFilterFlag = p80211CB->MonFilterFlag;
-
-	/* set channel */
-	RTMP_DRIVER_80211_CHAN_SET(pAd, &ChanInfo);
-
-	return 0;
-} /* End of CFG80211_OpsChannelSet */
-#endif
-
-
 /*
 ========================================================================
 Routine Description:
@@ -399,17 +333,6 @@ static int CFG80211_OpsVirtualInfChg(
 	MAC80211_PAD_GET(pAd, pWiphy);
 
 	/* sanity check */
-#ifdef CONFIG_STA_SUPPORT
-	if ((Type != NL80211_IFTYPE_ADHOC) &&
-		(Type != NL80211_IFTYPE_STATION) &&
-		(Type != NL80211_IFTYPE_MONITOR) &&
-		(Type != NL80211_IFTYPE_AP) 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
-	    && (Type != NL80211_IFTYPE_P2P_CLIENT) 
-	    && (Type != NL80211_IFTYPE_P2P_GO)
-#endif /* LINUX_VERSION_CODE 2.6.37 */
-	)
-#endif /* CONFIG_STA_SUPPORT */
 	{
 		DBGPRINT(RT_DEBUG_ERROR, ("80211> Wrong interface type %d!\n", Type));
 		return -EINVAL;
@@ -535,254 +458,12 @@ static int CFG80211_OpsScan(
 	IN struct cfg80211_scan_request *pRequest)
 #endif /* LINUX_VERSION_CODE: 3.6.0 */
 {
-#ifdef CONFIG_STA_SUPPORT
-	VOID *pAd;
-	CFG80211_CB *pCfg80211_CB;
-	
-	struct iw_scan_req IwReq;
-	union iwreq_data Wreq;
-	
-	MAC80211_PAD_GET(pAd, pWiphy);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0))
-        struct net_device *pNdev = NULL;
-	RTMP_DRIVER_NET_DEV_GET(pAd, &pNdev);
-#endif /* LINUX_VERSION_CODE: 3.6.0 */
-
-	CFG80211DBG(RT_DEBUG_TRACE, ("========================================================================\n"));
-	CFG80211DBG(RT_DEBUG_TRACE, ("80211> %s ==> %s(%d)\n", __FUNCTION__, pNdev->name, pNdev->ieee80211_ptr->iftype));
-
-	
-	/* YF_TODO: record the scan_req per netdevice */
-	RTMP_DRIVER_80211_CB_GET(pAd, &pCfg80211_CB);
-	pCfg80211_CB->pCfg80211_ScanReq = pRequest; /* used in scan end */
-
-	if (pNdev->ieee80211_ptr->iftype == NL80211_IFTYPE_AP)
-	{
-			CFG80211OS_ScanEnd(pCfg80211_CB, TRUE);
-			return 0;
-	}		
-	/* sanity check */
-	if ((pNdev->ieee80211_ptr->iftype != NL80211_IFTYPE_STATION) &&
-		(pNdev->ieee80211_ptr->iftype != NL80211_IFTYPE_AP) &&		
-	    (pNdev->ieee80211_ptr->iftype != NL80211_IFTYPE_ADHOC) 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
-	   && (pNdev->ieee80211_ptr->iftype != NL80211_IFTYPE_P2P_CLIENT)
-#endif
-	)
-	{
-		CFG80211DBG(RT_DEBUG_ERROR, ("80211> DeviceType Not Support Scan ==> %d\n", pNdev->ieee80211_ptr->iftype));
-		CFG80211OS_ScanEnd(pCfg80211_CB, TRUE);
-		return -EOPNOTSUPP;
-	} 
-	
-	/* Driver Internal SCAN SM Check */	
-	if (RTMP_DRIVER_IOCTL_SANITY_CHECK(pAd, NULL) != NDIS_STATUS_SUCCESS)
-	{
-		DBGPRINT(RT_DEBUG_ERROR, ("80211> Network is down!\n"));
-		CFG80211OS_ScanEnd(pCfg80211_CB, TRUE);
-		return -ENETDOWN;
-	} 
-
-	if (RTMP_DRIVER_80211_SCAN(pAd, pNdev->ieee80211_ptr->iftype) != NDIS_STATUS_SUCCESS)
-	{
-		CFG80211DBG(RT_DEBUG_ERROR, ("\n\n\n\n\n80211> BUSY - SCANING \n\n\n\n\n"));
-		CFG80211OS_ScanEnd(pCfg80211_CB, TRUE);
-		return 0;
-	}
-
-
-	if (pRequest->ie_len != 0 ) 
-	{
-		DBGPRINT(RT_DEBUG_TRACE, ("80211> ExtraIEs Not Null in ProbeRequest from upper layer...\n"));
-		/* YF@20120321: Using Cfg80211_CB carry on pAd struct to overwirte the pWpsProbeReqIe. */
-		RTMP_DRIVER_80211_SCAN_EXTRA_IE_SET(pAd);		
-	}
-	else
-	{
-		DBGPRINT(RT_DEBUG_TRACE, ("80211> ExtraIEs Null in ProbeRequest from upper layer...\n"));
-	}
-
-	memset(&Wreq, 0, sizeof(Wreq));
-	memset(&IwReq, 0, sizeof(IwReq));
-
-	DBGPRINT(RT_DEBUG_INFO, ("80211> Num %d of SSID & ssidLen %d from upper layer...\n",  
-		pRequest->n_ssids, pRequest->ssids->ssid_len));
-
-	/* %NULL or zero-length SSID is used to indicate wildcard */
-	if ((pRequest->n_ssids == 1) && (pRequest->ssids->ssid_len ==0))
-	{	
-		DBGPRINT(RT_DEBUG_TRACE, ("80211> Wildcard SSID In ProbeRequest.\n"));
-		Wreq.data.flags |= IW_SCAN_ALL_ESSID;
-	} 
-	else
-	{
-		DBGPRINT(RT_DEBUG_TRACE, ("80211> Named SSID [%s] In ProbeRequest.\n",  pRequest->ssids->ssid));
-		Wreq.data.flags |= IW_SCAN_THIS_ESSID;
-		
-		/* Fix kernel crash when ssid is null instead of wildcard ssid */
-		if (pRequest->ssids->ssid == NULL) 
-		{
-			DBGPRINT(RT_DEBUG_TRACE, ("80211> Scanning failed!!!\n"));
-			CFG80211OS_ScanEnd(pCfg80211_CB, TRUE);
-			return -1;
-		}
-	}
-
-	/* Set Channel List for this Scan Action */	
-	DBGPRINT(RT_DEBUG_INFO, ("80211> [%d] Channels In ProbeRequest.\n",  pRequest->n_channels)); 
-	if ( pRequest->n_channels > 0 ) 
-	{
-		UINT32 *pChanList;
-		UINT idx;
-		os_alloc_mem(NULL, (UCHAR **)&pChanList, sizeof(UINT32 *) * pRequest->n_channels);
-        if (pChanList == NULL)
-        {
-        	DBGPRINT(RT_DEBUG_ERROR, ("%s::Alloc memory fail\n", __FUNCTION__));
-            return FALSE;
-        }
-
-		for(idx=0; idx < pRequest->n_channels; idx++) 
-		{			
-			pChanList[idx] = ieee80211_frequency_to_channel(pRequest->channels[idx]->center_freq);
-			CFG80211DBG(RT_DEBUG_INFO, ("%d,", pChanList[idx]));
-		}
-		CFG80211DBG(RT_DEBUG_INFO, ("\n"));
-
-		RTMP_DRIVER_80211_SCAN_CHANNEL_LIST_SET(pAd, pChanList, pRequest->n_channels);
-
-		if (pChanList)
-			os_free_mem(NULL, pChanList);	
-	}
-	
-	/* use 1st SSID in the requested SSID list */
-	IwReq.essid_len = pRequest->ssids->ssid_len;
-	memcpy(IwReq.essid, pRequest->ssids->ssid, sizeof(IwReq.essid));	
-	Wreq.data.length = sizeof(struct iw_scan_req);
-	
-	rt_ioctl_siwscan(pNdev, NULL, &Wreq, (char *)&IwReq);
-	return 0;
-
-#else 
 	return -EOPNOTSUPP;
-#endif /* CONFIG_STA_SUPPORT */
 } 
 #endif /* LINUX_VERSION_CODE */
 
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31))
-#ifdef CONFIG_STA_SUPPORT
-/*
-========================================================================
-Routine Description:
-	Join the specified IBSS (or create if necessary). Once done, call
-	cfg80211_ibss_joined(), also call that function when changing BSSID due
-	to a merge.
-
-Arguments:
-	pWiphy			- Wireless hardware description
-	pNdev			- Network device interface
-	pParams			- IBSS parameters
-
-Return Value:
-	0				- success
-	-x				- fail
-
-Note:
-	For iw utility: ibss join
-
-	No fixed-freq and fixed-bssid support.
-========================================================================
-*/
-static int CFG80211_OpsIbssJoin(
-	IN struct wiphy					*pWiphy,
-	IN struct net_device			*pNdev,
-	IN struct cfg80211_ibss_params	*pParams)
-{
-	VOID *pAd;
-	UCHAR *beacon_buf = NULL;
-	CMD_RTPRIV_IOCTL_80211_IBSS IbssInfo;
-	UINT channel = 0;
-
-	CFG80211DBG(RT_DEBUG_TRACE, ("80211> %s ==>\n", __FUNCTION__));
-	MAC80211_PAD_GET(pAd, pWiphy);
-
-	/* init */
-	memset(&IbssInfo, 0, sizeof(IbssInfo));
-	IbssInfo.BeaconInterval = pParams->beacon_interval;
-	memcpy(&IbssInfo.Ssid, pParams->ssid, pParams->ssid_len);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0))
-	channel = pParams->chandef.chan->center_freq;
-#else
-	channel = pParams->channel->center_freq;
-#endif /* LINUX_VERSION_CODE 3.8.0 */ 	
-	CFG80211DBG(RT_DEBUG_OFF, ("80211> SSID = %s, BI = %d, CH = %d, CH_FIX = %d, Privacy = %d\n",
-                                IbssInfo.Ssid, pParams->beacon_interval, 
-				channel, pParams->channel_fixed, pParams->privacy));
-
-	if (pParams->ie && (pParams->ie_len > 0))
-	{
-		hex_dump("ADHOC_IE", pParams->ie , pParams->ie_len);
-		IbssInfo.BeaconExtraIeLen = pParams->ie_len;
-
-		os_alloc_mem(NULL, &beacon_buf, pParams->ie_len);
-		NdisCopyMemory(beacon_buf, pParams->ie, pParams->ie_len);
-		IbssInfo.BeaconExtraIe = beacon_buf;
-	}
-
-	if (pParams->privacy)
-	{
-		IbssInfo.privacy = pParams->privacy;
-	}
-
-	if (pParams->bssid)
-	{
-		CFG80211DBG(RT_DEBUG_OFF, ("Join this BSSID: %02X:%02X:%02X:%02X:%02X:%02X\n",
-                                PRINT_MAC(pParams->bssid)));
-	}
-	else
-	{
-		CFG80211DBG(RT_DEBUG_OFF, ("Can't find any AdHoc, create IBSS\n"));
-
-	}
-	/* ibss join */
-	RTMP_DRIVER_80211_IBSS_JOIN(pAd, &IbssInfo);
-
-	return 0;
-} 
-
-
-/*
-========================================================================
-Routine Description:
-	Leave the IBSS.
-
-Arguments:
-	pWiphy			- Wireless hardware description
-	pNdev			- Network device interface
-
-Return Value:
-	0				- success
-	-x				- fail
-
-Note:
-	For iw utility: ibss leave
-========================================================================
-*/
-static int CFG80211_OpsIbssLeave(
-	IN struct wiphy					*pWiphy,
-	IN struct net_device			*pNdev)
-{
-	VOID *pAd;
-
-
-	CFG80211DBG(RT_DEBUG_TRACE, ("80211> %s ==>\n", __FUNCTION__));
-	MAC80211_PAD_GET(pAd, pWiphy);
-
-	//CFG_TODO
-	RTMP_DRIVER_80211_STA_LEAVE(pAd, pNdev->ieee80211_ptr->iftype);
-	return 0;
-}
-#endif /* CONFIG_STA_SUPPORT */
 #endif /* LINUX_VERSION_CODE */
 
 
@@ -809,12 +490,8 @@ Note:
 	 @NL80211_TX_POWER_FIXED: fix TX power to the mBm parameter
 ========================================================================
 */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,8,0))
 static int CFG80211_OpsTxPwrSet(
 	IN struct wiphy						*pWiphy,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0))
-	IN struct wireless_dev *wdev,
-#endif
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,36))	
 	IN enum nl80211_tx_power_setting	Type,
 #else
@@ -846,16 +523,11 @@ Note:
 */
 static int CFG80211_OpsTxPwrGet(
 	IN struct wiphy						*pWiphy,
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0))
-	IN struct wireless_dev *wdev,
-#endif
 	IN int								*pdBm)
 {
 	CFG80211DBG(RT_DEBUG_TRACE, ("80211> %s ==>\n", __FUNCTION__));
 	return -EOPNOTSUPP;
 } /* End of CFG80211_OpsTxPwrGet */
-
-#endif
 
 
 /*
@@ -1003,12 +675,6 @@ static int CFG80211_OpsStaDump(
 	CFG80211DBG(RT_DEBUG_TRACE, ("80211> %s ==>\n", __FUNCTION__));
 	MAC80211_PAD_GET(pAd, pWiphy);
 
-#ifdef CONFIG_STA_SUPPORT
-	if (RTMP_DRIVER_AP_SSID_GET(pAd, pMac) != NDIS_STATUS_SUCCESS)
-		return -EBUSY;
-	else
-		return CFG80211_OpsStaGet(pWiphy, pNdev, pMac, pSinfo);
-#endif /* CONFIG_STA_SUPPORT */
 
 	return -EOPNOTSUPP;
 } /* End of CFG80211_OpsStaDump */
@@ -1182,10 +848,6 @@ static int CFG80211_OpsKeyAdd(
 	else
 #endif /* RT_CFG80211_P2P_CONCURRENT_DEVICE */		
 	{
-#ifdef CONFIG_STA_SUPPORT	
-		CFG80211DBG(RT_DEBUG_TRACE, ("80211> STA Key Add\n"));
-		RTMP_DRIVER_80211_STA_KEY_ADD(pAd, &KeyInfo);
-#endif		
 	}
 	
 #ifdef RT_P2P_SPECIFIC_WIRELESS_EVENT
@@ -1488,158 +1150,6 @@ static int CFG80211_OpsConnect(
 	IN struct net_device				*pNdev,
 	IN struct cfg80211_connect_params	*pSme)
 {
-#ifdef CONFIG_STA_SUPPORT
-	VOID *pAd;
-	CMD_RTPRIV_IOCTL_80211_CONNECT ConnInfo;
-	struct ieee80211_channel *pChannel = pSme->channel;
-	INT32 Pairwise = 0;
-	INT32 Groupwise = 0;
-	INT32 Keymgmt = 0;
-	INT32 WpaVersion = 0;
-	INT32 Chan = -1, Idx;
-
-	CFG80211DBG(RT_DEBUG_TRACE, ("80211> %s ==>\n", __FUNCTION__));
-
-	MAC80211_PAD_GET(pAd, pWiphy);
-
-	if (pChannel != NULL)
-		Chan = ieee80211_frequency_to_channel(pChannel->center_freq);
-
-	CFG80211DBG(RT_DEBUG_TRACE, ("Groupwise: %x\n", pSme->crypto.cipher_group));
-	Groupwise = pSme->crypto.cipher_group;
-	//for(Idx=0; Idx<pSme->crypto.n_ciphers_pairwise; Idx++)
-	Pairwise |= pSme->crypto.ciphers_pairwise[0];
-
-	CFG80211DBG(RT_DEBUG_TRACE, ("Pairwise %x\n", pSme->crypto.ciphers_pairwise[0]));
-	
-	for(Idx=0; Idx<pSme->crypto.n_akm_suites; Idx++)
-		Keymgmt |= pSme->crypto.akm_suites[Idx];
-
-	WpaVersion = pSme->crypto.wpa_versions;
-	CFG80211DBG(RT_DEBUG_TRACE, ("Wpa_versions %x\n", WpaVersion));
-
-	memset(&ConnInfo, 0, sizeof(ConnInfo));
-	ConnInfo.WpaVer = 0;
-
-	if (WpaVersion & NL80211_WPA_VERSION_1) {
-		ConnInfo.WpaVer = 1;
-	}
-	
-	if (WpaVersion & NL80211_WPA_VERSION_2) {
-		ConnInfo.WpaVer = 2;
-	}
-
-	CFG80211DBG(RT_DEBUG_TRACE, ("Keymgmt %x\n", Keymgmt));
-	if (Keymgmt ==  WLAN_AKM_SUITE_8021X)
-		ConnInfo.FlgIs8021x = TRUE;
-	else
-		ConnInfo.FlgIs8021x = FALSE;
-	
-	CFG80211DBG(RT_DEBUG_TRACE, ("Auth_type %x\n", pSme->auth_type));	
-	if (pSme->auth_type == NL80211_AUTHTYPE_SHARED_KEY)
-		ConnInfo.AuthType = Ndis802_11AuthModeShared;
-	else if (pSme->auth_type == NL80211_AUTHTYPE_OPEN_SYSTEM)
-		ConnInfo.AuthType = Ndis802_11AuthModeOpen;
-	else
-		ConnInfo.AuthType = Ndis802_11AuthModeAutoSwitch;
-
-	if (Pairwise == WLAN_CIPHER_SUITE_CCMP) 
-	{
-		CFG80211DBG(RT_DEBUG_TRACE, ("WLAN_CIPHER_SUITE_CCMP...\n"));
-		ConnInfo.PairwiseEncrypType |= RT_CMD_80211_CONN_ENCRYPT_CCMP;
-	}
-	else if (Pairwise == WLAN_CIPHER_SUITE_TKIP) 
-	{
-		CFG80211DBG(RT_DEBUG_TRACE, ("WLAN_CIPHER_SUITE_TKIP...\n"));
-		ConnInfo.PairwiseEncrypType |= RT_CMD_80211_CONN_ENCRYPT_TKIP;
-	}
-	else if ((Pairwise == WLAN_CIPHER_SUITE_WEP40) ||
-			(Pairwise & WLAN_CIPHER_SUITE_WEP104)) 	
-	{
-		CFG80211DBG(RT_DEBUG_TRACE, ("WLAN_CIPHER_SUITE_WEP...\n"));
-		ConnInfo.PairwiseEncrypType |= RT_CMD_80211_CONN_ENCRYPT_WEP;
-	}
-	else 
-	{
-		CFG80211DBG(RT_DEBUG_TRACE, ("NONE...\n"));
-		ConnInfo.PairwiseEncrypType |= RT_CMD_80211_CONN_ENCRYPT_NONE;
-	}
-
-	if (Groupwise == WLAN_CIPHER_SUITE_CCMP) 
-	{
-		ConnInfo.GroupwiseEncrypType |= RT_CMD_80211_CONN_ENCRYPT_CCMP;
-	}
-	else if (Groupwise == WLAN_CIPHER_SUITE_TKIP) 
-	{
-		ConnInfo.GroupwiseEncrypType |= RT_CMD_80211_CONN_ENCRYPT_TKIP;
-	}
-	else 
-	{
-		ConnInfo.GroupwiseEncrypType |= RT_CMD_80211_CONN_ENCRYPT_NONE;
-	}
-
-	CFG80211DBG(RT_DEBUG_TRACE, ("ConnInfo.KeyLen ===> %d\n", pSme->key_len));
-	CFG80211DBG(RT_DEBUG_TRACE, ("ConnInfo.KeyIdx ===> %d\n", pSme->key_idx));
-
-	ConnInfo.pKey = (UINT8 *)(pSme->key);
-	ConnInfo.KeyLen = pSme->key_len;
-	ConnInfo.pSsid = pSme->ssid;
-	ConnInfo.SsidLen = pSme->ssid_len;
-	ConnInfo.KeyIdx = pSme->key_idx;
-	/* YF@20120328: Reset to default */
-	ConnInfo.bWpsConnection= FALSE;
-
-	//hex_dump("AssocInfo:", pSme->ie, pSme->ie_len);
-
-	/* YF@20120328: Use SIOCSIWGENIE to make out the WPA/WPS IEs in AssocReq. */
-#ifdef RT_CFG80211_P2P_CONCURRENT_DEVICE
-	if(pNdev->ieee80211_ptr->iftype == NL80211_IFTYPE_P2P_CLIENT)
-	{
-		if (pSme->ie_len > 0)
-			RTMP_DRIVER_80211_P2PCLI_ASSSOC_IE_SET(pAd, pSme->ie, pSme->ie_len);
-		else
-			RTMP_DRIVER_80211_P2PCLI_ASSSOC_IE_SET(pAd, NULL, 0);
-	}
-	else
-#endif /* RT_CFG80211_P2P_CONCURRENT_DEVICE */			
-	{
-		if (pSme->ie_len > 0)
-			RTMP_DRIVER_80211_GEN_IE_SET(pAd, pSme->ie, pSme->ie_len);
-		else
-			RTMP_DRIVER_80211_GEN_IE_SET(pAd, NULL, 0);
-	}
-
-#ifdef DOT11W_PMF_SUPPORT
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0))
-	CFG80211DBG(RT_DEBUG_OFF, ("80211> PMF Connect %d\n", pSme->mfp));
-	if (pSme->mfp)
-	{
-		ConnInfo.mfp = TRUE;
-	}
-	else
-	{
-		ConnInfo.mfp = FALSE;		
-	}
-#endif /* LINUX_VERSION_CODE */
-#endif /* DOT11W_PMF_SUPPORT */
-
-	/* Check if WPS is triggerred */
-	if (pSme->ie && pSme->ie_len)
-	{
-		if (RTMPFindWPSIE(pSme->ie, (UINT32)pSme->ie_len) != NULL)
-			ConnInfo.bWpsConnection= TRUE;
-	}		
-	
-	/* %NULL if not specified (auto-select based on scan)*/
-	if (pSme->bssid != NULL)
-	{
-		CFG80211DBG(RT_DEBUG_OFF, ("80211> Connect bssid %02x:%02x:%02x:%02x:%02x:%02x\n",  
-				PRINT_MAC(pSme->bssid)));
-		ConnInfo.pBssid = pSme->bssid;
-	}	
-	
-	RTMP_DRIVER_80211_CONNECT(pAd, &ConnInfo, pNdev->ieee80211_ptr->iftype);
-#endif /*CONFIG_STA_SUPPORT*/	
 	return 0;
 } /* End of CFG80211_OpsConnect */
 
@@ -1667,18 +1177,6 @@ static int CFG80211_OpsDisconnect(
 	IN struct net_device				*pNdev,
 	IN u16								ReasonCode)
 {
-#ifdef CONFIG_STA_SUPPORT
-
-	VOID *pAd;
-
-
-	CFG80211DBG(RT_DEBUG_TRACE, ("80211> %s ==>\n", __FUNCTION__));
-	CFG80211DBG(RT_DEBUG_TRACE, ("80211> ReasonCode = %d\n", ReasonCode));
-
-	MAC80211_PAD_GET(pAd, pWiphy);
-
-	RTMP_DRIVER_80211_STA_LEAVE(pAd, pNdev->ieee80211_ptr->iftype);
-#endif /*CONFIG_STA_SUPPORT*/	
 	return 0;
 } 
 
@@ -1801,23 +1299,6 @@ static int CFG80211_OpsPmksaSet(
 	IN struct net_device				*pNdev,
 	IN struct cfg80211_pmksa			*pPmksa)
 {
-#ifdef CONFIG_STA_SUPPORT
-	VOID *pAd;
-	RT_CMD_STA_IOCTL_PMA_SA IoctlPmaSa, *pIoctlPmaSa = &IoctlPmaSa;
-
-
-	CFG80211DBG(RT_DEBUG_OFF, ("80211> %s ==>\n", __FUNCTION__));
-	MAC80211_PAD_GET(pAd, pWiphy);
-
-	if ((pPmksa->bssid == NULL) || (pPmksa->pmkid == NULL))
-		return -ENOENT;
-
-	pIoctlPmaSa->Cmd = RT_CMD_STA_IOCTL_PMA_SA_ADD;
-	pIoctlPmaSa->pBssid = (UCHAR *)pPmksa->bssid;
-	pIoctlPmaSa->pPmkid = pPmksa->pmkid;
-
-	RTMP_DRIVER_80211_PMKID_CTRL(pAd, pIoctlPmaSa);
-#endif /* CONFIG_STA_SUPPORT */
 
 	return 0;
 } /* End of CFG80211_OpsPmksaSet */
@@ -1845,22 +1326,6 @@ static int CFG80211_OpsPmksaDel(
 	IN struct net_device				*pNdev,
 	IN struct cfg80211_pmksa			*pPmksa)
 {
-#ifdef CONFIG_STA_SUPPORT
-	VOID *pAd;
-	RT_CMD_STA_IOCTL_PMA_SA IoctlPmaSa, *pIoctlPmaSa = &IoctlPmaSa;
-
-	CFG80211DBG(RT_DEBUG_OFF, ("80211> %s ==>\n", __FUNCTION__));
-	MAC80211_PAD_GET(pAd, pWiphy);
-
-	if ((pPmksa->bssid == NULL) || (pPmksa->pmkid == NULL))
-		return -ENOENT;
-
-	pIoctlPmaSa->Cmd = RT_CMD_STA_IOCTL_PMA_SA_REMOVE;
-	pIoctlPmaSa->pBssid = (UCHAR *)pPmksa->bssid;
-	pIoctlPmaSa->pPmkid = pPmksa->pmkid;
-
-	RTMP_DRIVER_80211_PMKID_CTRL(pAd, pIoctlPmaSa);
-#endif /* CONFIG_STA_SUPPORT */
 
 	return 0;
 } /* End of CFG80211_OpsPmksaDel */
@@ -1886,17 +1351,6 @@ static int CFG80211_OpsPmksaFlush(
 	IN struct wiphy						*pWiphy,
 	IN struct net_device				*pNdev)
 {
-#ifdef CONFIG_STA_SUPPORT
-	VOID *pAd;
-	RT_CMD_STA_IOCTL_PMA_SA IoctlPmaSa, *pIoctlPmaSa = &IoctlPmaSa;
-
-
-	CFG80211DBG(RT_DEBUG_OFF, ("80211> %s ==>\n", __FUNCTION__));
-	MAC80211_PAD_GET(pAd, pWiphy);
-
-	pIoctlPmaSa->Cmd = RT_CMD_STA_IOCTL_PMA_SA_FLUSH;
-	RTMP_DRIVER_80211_PMKID_CTRL(pAd, pIoctlPmaSa);
-#endif /* CONFIG_STA_SUPPORT */
 
 	return 0;
 } /* End of CFG80211_OpsPmksaFlush */
@@ -1931,7 +1385,7 @@ static int CFG80211_OpsRemainOnChannel(
 #endif /* LINUX_VERSION_CODE: 3.6.0 */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0))
-	rndCookie = 0x1234;
+	rndCookie = prandom_u32() | 1;
 #else
 	rndCookie = random32() | 1;	
 #endif
@@ -2030,14 +1484,12 @@ static int CFG80211_OpsMgmtTx(
 {
     VOID *pAd;
     UINT32 ChanId;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0))
-	struct net_device *dev = NULL;
-#endif /* LINUX_VERSION_CODE: 3.6.0 */
 
     CFG80211DBG(RT_DEBUG_INFO, ("80211> %s ==>\n", __FUNCTION__));
     MAC80211_PAD_GET(pAd, pWiphy);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0))
+	struct net_device *dev = NULL;
 	RTMP_DRIVER_NET_DEV_GET(pAd, &dev);
 #endif /* LINUX_VERSION_CODE: 3.6.0 */
 		
@@ -2561,16 +2013,6 @@ ralink_mgmt_stypes[NUM_NL80211_IFTYPES] = {
 #endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0))
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0))
-static const struct ieee80211_iface_limit ra_p2p_sta_go_limits[] =
-{
-	{
-		.max = 3,
-		.types = BIT(NL80211_IFTYPE_STATION) |
-		         BIT(NL80211_IFTYPE_AP),
-	},
-};
-#else
 static const struct ieee80211_iface_limit ra_p2p_sta_go_limits[] = 
 {
 	{
@@ -2587,7 +2029,7 @@ static const struct ieee80211_iface_limit ra_p2p_sta_go_limits[] =
                 .types = BIT(NL80211_IFTYPE_P2P_CLIENT),
         },
 };
-#endif
+
 static const struct ieee80211_iface_combination 
 ra_iface_combinations_p2p[] = {
 	{
@@ -2618,8 +2060,7 @@ struct cfg80211_ops CFG80211_Ops = {
 
 	/* set channel for a given wireless interface */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,6,0))
-	//CFG_TODO
-	.set_monitor_channel = CFG80211_OpsMonitorChannelSet,
+	//.set_monitor_channel = CFG80211_OpsMonitorChannelSet,
 #else	
 	.set_channel	     = CFG80211_OpsChannelSet,
 #endif /* LINUX_VERSION_CODE: 3.6.0 */
@@ -2645,21 +2086,14 @@ struct cfg80211_ops CFG80211_Ops = {
 #endif /* LINUX_VERSION_CODE */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31))
-#ifdef CONFIG_STA_SUPPORT
-	/* join the specified IBSS (or create if necessary) */
-	.join_ibss					= CFG80211_OpsIbssJoin,
-	/* leave the IBSS */
-	.leave_ibss					= CFG80211_OpsIbssLeave,
-#endif /* CONFIG_STA_SUPPORT */
 #endif /* LINUX_VERSION_CODE */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32))
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3,8,0))
 	/* set the transmit power according to the parameters */
 	.set_tx_power				= CFG80211_OpsTxPwrSet,
 	/* store the current TX power into the dbm variable */
 	.get_tx_power				= CFG80211_OpsTxPwrGet,
-#endif /* LINUX_VERSION_CODE: 3.8.0 */	
+	/* configure WLAN power management */
 	.set_power_mgmt				= CFG80211_OpsPwrMgmt,
 	/* get station information for the station identified by @mac */
 	.get_station				= CFG80211_OpsStaGet,
@@ -2867,32 +2301,6 @@ static struct wireless_dev *CFG80211_WdevAlloc(
 #endif /* CONFIG_SNIFFER_SUPPORT */
 									;
 
-#ifdef CONFIG_STA_SUPPORT
-
-	pWdev->wiphy->interface_modes |= BIT(NL80211_IFTYPE_ADHOC);
-
-#ifdef RT_CFG80211_P2P_SINGLE_DEVICE
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37))
-	pWdev->wiphy->interface_modes |= (BIT(NL80211_IFTYPE_P2P_CLIENT)
-								    | BIT(NL80211_IFTYPE_P2P_GO));
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0))
-	pWdev->wiphy->software_iftypes |= BIT(NL80211_IFTYPE_P2P_DEVICE);
-#endif /* LINUX_VERSION_CODE 3.7.0 */
-#endif /* LINUX_VERSION_CODE 2.6.37 */
-#endif /* RT_CFG80211_P2P_SINGLE_DEVICE */
-#endif /* CONFIG_STA_SUPPORT */
-
-#ifdef RT_CFG80211_P2P_SUPPORT
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0))
-	pWdev->wiphy->software_iftypes |= (BIT(NL80211_IFTYPE_P2P_CLIENT) | BIT(NL80211_IFTYPE_P2P_GO));
-
-	/* NL80211_IFTYPE_P2P_DEVICE Kernel Symbol start from 3.7 */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,7,0))
-	pWdev->wiphy->software_iftypes |= BIT(NL80211_IFTYPE_P2P_DEVICE);
-#endif /* LINUX_VERSION_CODE 3.7.0 */
-#endif /* LINUX_VERSION_CODE 3.0.0 */
-#endif /* RT_CFG80211_P2P_SUPPORT */
 
 	//pWdev->wiphy->reg_notifier = CFG80211_RegNotifier;
 
@@ -2939,10 +2347,11 @@ static struct wireless_dev *CFG80211_WdevAlloc(
 #endif
 
 	//Driver Report Support TDLS to supplicant
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,8,0))
-	pWdev->wiphy->iface_combinations = ra_iface_combinations_p2p;
-	pWdev->wiphy->n_iface_combinations = ARRAY_SIZE(ra_iface_combinations_p2p);
-#endif /* LINUX_VERSION_CODE: 3.8.0 */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0))
+	/* */
+	//pWdev->wiphy->iface_combinations = ra_iface_combinations_p2p;
+	//pWdev->wiphy->n_iface_combinations = ARRAY_SIZE(ra_iface_combinations_p2p); 
+#endif
 
 	if (wiphy_register(pWdev->wiphy) < 0)
 	{
@@ -3019,10 +2428,6 @@ BOOLEAN CFG80211_Register(
 	pCfg80211_CB->pCfg80211_Wdev->iftype = NL80211_IFTYPE_AP;
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	/* default we are station mode */
-	pCfg80211_CB->pCfg80211_Wdev->iftype = NL80211_IFTYPE_STATION;
-#endif /* CONFIG_STA_SUPPORT */
 
 	
 	pNetDev->ieee80211_ptr = pCfg80211_CB->pCfg80211_Wdev;
@@ -3161,7 +2566,8 @@ static INT32 CFG80211_RegNotifier(
 			break;
 	} /* End of switch */
 
-	CFG80211DBG(RT_DEBUG_OFF, ("%c%c\n", pRequest->alpha2[0], pRequest->alpha2[1]));
+	CFG80211DBG(RT_DEBUG_OFF, ("%c%c  dfs_region %d\n",
+		pRequest->alpha2[0], pRequest->alpha2[1], pRequest->dfs_region));
 
 	/* only follow rules from user */
 	if (pRequest->initiator == NL80211_REGDOM_SET_BY_USER)
@@ -3175,6 +2581,21 @@ static INT32 CFG80211_RegNotifier(
 
 		RTMP_DRIVER_80211_REG_NOTIFY(pAd, &RegInfo);
 	} /* End of if */
+#ifdef ED_MONITOR
+	if (pAd->ed_fix) {
+	/*pRequest->dfs_region also unset so we have to check in driver*/
+		UINT8 dfs_region = CFG80211DRV_GetDFSRegion(pAd, pRequest->alpha2[0], pRequest->alpha2[1]);
+
+		if (dfs_region == NL80211_DFS_ETSI && !pAd->ed_chk) {
+			DBGPRINT(RT_DEBUG_OFF, ("%s: DFS region is	ETSI, set ed on\n", __func__));
+			ed_monitor_init(pAd);
+			} else if (dfs_region != NL80211_DFS_ETSI && pAd->ed_chk) {
+				DBGPRINT(RT_DEBUG_OFF, ("%s: go to ed_monitor_exit()!!\n", __func__));
+				ed_monitor_exit(ad);
+				} else
+					DBGPRINT(RT_DEBUG_OFF, ("%s: ed_chk %d no update\n", __func__, ad->ed_chk));
+				}
+#endif
 
 	return 0;
 } /* End of CFG80211_RegNotifier */

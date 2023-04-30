@@ -123,6 +123,13 @@ static VOID ApCliMlmeAuthReqAction(
 #ifdef MAC_REPEATER_SUPPORT
 	UCHAR CliIdx = 0xFF;
 #endif /* MAC_REPEATER_SUPPORT */
+#ifdef WH_EZ_SETUP
+	struct wifi_dev *wdev;
+
+	if(IS_ADPTR_EZ_SETUP_ENABLED(pAd))
+		EZ_DEBUG(DBG_CAT_CLIENT, CATCLIENT_APCLI, EZ_DBG_LVL_OFF,
+			("ApCliMlmeAuthReqAction()\n"));
+#endif /* WH_EZ_SETUP */
 
 	if ((ifIndex >= MAX_APCLI_NUM)
 #ifdef MAC_REPEATER_SUPPORT
@@ -188,7 +195,13 @@ static VOID ApCliMlmeAuthReqAction(
 				sizeof(APCLI_CTRL_MSG_STRUCT), &ApCliCtrlMsg, ifIndex);
 			return;
 		}
-
+#ifdef WH_EZ_SETUP
+				wdev = &pAd->ApCfg.ApCliTab[ifIndex].wdev;
+				if (IS_EZ_SETUP_ENABLED(wdev) 
+					&& (Alg == AUTH_MODE_EZ)) {
+					Alg = cpu2le16(Alg);
+				}
+#endif /* WH_EZ_SETUP */
 		DBGPRINT(RT_DEBUG_TRACE, ("APCLI AUTH - Send AUTH request seq#1 (Alg=%d)...\n", Alg));
 		ApCliMgtMacHeaderInit(pAd, &AuthHdr, SUBTYPE_AUTH, 0, Addr, pAd->ApCfg.ApCliTab[ifIndex].MlmeAux.Bssid, ifIndex);
 #ifdef MAC_REPEATER_SUPPORT
@@ -202,13 +215,13 @@ static VOID ApCliMlmeAuthReqAction(
 						  2,                    &Seq, 
 						  2,                    &Status, 
 						  END_OF_ARGS);
-
-#ifdef SMART_MESH
-		SMART_MESH_INSERT_IE(pAd->ApCfg.ApCliTab[ifIndex].SmartMeshCfg,
-							pOutBuffer,
-							FrameLen,
-							SM_IE_AUTH_REQ);
-#endif /* SMART_MESH */
+#ifdef WH_EZ_SETUP
+		if (IS_EZ_SETUP_ENABLED(wdev)
+			&& (pAd->ApCfg.ApCliTab[ifIndex].MlmeAux.support_easy_setup)) {
+			FrameLen += ez_build_auth_request_ie(wdev,
+				pAd->ApCfg.ApCliTab[ifIndex].MlmeAux.Bssid, pOutBuffer+FrameLen);
+		}
+#endif /* WH_EZ_SETUP */
 
 		MiniportMMRequest(pAd, QID_AC_BE, pOutBuffer, FrameLen);
 		MlmeFreeMemory(pAd, pOutBuffer);
@@ -266,6 +279,11 @@ static VOID ApCliPeerAuthRspAtSeq2Action(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM * El
 #endif /* MAC_REPEATER_SUPPORT */
 		)
 		return;
+#ifdef WH_EZ_SETUP
+	if (IS_ADPTR_EZ_SETUP_ENABLED(pAd))
+		EZ_DEBUG(DBG_CAT_CLIENT, CATCLIENT_APCLI, EZ_DBG_LVL_OFF,
+			("ApCliPeerAuthRspAtSeq2Action\n"));
+#endif
 
 #ifdef MAC_REPEATER_SUPPORT
 	if (ifIndex >= 64)
@@ -307,6 +325,18 @@ static VOID ApCliPeerAuthRspAtSeq2Action(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM * El
 
 			if(Status == MLME_SUCCESS)
 			{
+#ifdef WH_EZ_SETUP
+				if (IS_EZ_SETUP_ENABLED(&apcli_entry->wdev)
+					&& (Alg == AUTH_MODE_EZ)) {
+					ez_process_auth_response(pAd, 
+							&apcli_entry->wdev,
+							Addr2,
+							pCurrState, 
+							Elem->Msg, 
+							Elem->MsgLen);
+					return;
+				}
+#endif /* WH_EZ_SETUP */
 				if(apcli_entry->MlmeAux.Alg == Ndis802_11AuthModeOpen)
 				{
 					*pCurrState = APCLI_AUTH_REQ_IDLE;
@@ -541,9 +571,6 @@ static VOID ApCliPeerDeauthAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 	USHORT      Reason;
 	USHORT ifIndex = (USHORT)(Elem->Priv);
 	PULONG pCurrState = NULL;
-#ifdef WPA_SUPPLICANT_SUPPORT
-	PMAC_TABLE_ENTRY pMacEntry = NULL;
-#endif /*WPA_SUPPLICANT_SUPPORT*/
 #ifdef MAC_REPEATER_SUPPORT
 	UCHAR CliIdx = 0xFF;
 #endif /* MAC_REPEATER_SUPPORT */
@@ -554,6 +581,11 @@ static VOID ApCliPeerDeauthAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 #endif /* MAC_REPEATER_SUPPORT */
 		)
 		return;
+#ifdef WH_EZ_SETUP
+	if(IS_ADPTR_EZ_SETUP_ENABLED(pAd))
+		EZ_DEBUG(DBG_CAT_CLIENT, CATCLIENT_APCLI,
+			EZ_DBG_LVL_OFF, ("ApCliPeerDeauthAction\n"));
+#endif
 
 #ifdef MAC_REPEATER_SUPPORT
 	if (ifIndex >= 64)
@@ -566,27 +598,12 @@ static VOID ApCliPeerDeauthAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 #endif /* MAC_REPEATER_SUPPORT */
 		pCurrState = &pAd->ApCfg.ApCliTab[ifIndex].AuthCurrState;
 
-#ifdef WPA_SUPPLICANT_SUPPORT
-	pMacEntry = &pAd->MacTab.Content[pAd->ApCfg.ApCliTab[ifIndex].MacTabWCID];
-	if (!pMacEntry || !IS_ENTRY_APCLI(pMacEntry))
-	{
-		return;
-	}
-#endif /*WPA_SUPPLICANT_SUPPORT*/
 
 	if (PeerDeauthSanity(pAd, Elem->Msg, Elem->MsgLen, Addr1, Addr2, Addr3, &Reason))
 	{
 		DBGPRINT(RT_DEBUG_TRACE, ("APCLI AUTH_RSP - receive DE-AUTH from our AP\n"));
 		*pCurrState = APCLI_AUTH_REQ_IDLE;
 
-#ifdef WPA_SUPPLICANT_SUPPORT
-			if ((pAd->ApCfg.ApCliTab[ifIndex].wpa_supplicant_info.WpaSupplicantUP != WPA_SUPPLICANT_DISABLE) &&
-				(pAd->ApCfg.ApCliTab[ifIndex].wdev.AuthMode == Ndis802_11AuthModeWPA2)
-				&&(pMacEntry->PortSecured == WPA_802_1X_PORT_SECURED))
-				{
-					pAd->ApCfg.ApCliTab[ifIndex].wpa_supplicant_info.bLostAp = TRUE;
-				}
-#endif /*WPA_SUPPLICANT_SUPPORT*/
 
 #ifdef MAC_REPEATER_SUPPORT
 		if ((pAd->ApCfg.bMACRepeaterEn == TRUE) && (CliIdx != 0xFF))
@@ -775,6 +792,14 @@ static VOID ApCliMlmeDeauthReqAction(
 	return;
 }
 
+#ifdef WH_EZ_SETUP
+VOID ez_ApCliMlmeDeauthReqAction(
+	IN PRTMP_ADAPTER pAd, 
+	IN MLME_QUEUE_ELEM *Elem)
+{
+	ApCliMlmeDeauthReqAction(pAd, Elem);
+}
+#endif
 
 /*
 	==========================================================================

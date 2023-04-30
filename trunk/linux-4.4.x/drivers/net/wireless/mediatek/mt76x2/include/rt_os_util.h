@@ -67,7 +67,7 @@ VOID RtmpOsVfree(VOID *pMem);
 ULONG RtmpOsCopyFromUser(VOID *to, const void *from, ULONG n);
 ULONG RtmpOsCopyToUser(VOID *to, const void *from, ULONG n);
 
-BOOLEAN RtmpOsStatsAlloc(VOID **ppIwStats);
+BOOLEAN RtmpOsStatsAlloc(VOID **ppStats, VOID **ppIwStats);
 
 /* OS Packet */
 PNDIS_PACKET RtmpOSNetPktAlloc(VOID *pReserved, int size);
@@ -144,6 +144,11 @@ PNDIS_PACKET ClonePacket(
 	IN	PUCHAR					pData,
 	IN	ULONG					DataSize);
 
+PNDIS_PACKET CopyPacket(
+	IN	VOID					*pReserved,
+	IN	PNDIS_PACKET			pPacket,
+	IN	PUCHAR					pData,
+	IN	ULONG					DataSize);
 
 void wlan_802_11_to_802_3_packet(
 	IN	PNET_DEV				pNetDev,
@@ -199,31 +204,6 @@ void send_radiotap_monitor_packets(
 		UCHAR sideband_index,
 		CHAR MaxRssi,
 		UINT32 timestamp);
-
-#ifdef PPI_HEADER
-void send_ppi_monitor_packets(
-                PNET_DEV pNetDev,
-                PNDIS_PACKET pRxPacket,
-                VOID *dot11_hdr,
-                UCHAR *pData,
-                USHORT DataSize,
-                UCHAR L2PAD,
-                UCHAR PHYMODE,
-                UCHAR BW,
-                UCHAR ShortGI,
-                UCHAR MCS,
-                UCHAR LDPC,
-                UCHAR LDPC_EX_SYM,
-                UCHAR AMPDU,
-                UCHAR STBC,
-                UCHAR RSSI1,
-                UCHAR *pDevName,
-                UCHAR Channel,
-                UCHAR CentralChannel,
-                UCHAR sideband_index,
-                CHAR MaxRssi,
-                UINT32 timestamp);
-#endif //PPI_HEADER
 #endif /* CONFIG_SNIFFER_SUPPORT */
 
 UCHAR VLAN_8023_Header_Copy(
@@ -254,7 +234,11 @@ PUCHAR RtmpOsPktTailBufExtend(PNDIS_PACKET pNetPkt, UINT len);
 PUCHAR RtmpOsPktHeadBufExtend(PNDIS_PACKET pNetPkt, UINT len);
 VOID RtmpOsPktReserve(PNDIS_PACKET pNetPkt, UINT len);
 
+VOID RtmpOsPktProtocolAssign(PNDIS_PACKET pNetPkt);
 VOID RtmpOsPktInfPpaSend(PNDIS_PACKET pNetPkt);
+VOID RtmpOsPktRcvHandle(PNDIS_PACKET pNetPkt);
+VOID RtmpOsPktNatMagicTag(PNDIS_PACKET pNetPkt);
+VOID RtmpOsPktNatNone(PNDIS_PACKET pNetPkt);
 VOID RtmpOsPktInit(PNDIS_PACKET pNetPkt, PNET_DEV pNetDev, UCHAR *buf, USHORT len);
 
 PNDIS_PACKET RtmpOsPktIappMakeUp(PNET_DEV pNetDev, UINT8 *pMac);
@@ -290,10 +274,6 @@ INT RtmpOSNetDevAlloc(PNET_DEV *new_dev_p, UINT32 privDataSize);
 INT RtmpOSNetDevOpsAlloc(PVOID *pNetDevOps);
 
 
-#ifdef CONFIG_STA_SUPPORT
-INT RtmpOSNotifyRawData(PNET_DEV pNetDev, UCHAR *buf, INT len, ULONG type, USHORT proto);
-
-#endif /* CONFIG_STA_SUPPORT */
 
 PNET_DEV RtmpOSNetDevGetByName(PNET_DEV pNetDev, PSTRING pDevName);
 
@@ -486,6 +466,7 @@ VOID RtmpOsAtomicDec(RTMP_OS_ATOMIC *pAtomic);
 VOID RtmpOsAtomicInterlockedExchange(RTMP_OS_ATOMIC *pAtomicSrc, LONG Value);
 
 /* OS Utility */
+void hex_dump(char *str, unsigned char *pSrcBufVA, unsigned int SrcBufLen);
 
 typedef VOID (*RTMP_OS_SEND_WLAN_EVENT)(
 	IN	VOID					*pAdSrc,
@@ -656,21 +637,6 @@ PNDIS_PACKET RTMP_AllocateRxPacketBuffer(
 	OUT	PVOID					*VirtualAddress,
 	OUT	PNDIS_PHYSICAL_ADDRESS	PhysicalAddress);
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef CONFIG_PM
-#ifdef USB_SUPPORT_SELECTIVE_SUSPEND
-
-int RTMP_Usb_AutoPM_Put_Interface(
-	IN	VOID			*pUsb_Dev,
-	IN	VOID			*intf);
-
-int  RTMP_Usb_AutoPM_Get_Interface(
-	IN	VOID			*pUsb_Dev,
-	IN	VOID			*intf);
-
-#endif /* USB_SUPPORT_SELECTIVE_SUSPEND */
-#endif /* CONFIG_PM */
-#endif /* CONFIG_STA_SUPPORT */
 
 
 
@@ -830,7 +796,7 @@ extern ULONG OS_NumOfMemAlloc, OS_NumOfMemFree;
 extern UINT32 RalinkRate_Legacy[];
 extern UINT32 RalinkRate_HT_1NSS[Rate_BW_MAX][Rate_GI_MAX][Rate_MCS];
 extern UINT32 RalinkRate_VHT_1NSS[Rate_BW_MAX][Rate_GI_MAX][Rate_MCS];
-extern UINT8 newRateGetAntenna(UINT8 MCS, UINT8 PhyMode);
+extern UINT8 newRateGetAntenna(UINT8 MCS);
 
 
 #ifdef PLATFORM_UBM_IPX8

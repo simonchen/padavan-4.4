@@ -331,13 +331,6 @@ void MT76xx_PciMlmeRadioOn(RTMP_ADAPTER *pAd)
     	RTMPSetLED(pAd, LED_LINK_UP);
 	}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-	    /* Set LED*/
-	    RTMPSetLED(pAd, LED_RADIO_ON);
-	}
-#endif /* CONFIG_STA_SUPPORT */
 #endif /* LED_CONTROL_SUPPORT */
 
 	RTMP_OS_NETDEV_START_QUEUE(pAd->net_dev);
@@ -373,9 +366,13 @@ void MT76xx_PciMlmeRadioOFF(RTMP_ADAPTER *pAd)
 {
 	
 	UINT32 pwr_level = 5, mac_val = 0, bbp_val = 0, loop = 0;
+	POS_COOKIE 	pObj;
+	USHORT	Configuration = 0, reg16 = 0, offset = 0;
 #ifdef CONFIG_AP_SUPPORT
 	INT32 IdBss, MaxNumBss = pAd->ApCfg.BssidNum;
 #endif /* CONFIG_AP_SUPPORT */
+
+	pObj = (POS_COOKIE) pAd->OS_Cookie;
 
 	RTMP_OS_NETDEV_STOP_QUEUE(pAd->net_dev);
 
@@ -469,7 +466,6 @@ void MT76xx_PciMlmeRadioOFF(RTMP_ADAPTER *pAd)
 
 VOID dump_bw_info(RTMP_ADAPTER *pAd)
 {
-#ifdef DBG
 		UINT32 core_r1, agc_r0, be_r0, band_cfg;
 		static UCHAR *bw_str[]={"20", "10", "40", "80"};
 		UCHAR bw, prim_ch_idx, decode_cap;
@@ -501,7 +497,6 @@ VOID dump_bw_info(RTMP_ADAPTER *pAd)
 		DBGPRINT(RT_DEBUG_OFF, ("[TXBE_R0 - PPM]\n"));
 		tx_prim = (be_r0 & 0x3);
 		DBGPRINT(RT_DEBUG_OFF, ("\tTxPrimary(TXBE_R0[1:0])=%d\n", tx_prim));
-#endif
 }
 
 #endif /* RT65xx */

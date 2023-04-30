@@ -583,6 +583,9 @@ typedef	struct GNU_PACKED _RXWI_NMAC {
 }	RXWI_NMAC;
 #endif /* RT_BIG_ENDIAN */
 
+
+
+
 typedef struct GNU_PACKED _NMAC_HW_RATE_CTRL_STRUCT{
 #ifdef RT_BIG_ENDIAN
 	UINT16 PHYMODE:3;
@@ -1104,13 +1107,11 @@ union _TXINFO_STRUC;
 union _TXWI_STRUC;
 union _RXWI_STRUC;
 
-#ifdef DBG
 VOID dump_rlt_rxinfo(struct _RTMP_ADAPTER *pAd, struct _RXINFO_STRUC *pRxInfo);
 VOID dump_rlt_txinfo(struct _RTMP_ADAPTER *pAd, union _TXINFO_STRUC *pTxInfo);
 VOID dump_rlt_txwi(struct _RTMP_ADAPTER *pAd, union _TXWI_STRUC *pTxWI);
 VOID dump_rlt_rxwi(struct _RTMP_ADAPTER *pAd, union _RXWI_STRUC *pRxWI);
 VOID dumpRxFCEInfo(struct _RTMP_ADAPTER *pAd, RXFCE_INFO *pRxFceInfo);
-#endif
 
 INT rlt_get_rxwi_phymode(union _RXWI_STRUC *rxwi);
 INT rlt_get_rxwi_rssi(union _RXWI_STRUC *rxwi, INT size, CHAR *rssi);

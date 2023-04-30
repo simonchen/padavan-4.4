@@ -875,7 +875,7 @@ typedef union _BCN_TIME_CFG_STRUC {
 #define CH_IDLE_STA			0x1130	/* channel idle time */
 #define CH_BUSY_STA			0x1134	/* channle busy time */
 #define CH_BUSY_STA_SEC	0x1138	/* channel busy time for secondary channel */
-#ifdef CUSTOMER_DCC_FEATURE	
+#if defined(CUSTOMER_DCC_FEATURE) || defined(BAND_STEERING)	
 #define CCA_BUSY_TIME		0x1140
 #endif
 
@@ -1686,8 +1686,8 @@ typedef union _AUTO_RSP_CFG_STRUC {
 #define TX_SEC_CNT0		0x1500
 #define RX_SEC_CNT0		0x1504
 #define CCMP_FC_MUTE	0x1508
-#define PN_PAD_MODE 	0x150C
-#define PN_PAD_MODE_OFFSET 0x1
+#define PN_PAD_MODE		0x150C
+#define PN_PAD_MODE_OFFSET	0x1
 
 /*  4.6 HCCA/PSMP (offset:0x1600) */
 #define TXOP_HLDR_ADDR0		0x1600		 
@@ -1830,6 +1830,7 @@ typedef	union _TX_STA_CNT2_STRUC {
 #define TX_STA_FIFO		0x1718
 
 
+#ifdef MT76x2
 #ifdef RT_BIG_ENDIAN
 typedef	union _TX_STA_FIFO_STRUC {
 	struct {
@@ -1863,6 +1864,44 @@ typedef	union _TX_STA_FIFO_STRUC {
 	UINT32 word;
 } TX_STA_FIFO_STRUC;
 #endif /* RT_BIG_ENDIAN */
+#else
+
+#ifdef RT_BIG_ENDIAN
+typedef	union _TX_STA_FIFO_STRUC {
+	struct {
+		UINT32		Reserve:2;
+		UINT32		iTxBF:1; /* iTxBF enable */
+		UINT32		Sounding:1; /* Sounding enable */
+		UINT32		eTxBF:1; /* eTxBF enable */
+		UINT32		SuccessRate:11;	/*include MCS, mode ,shortGI, BW settingSame format as TXWI Word 0 Bit 31-16. */
+		UINT32		wcid:8;		/*wireless client index */
+		UINT32       	TxAckRequired:1;    /* ack required */
+		UINT32       	TxAggre:1;    /* Tx is aggregated */
+		UINT32       	TxSuccess:1;   /* Tx success. whether success or not */
+		UINT32       	PidType:4;
+		UINT32       	bValid:1;   /* 1:This register contains a valid TX result */
+	} field;
+	UINT32 word;
+} TX_STA_FIFO_STRUC;
+#else
+typedef	union _TX_STA_FIFO_STRUC {
+	struct {
+		UINT32       	bValid:1;
+		UINT32       	PidType:4;
+		UINT32       	TxSuccess:1;
+		UINT32       	TxAggre:1;
+		UINT32       	TxAckRequired:1;
+		UINT32		wcid:8;
+		UINT32		SuccessRate:11;
+		UINT32		eTxBF:1;
+		UINT32		Sounding:1;
+		UINT32		iTxBF:1;
+		UINT32		Reserve:2;
+	} field;
+	UINT32 word;
+} TX_STA_FIFO_STRUC;
+#endif
+#endif /* MT76x2 */
 
 
 /* 
@@ -2113,25 +2152,6 @@ typedef	union _MPDU_DEN_CNT_STRUC {
 	} field;
 	UINT32 word;
 } MPDU_DEN_CNT_STRUC;
-#endif
-
-#define RTS_TX_CNT  0x1744
-#ifdef RT_BIG_ENDIAN
-typedef	union _RTS_TX_CNT_STRUC {
-	struct {
-	    UINT16  RtsTxFailCount;	/* RTS TX fail count */
-	    UINT16  RtsTxOkCount;	/* RTS TX OK count */
-	} field;
-	UINT32 word;
-} RTS_TX_CNT_STRUC;
-#else
-typedef	union _RTS_TX_CNT_STRUC {
-	struct {
-	    UINT16  RtsTxOkCount;
-	    UINT16  RtsTxFailCount;
-	} field;
-	UINT32 word;
-} RTS_TX_CNT_STRUC;
 #endif
 
 

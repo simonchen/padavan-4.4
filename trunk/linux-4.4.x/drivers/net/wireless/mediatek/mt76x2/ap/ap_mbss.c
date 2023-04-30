@@ -69,22 +69,25 @@ Note:
 */
 VOID MBSS_Init(RTMP_ADAPTER *pAd, RTMP_OS_NETDEV_OP_HOOK *pNetDevOps)
 {
+#define MBSS_MAX_DEV_NUM	32
 	PNET_DEV pDevNew;
 	INT32 IdBss, MaxNumBss;
 	INT status;
 	RTMP_OS_NETDEV_OP_HOOK netDevHook;
 
+
+	/* sanity check to avoid redundant virtual interfaces are created */
+	if (pAd->FlgMbssInit != FALSE)
+		return;
+
+
 	MaxNumBss = pAd->ApCfg.BssidNum;
 	if (MaxNumBss > MAX_MBSSID_NUM(pAd))
 		MaxNumBss = MAX_MBSSID_NUM(pAd);
 
-	/* sanity check to avoid redundant virtual interfaces are created */
-	if (!pAd->FlgMbssInit)
-	{
 	/* first IdBss must not be 0 (BSS0), must be 1 (BSS1) */
 	for(IdBss=FIRST_MBSSID; IdBss<MAX_MBSSID_NUM(pAd); IdBss++)
 		pAd->ApCfg.MBSSID[IdBss].wdev.if_dev = NULL;
-	}
 
 	/* create virtual network interface */
 	for(IdBss=FIRST_MBSSID; IdBss<MaxNumBss; IdBss++)
@@ -98,9 +101,6 @@ VOID MBSS_Init(RTMP_ADAPTER *pAd, RTMP_OS_NETDEV_OP_HOOK *pNetDevOps)
 #ifdef HOSTAPD_SUPPORT
 		IoctlIF = pAd->IoctlIF;
 #endif /* HOSTAPD_SUPPORT */
-
-		if (pAd->ApCfg.MBSSID[IdBss].wdev.if_dev)
-			continue;
 
 		dev_name = get_dev_name_prefix(pAd, INT_MBSSID);
 		pDevNew = RtmpOSNetDevCreate(MC_RowID, &IoctlIF, INT_MBSSID, IdBss, sizeof(struct mt_dev_priv), dev_name);
@@ -145,12 +145,10 @@ VOID MBSS_Init(RTMP_ADAPTER *pAd, RTMP_OS_NETDEV_OP_HOOK *pNetDevOps)
 		
 		/* register this device to OS */
 		status = RtmpOSNetDevAttach(pAd->OpMode, pDevNew, &netDevHook);
-		if (status != NDIS_STATUS_SUCCESS)
-			DBGPRINT(RT_DEBUG_ERROR, ("Error in RtmpOSNetDevAttach() !!\n"));
-		
 	}
 
 	pAd->FlgMbssInit = TRUE;
+
 }
 
 
@@ -253,15 +251,20 @@ INT MBSS_Open(PNET_DEV pDev)
 	if (BssId < 0)
 		return -1;
     
-#ifdef AIRPLAY_SUPPORT
-	if (AIRPLAY_ON(pAd))
-		pAd->ApCfg.MBSSID[BssId].bBcnSntReq = TRUE;
-	else
-		pAd->ApCfg.MBSSID[BssId].bBcnSntReq = FALSE;	
-#else
 	pAd->ApCfg.MBSSID[BssId].bBcnSntReq = TRUE;
-#endif /* AIRPLAY_SUPPORT */
 
+#ifdef BAND_STEERING
+	if(pAd->ApCfg.BandSteering)
+	{
+		PBND_STRG_CLI_TABLE table;
+		table = Get_BndStrgTable(pAd, BssId);
+		if(table)
+		{
+			/* Inform daemon interface ready */
+			BndStrg_SetInfFlags(pAd, &pAd->ApCfg.MBSSID[BssId].wdev, table, TRUE);
+		}
+	}
+#endif
 		return 0;
 }
 
@@ -302,6 +305,18 @@ INT MBSS_Close(PNET_DEV pDev)
 	APMakeAllBssBeacon(pAd);
 	APUpdateAllBeaconFrame(pAd);
 
+#ifdef BAND_STEERING
+	if(pAd->ApCfg.BandSteering)
+	{
+		PBND_STRG_CLI_TABLE table;
+		table = Get_BndStrgTable(pAd, BssId);
+		if(table)
+		{
+			/* Inform daemon interface down */
+			BndStrg_SetInfFlags(pAd, &pAd->ApCfg.MBSSID[BssId].wdev, table, FALSE);
+		}
+	}
+#endif /* BAND_STEERING */
 	return 0;
 }
 

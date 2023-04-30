@@ -41,30 +41,23 @@ struct iw_priv_args ap_privtab[] = {
   IW_PRIV_TYPE_CHAR | 1024, 0,
   "show"},
 { RTPRIV_IOCTL_GSITESURVEY,
-#ifdef AIRPLAY_SUPPORT
-  IW_PRIV_TYPE_CHAR | 1024 ,
-#else
-  0 ,
-#endif /* AIRPLAY_SUPPORT */
-  IW_PRIV_TYPE_CHAR | 1024 ,
+  0, IW_PRIV_TYPE_CHAR | 1024 ,
   "get_site_survey"}, 
 #ifdef INF_AR9
   { RTPRIV_IOCTL_GET_AR9_SHOW,
   IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | 1024 ,
   "ar9_show"}, 
 #endif
-#ifdef WSC_AP_SUPPORT
   { RTPRIV_IOCTL_SET_WSCOOB,
   IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | 1024 ,
   "set_wsc_oob"}, 
-#endif
 { RTPRIV_IOCTL_GET_MAC_TABLE,
   IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | 1024 ,
   "get_mac_table"}, 
 { RTPRIV_IOCTL_E2P,
   IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | 1024,
   "e2p"},
-#if defined(DBG) || defined(RALINK_ATE)
+#if defined(DBG) ||(defined(BB_SOC)&&defined(RALINK_ATE))
 { RTPRIV_IOCTL_BBP,
   IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | 1024,
   "bbp"},
@@ -88,7 +81,13 @@ struct iw_priv_args ap_privtab[] = {
   "get_ba_table"},
 { RTPRIV_IOCTL_STATISTICS,
   IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | 1024,
-  "stat"}
+"stat"},
+#ifdef WH_EZ_SETUP
+{RTPRIV_IOCTL_GEZ_SCAN_TABLE,
+IW_PRIV_TYPE_CHAR | 1024, IW_PRIV_TYPE_CHAR | 1024,
+"get_ez_table"}
+#endif /* WH_EZ_SETUP */
+
 };
 
 
@@ -127,7 +126,6 @@ INT rt28xx_ap_ioctl(struct net_device *net_dev, struct ifreq *rq, int cmd)
 
 	wrq->u.data.pointer = wrqin->u.data.pointer;
 	wrq->u.data.length = wrqin->u.data.length;
-	wrq->u.data.flags = wrqin->u.data.flags;
 	org_len = wrq->u.data.length;
 
 	pIoctlConfig->Status = 0;
@@ -276,6 +274,7 @@ INT rt28xx_ap_ioctl(struct net_device *net_dev, struct ifreq *rq, int cmd)
 		    {
 /*				struct iw_range range; */
 				struct iw_range *prange = NULL;
+				UINT32 len;
 
 				/* allocate memory */
 				os_alloc_mem(NULL, (UCHAR **)&prange, sizeof(struct iw_range));
@@ -297,7 +296,7 @@ INT rt28xx_ap_ioctl(struct net_device *net_dev, struct ifreq *rq, int cmd)
 				prange->max_qual.qual = 100;
 				prange->max_qual.level = 0; /* dB */
 				prange->max_qual.noise = 0; /* dB */
-				copy_to_user(wrq->u.data.pointer, prange, sizeof(struct iw_range));
+				len = copy_to_user(wrq->u.data.pointer, prange, sizeof(struct iw_range));
 				os_free_mem(NULL, prange);
 		    }
 		    break;
@@ -401,7 +400,7 @@ INT rt28xx_ap_ioctl(struct net_device *net_dev, struct ifreq *rq, int cmd)
 			RTMP_AP_IoctlHandle(pAd, wrq, CMD_RTPRIV_IOCTL_E2P, 0, NULL, 0);
 			break;
 
-#if defined(DBG) || defined(RALINK_ATE)
+#if defined(DBG) ||(defined(BB_SOC)&&defined(RALINK_ATE))
 		case RTPRIV_IOCTL_BBP:
 			RTMP_AP_IoctlHandle(pAd, wrq, CMD_RTPRIV_IOCTL_BBP, 0, NULL, 0);
 			break;
@@ -416,6 +415,12 @@ INT rt28xx_ap_ioctl(struct net_device *net_dev, struct ifreq *rq, int cmd)
 			break;
 #endif /* RTMP_RF_RW_SUPPORT */
 #endif /* defined(DBG) ||(defined(BB_SOC)&&defined(RALINK_ATE)) */
+#ifdef WH_EZ_SETUP
+		case RTPRIV_IOCTL_GEZ_SCAN_TABLE:
+			RTMP_AP_IoctlHandle(pAd, wrq, CMD_RTPRIV_IOCTL_GET_EZ_SCAN_TABLE,
+				0, NULL, 0);
+			break;
+#endif /* WH_EZ_SETUP */
 
 		default:
 /*			DBGPRINT(RT_DEBUG_ERROR, ("IOCTL::unknown IOCTL's cmd = 0x%08x\n", cmd)); */

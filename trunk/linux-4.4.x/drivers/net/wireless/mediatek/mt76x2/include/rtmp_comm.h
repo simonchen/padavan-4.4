@@ -23,9 +23,6 @@
     
 /*#define MONITOR_FLAG_11N_SNIFFER_SUPPORT */
     
-#ifdef CONFIG_STA_SUPPORT
-/*#define AGS_SUPPORT */
-#endif	/* CONFIG_STA_SUPPORT */
     
 #ifdef VENDOR_FEATURE3_SUPPORT 
 #ifndef BB_SOC
@@ -216,10 +213,6 @@ extern ULONG OS_NumOfPktAlloc, OS_NumOfPktFree;
 #define MEM_DBG_PKT_FREE_INC(__pPacket)
 #endif /* VENDOR_FEATURE2_SUPPORT */
 
-/* value domain of 802.11 header FC.Tyte, which is b3..b2 of the 1st-byte of MAC header */
-#define BTYPE_MGMT                  0
-#define BTYPE_CNTL                  1
-#define BTYPE_DATA                  2
     
 /* All PHY rate summary in TXD */
 /* Preamble MODE in TxD */

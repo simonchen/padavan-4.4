@@ -42,11 +42,6 @@ BUILD_TIMER_FUNCTION(EnqueueStartForPSKExec);
 BUILD_TIMER_FUNCTION(APTxSounding);
 #endif
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef ADHOC_WPA2PSK_SUPPORT
-BUILD_TIMER_FUNCTION(Adhoc_WpaRetryExec);
-#endif /* ADHOC_WPA2PSK_SUPPORT */
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef DOT11W_PMF_SUPPORT
 BUILD_TIMER_FUNCTION(PMF_SAQueryTimeOut);
@@ -86,44 +81,6 @@ BUILD_TIMER_FUNCTION(FT_KDP_InfoBroadcast);
 #endif /* DOT11R_FT_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-BUILD_TIMER_FUNCTION(BeaconTimeout);
-BUILD_TIMER_FUNCTION(ScanTimeout);
-BUILD_TIMER_FUNCTION(AuthTimeout);
-BUILD_TIMER_FUNCTION(AssocTimeout);
-BUILD_TIMER_FUNCTION(ReassocTimeout);
-BUILD_TIMER_FUNCTION(DisassocTimeout);
-BUILD_TIMER_FUNCTION(LinkDownExec);
-BUILD_TIMER_FUNCTION(StaQuickResponeForRateUpExec);
-BUILD_TIMER_FUNCTION(WpaDisassocApAndBlockAssoc);
-
-#ifdef RTMP_PCI_SUPPORT
-BUILD_TIMER_FUNCTION(PsPollWakeExec);
-#ifdef PCIE_PS_SUPPORT
-BUILD_TIMER_FUNCTION(RadioOnExec);
-#endif /* PCIE_PS_SUPPORT */
-#endif /* RTMP_PCI_SUPPORT */
-#ifdef QOS_DLS_SUPPORT
-BUILD_TIMER_FUNCTION(DlsTimeoutAction);
-#endif /* QOS_DLS_SUPPORT */
-
-#ifdef DOT11Z_TDLS_SUPPORT
-BUILD_TIMER_FUNCTION(TDLS_OffChExpired);
-BUILD_TIMER_FUNCTION(TDLS_BaseChExpired);
-BUILD_TIMER_FUNCTION(TDLS_LinkTimeoutAction);
-BUILD_TIMER_FUNCTION(TDLS_ChannelSwitchTimeAction);
-BUILD_TIMER_FUNCTION(TDLS_ChannelSwitchTimeOutAction);
-BUILD_TIMER_FUNCTION(TDLS_DisablePeriodChannelSwitchAction);
-#endif /* DOT11Z_TDLS_SUPPORT */
-
-#ifdef DOT11R_FT_SUPPORT
-BUILD_TIMER_FUNCTION(FT_OTA_AuthTimeout);
-BUILD_TIMER_FUNCTION(FT_OTD_TimeoutAction);
-#endif /* DOT11R_FT_SUPPORT */
-
-
-
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef WSC_INCLUDED
 BUILD_TIMER_FUNCTION(WscEAPOLTimeOutAction);
@@ -144,18 +101,8 @@ BUILD_TIMER_FUNCTION(WscUpdatePortCfgTimeout);
 BUILD_TIMER_FUNCTION(WscSetupLockTimeout);
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef IWSC_SUPPORT
-BUILD_TIMER_FUNCTION(IWSC_T1TimerAction);
-BUILD_TIMER_FUNCTION(IWSC_T2TimerAction);
-BUILD_TIMER_FUNCTION(IWSC_EntryTimerAction);
-BUILD_TIMER_FUNCTION(IWSC_DevQueryAction);
-#endif /* IWSC_SUPPORT */
 
 #endif /* WSC_INCLUDED */
-
-#if defined(BAND_STEERING) && !defined(BNDSTRG_DAEMON)
-BUILD_TIMER_FUNCTION(BndStrg_PeriodicExec);
-#endif /* BAND_STEERING && !BNDSTRG_DAEMON */
 
 
 
@@ -189,6 +136,13 @@ BUILD_TIMER_FUNCTION(ed_testing_timeout);
 #ifdef RTMP_MAC_PCI
 BUILD_TIMER_FUNCTION(TxDoneCleanupExec);
 #endif /* RTMP_MAC_PCI */
+#ifdef WH_EZ_SETUP
+BUILD_TIMER_FUNCTION(ez_scan_timeout);
+BUILD_TIMER_FUNCTION(ez_scan_pause_timeout);
+BUILD_TIMER_FUNCTION(ez_group_merge_timeout);
+BUILD_TIMER_FUNCTION(ez_wait_for_connection_allow_timeout);
+BUILD_TIMER_FUNCTION(ez_loop_chk_timeout);
+#endif /* WH_EZ_SETUP */
 
 #ifdef RTMP_TIMER_TASK_SUPPORT
 static void RtmpTimerQHandle(RTMP_ADAPTER *pAd)

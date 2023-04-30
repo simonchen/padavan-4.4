@@ -55,19 +55,8 @@ static VOID ApCliInvalidStateWhenJoin(
 static VOID ApCliEnqueueProbeRequest(
 	IN PRTMP_ADAPTER pAd,
 	IN UCHAR SsidLen,
-	IN PCHAR Ssid,
-	IN PCHAR Bssid,
+	OUT PCHAR Ssid,
 	IN USHORT ifIndex);
-
-static VOID ApCliMlmeScanReqAction(
-	IN RTMP_ADAPTER *pAd,
-	IN MLME_QUEUE_ELEM *Elem);
-
-#ifdef SMART_MESH_MONITOR
-static VOID ApCliPeerProbeRspAtScanReqAction(
-	IN RTMP_ADAPTER *pAd,
-	IN MLME_QUEUE_ELEM *Elem);
-#endif /* SMART_MESH_MONITOR */
 
 DECLARE_TIMER_FUNCTION(ApCliProbeTimeout);
 BUILD_TIMER_FUNCTION(ApCliProbeTimeout);
@@ -99,10 +88,6 @@ VOID ApCliSyncStateMachineInit(
 
 	/* column 1 */
 	StateMachineSetAction(Sm, APCLI_SYNC_IDLE, APCLI_MT2_MLME_PROBE_REQ, (STATE_MACHINE_FUNC)ApCliMlmeProbeReqAction);
-	StateMachineSetAction(Sm, APCLI_SYNC_IDLE, APCLI_MT2_MLME_SCAN_REQ, (STATE_MACHINE_FUNC)ApCliMlmeScanReqAction);
-#ifdef SMART_MESH_MONITOR
-	StateMachineSetAction(Sm, APCLI_SYNC_IDLE, APCLI_MT2_PEER_PROBE_RSP, (STATE_MACHINE_FUNC)ApCliPeerProbeRspAtScanReqAction);
-#endif /* SMART_MESH_MONITOR */
 
 	/*column 2 */
 	StateMachineSetAction(Sm, APCLI_JOIN_WAIT_PROBE_RSP, APCLI_MT2_MLME_PROBE_REQ, (STATE_MACHINE_FUNC)ApCliInvalidStateWhenJoin);
@@ -174,8 +159,12 @@ static VOID ApCliMlmeProbeReqAction(
 	USHORT ifIndex = (USHORT)(Elem->Priv);
 	PULONG pCurrState = &pAd->ApCfg.ApCliTab[ifIndex].SyncCurrState;
 	APCLI_STRUCT *pApCliEntry = NULL;
-	struct wifi_dev *wdev;
-	ULONG bss_idx = BSS_NOT_FOUND;
+#ifdef WH_EZ_SETUP
+			PULONG pCurrStateCtrl = &pAd->ApCfg.ApCliTab[ifIndex].CtrlCurrState;
+#ifdef WSC_AP_SUPPORT
+			PWSC_CTRL pWpsCtrl = &pAd->ApCfg.ApCliTab[ifIndex].WscControl;
+#endif/* WSC_AP_SUPPORT */
+#endif
 
 	DBGPRINT(RT_DEBUG_TRACE, ("ApCli SYNC - ApCliMlmeProbeReqAction(Ssid %s)\n", Info->Ssid));
 
@@ -183,12 +172,12 @@ static VOID ApCliMlmeProbeReqAction(
 		return;
 
 	pApCliEntry = &pAd->ApCfg.ApCliTab[ifIndex];
-	wdev = &pApCliEntry->wdev;
 
 	/* reset all the timers */
 	RTMPCancelTimer(&(pApCliEntry->MlmeAux.ProbeTimer), &Cancelled);
 
 	pApCliEntry->MlmeAux.Rssi = -9999;
+	ULONG bss_idx = BSS_NOT_FOUND;
 	bss_idx = BssSsidTableSearchBySSID(&pAd->ScanTab, (PCHAR)Info->Ssid, Info->SsidLen);
 	if (bss_idx == BSS_NOT_FOUND)
 	{
@@ -224,21 +213,12 @@ static VOID ApCliMlmeProbeReqAction(
 	pApCliEntry->MlmeAux.ExtRateLen = pAd->cfg80211_ctrl.P2pExtRateLen;
 	NdisMoveMemory(pApCliEntry->MlmeAux.ExtRate, pAd->cfg80211_ctrl.P2pExtRate, pAd->cfg80211_ctrl.P2pExtRateLen);
 #else
-#ifdef APCLI_AUTO_BW_SUPPORT
-        pApCliEntry->MlmeAux.SupRateLen = wdev->SupRateLen;
-        NdisMoveMemory(pApCliEntry->MlmeAux.SupRate, wdev->SupRate, wdev->SupRateLen);
-
-        /* Prepare the default value for extended rate */
-        pApCliEntry->MlmeAux.ExtRateLen = wdev->ExtRateLen;
-        NdisMoveMemory(pApCliEntry->MlmeAux.ExtRate, wdev->ExtRate, wdev->ExtRateLen);
-#else
 	pApCliEntry->MlmeAux.SupRateLen = pAd->CommonCfg.SupRateLen;
 	NdisMoveMemory(pApCliEntry->MlmeAux.SupRate, pAd->CommonCfg.SupRate, pAd->CommonCfg.SupRateLen);
 
 	/* Prepare the default value for extended rate */
 	pApCliEntry->MlmeAux.ExtRateLen = pAd->CommonCfg.ExtRateLen;
 	NdisMoveMemory(pApCliEntry->MlmeAux.ExtRate, pAd->CommonCfg.ExtRate, pAd->CommonCfg.ExtRateLen);
-#endif /* APCLI_AUTO_BW_SUPPORT */
 #endif /* RT_CFG80211_P2P_CONCURRENT_DEVICE */
 
 	RTMPSetTimer(&(pApCliEntry->MlmeAux.ProbeTimer), PROBE_TIMEOUT);
@@ -246,13 +226,63 @@ static VOID ApCliMlmeProbeReqAction(
 #ifdef APCLI_CONNECTION_TRIAL
 	NdisZeroMemory(pAd->ApCfg.ApCliTab[ifIndex].MlmeAux.Bssid, MAC_ADDR_LEN);
 	NdisZeroMemory(pAd->ApCfg.ApCliTab[ifIndex].MlmeAux.Ssid, MAX_LEN_OF_SSID);
-	NdisCopyMemory(pAd->ApCfg.ApCliTab[ifIndex].MlmeAux.Bssid, Info->Bssid, MAC_ADDR_LEN);
-	NdisCopyMemory(pAd->ApCfg.ApCliTab[ifIndex].MlmeAux.Ssid, Info->Ssid, Info->SsidLen);
-#endif /* APCLI_CONNECTION_TRIAL */
+	NdisCopyMemory(pAd->ApCfg.ApCliTab[ifIndex].MlmeAux.Bssid, pAd->ApCfg.ApCliTab[ifIndex].CfgApCliBssid, MAC_ADDR_LEN);
+	NdisCopyMemory(pAd->ApCfg.ApCliTab[ifIndex].MlmeAux.Ssid, pAd->ApCfg.ApCliTab[ifIndex].CfgSsid, pAd->ApCfg.ApCliTab[ifIndex].CfgSsidLen);
+#endif/* APCLI_CONNECTION_TRIAL */
+#ifdef WH_EZ_SETUP
+	if (IS_ADPTR_EZ_SETUP_ENABLED(pAd)
+		&& pAd->ApCfg.ApCliTab[ifIndex].MlmeAux.support_easy_setup) {
+		ULONG bss_idx = BSS_NOT_FOUND;
 
-	ApCliEnqueueProbeRequest(pAd, Info->SsidLen, (PCHAR)Info->Ssid, (PCHAR)Info->Bssid, ifIndex);
+		pAd->ApCfg.ApCliTab[ifIndex].MlmeAux.support_easy_setup = FALSE;
+		bss_idx = BssTableSearchWithSSID(&pAd->ScanTab, (PCHAR)Info->Bssid,
+			(PCHAR)Info->Ssid, Info->SsidLen, pApCliEntry->MlmeAux.Channel);
+		if (bss_idx != BSS_NOT_FOUND) {
+			if (pAd->ScanTab.BssEntry[bss_idx].support_easy_setup) {
+				pAd->ApCfg.ApCliTab[ifIndex].MlmeAux.support_easy_setup = TRUE;
+#ifdef NEW_CONNECTION_ALGO
+				if (!ez_update_connection_permission(pAd, &pApCliEntry->wdev,
+					EZ_DISALLOW_ALL_ALLOW_ME)) {
+					BOOLEAN cancelled;
 
-	DBGPRINT(RT_DEBUG_TRACE, ("ApCli SYNC - Start Probe the SSID %s on channel =%d\n", Info->Ssid, pApCliEntry->MlmeAux.Channel));
+					*pCurrStateCtrl = APCLI_CTRL_DISCONNECTED;
+					ASSERT(FALSE);
+					RTMPCancelTimer(&(pApCliEntry->MlmeAux.ProbeTimer), &cancelled);
+					return;
+				}
+#endif
+			}
+		} else {
+			BOOLEAN cancelled;
+
+			EZ_DEBUG(DBG_CAT_CLIENT, CATCLIENT_APCLI, EZ_DBG_LVL_TRACE,
+				("BssEntry Not found in pAd->ScanTab\n"));
+			*pCurrStateCtrl = APCLI_CTRL_DISCONNECTED;
+			RTMPCancelTimer(&(pApCliEntry->MlmeAux.ProbeTimer), &cancelled);
+			return;
+		}
+		EZ_DEBUG(DBG_CAT_CLIENT, CATCLIENT_APCLI, EZ_DBG_LVL_TRACE,
+			("EasySetup Conn = %d\n",
+			pAd->ApCfg.ApCliTab[ifIndex].MlmeAux.support_easy_setup));
+	} else if (IS_EZ_SETUP_ENABLED(&pApCliEntry->wdev) &&
+		(pWpsCtrl->WscConfMode != WSC_DISABLE) &&
+		(pWpsCtrl->bWscTrigger == TRUE)) {
+		ULONG bss_idx = BSS_NOT_FOUND;
+
+		bss_idx = BssTableSearchWithSSID(&pAd->ScanTab,
+			(PCHAR)Info->Bssid, (PCHAR)Info->Ssid, Info->SsidLen,
+			pApCliEntry->MlmeAux.Channel);
+		if (bss_idx != BSS_NOT_FOUND) {
+			ez_ApCliAutoConnectBWAdjust(pAd, &pApCliEntry->wdev, &pAd->ScanTab.BssEntry[bss_idx]);
+			ez_ApCliAutoConnectBWAdjust(pAd,
+				&pAd->ApCfg.MBSSID[pApCliEntry->wdev.func_idx].wdev,
+				&pAd->ScanTab.BssEntry[bss_idx]);
+		}
+	}
+#endif /* WH_EZ_SETUP */
+	ApCliEnqueueProbeRequest(pAd, Info->SsidLen, (PCHAR) Info->Ssid, ifIndex);
+
+	DBGPRINT(RT_DEBUG_TRACE, ("ApCli SYNC - Start Probe the SSID %s on channel =%d\n", pApCliEntry->MlmeAux.Ssid, pApCliEntry->MlmeAux.Channel));
 
 	*pCurrState = APCLI_JOIN_WAIT_PROBE_RSP;
 
@@ -282,8 +312,12 @@ static VOID ApCliPeerProbeRspAtJoinAction(
 	USHORT ifIndex = (USHORT)(Elem->Priv);
 	ULONG *pCurrState;
 	BCN_IE_LIST *ie_list = NULL;
-	UCHAR PhyMode = pAd->CommonCfg.PhyMode;
-	PFRAME_802_11 pFrame = NULL;
+#ifdef WH_EZ_SETUP
+		PFRAME_802_11 pFrame = NULL;
+#ifdef DISCONNECT_ON_CONFIG_UPDATE
+		BOOLEAN error = FALSE;
+#endif
+#endif/* WH_EZ_SETUP */
 
 	if (ifIndex >= MAX_APCLI_NUM)
 		return;
@@ -305,7 +339,6 @@ static VOID ApCliPeerProbeRspAtJoinAction(
 		goto LabelErr;
 	}
 	NdisZeroMemory(ie_list, sizeof(BCN_IE_LIST));
-	pFrame = (PFRAME_802_11)Elem->Msg;
 
 	pCurrState = &pAd->ApCfg.ApCliTab[ifIndex].SyncCurrState;
 	if (PeerBeaconAndProbeRspSanity(pAd, 
@@ -329,24 +362,28 @@ static VOID ApCliPeerProbeRspAtJoinAction(
 		INT bssidEqualFlag = FALSE;
 		INT bssidEmptyFlag = FALSE;
 		INT matchFlag = FALSE;
-
+		CHAR Rssi = -127;
 		ULONG   Bssidx;
-        LONG    RealRssi = -127;
-#ifdef RT_CFG80211_P2P_CONCURRENT_DEVICE
+		CHAR RealRssi = -127;
+
 		RealRssi = (LONG)(RTMPMaxRssi(pAd, ConvertToRssi(pAd, Elem->Rssi0, RSSI_0), 
 						   ConvertToRssi(pAd, Elem->Rssi1, RSSI_1), 
 						   ConvertToRssi(pAd, Elem->Rssi2, RSSI_2)));		
-#endif /* RT_CFG80211_P2P_CONCURRENT_DEVICE */
 
 		/* Update ScanTab */
 		Bssidx = BssTableSearch(&pAd->ScanTab, ie_list->Bssid, ie_list->Channel);
 		if (Bssidx == BSS_NOT_FOUND)
 		{
+#ifdef WH_EZ_SETUP
+			if (IS_ADPTR_EZ_SETUP_ENABLED(pAd))
+				Rssi = (CHAR)RealRssi;
+#endif
 			/* discover new AP of this network, create BSS entry */
 #ifdef CUSTOMER_DCC_FEATURE
-			Bssidx = BssTableSetEntry(pAd, &pAd->ScanTab, ie_list, -127, LenVIE, pVIE, Elem->Snr0, Elem->Snr1);
+			Bssidx = BssTableSetEntry(pAd, &pAd->ScanTab, ie_list, Rssi, LenVIE,
+				pVIE, Elem->Snr0, Elem->Snr1);
 #else
-			Bssidx = BssTableSetEntry(pAd, &pAd->ScanTab, ie_list, -127, LenVIE, pVIE);
+			Bssidx = BssTableSetEntry(pAd, &pAd->ScanTab, ie_list, Rssi, LenVIE, pVIE);
 #endif
 			if (Bssidx == BSS_NOT_FOUND) /* return if BSS table full */
 			{
@@ -372,45 +409,50 @@ static VOID ApCliPeerProbeRspAtJoinAction(
 
 		pApCliEntry = &pAd->ApCfg.ApCliTab[ifIndex];
 		wdev = &pApCliEntry->wdev;
+#ifdef WH_EZ_SETUP
+		pFrame = (PFRAME_802_11)Elem->Msg;
+		if (IS_EZ_SETUP_ENABLED(wdev) &&
+			pAd->ScanTab.BssEntry[Bssidx].support_easy_setup &&
+			pApCliEntry->MlmeAux.support_easy_setup) {
+#ifdef DISCONNECT_ON_CONFIG_UPDATE
+			error = ez_probe_rsp_join_action(pAd, wdev, ie_list, Bssidx);
+			if (error)
+				goto LabelErr;
+#endif
+			/*
+			*Ignore beacon here.
+			*Only probe response has DH public key information.
+			*/
+			if (pFrame->Hdr.FC.SubType == SUBTYPE_BEACON)
+				goto LabelErr;
+			else
+				ez_process_beacon_probe_response(wdev, Elem->Msg, Elem->MsgLen);
+		}
+#endif /* WH_EZ_SETUP */
 
-		/* Check the Probe-Rsp's Ssid. */
-#ifdef WSC_AP_SUPPORT
-        if ((pApCliEntry->WscControl.WscConfMode != WSC_DISABLE) &&
-            (pApCliEntry->WscControl.bWscTrigger == TRUE))
-        {
-#ifdef SMART_MESH
-            if((pApCliEntry->WscControl.WscMode == 2) && 
-                (pApCliEntry->WscControl.bWscPBCAddrMode == TRUE))
-                bssidEqualFlag = MAC_ADDR_EQUAL(pApCliEntry->WscControl.WscPBCAddr, ie_list->Bssid);
-            else
-#endif /* SMART_MESH */
-            {
-                if(!MAC_ADDR_EQUAL(pApCliEntry->CfgApCliBssid, ZERO_MAC_ADDR))
-    			    bssidEqualFlag = MAC_ADDR_EQUAL(pApCliEntry->CfgApCliBssid, ie_list->Bssid);
-    		    else
-    			    bssidEmptyFlag = TRUE;
-            }
-            
-            if(pApCliEntry->WscControl.WscSsid.SsidLength != 0)
-			    ssidEqualFlag = SSID_EQUAL(pApCliEntry->WscControl.WscSsid.Ssid,
-			                             pApCliEntry->WscControl.WscSsid.SsidLength,ie_list->Ssid, ie_list->SsidLen);
-		    else
-			    ssidEmptyFlag = TRUE;
-        }
-        else
-#endif /* WSC_AP_SUPPORT */
-        {
 		/* Check the Probe-Rsp's Bssid. */
 		if(!MAC_ADDR_EQUAL(pApCliEntry->CfgApCliBssid, ZERO_MAC_ADDR))
 			bssidEqualFlag = MAC_ADDR_EQUAL(pApCliEntry->CfgApCliBssid, ie_list->Bssid);
 		else
 			bssidEmptyFlag = TRUE;
-
+#ifdef WSC_AP_SUPPORT
+		if ((pApCliEntry->WscControl.WscConfMode != WSC_DISABLE) &&
+			(pApCliEntry->WscControl.bWscTrigger == TRUE)) {
+			if(pApCliEntry->WscControl.WscSsid.SsidLength != 0)
+				ssidEqualFlag = SSID_EQUAL(pApCliEntry->WscControl.WscSsid.Ssid,
+				pApCliEntry->WscControl.WscSsid.SsidLength,
+				ie_list->Ssid, ie_list->SsidLen);
+			else
+				ssidEmptyFlag = TRUE;
+		} else
+#endif
+		{
+		/* Check the Probe-Rsp's Ssid. */
 		if(pApCliEntry->CfgSsidLen != 0)
 			ssidEqualFlag = SSID_EQUAL(pApCliEntry->CfgSsid, pApCliEntry->CfgSsidLen, ie_list->Ssid, ie_list->SsidLen);
 		else
 			ssidEmptyFlag = TRUE;
-        }
+		}
 
 		/* bssid and ssid, Both match. */
 		if (bssidEqualFlag && ssidEqualFlag)
@@ -422,13 +464,17 @@ static VOID ApCliPeerProbeRspAtJoinAction(
 
 		/* user doesn't indicate any bssid or ssid. AP-Clinet will auto pick a AP to join by most strong siganl strength. */
 		else if (bssidEmptyFlag && ssidEmptyFlag)
-		{      
 			matchFlag = TRUE;
-#ifdef SMART_MESH
-			matchFlag = FALSE;
-#endif /* SMART_MESH */
-		}
-
+#ifdef WH_EZ_SETUP
+						if (IS_EZ_SETUP_ENABLED(&pApCliEntry->wdev) && matchFlag == 0) {
+							if (ssidEqualFlag == 0)
+								BssTableInit(&pAd->ScanTab);
+							if (bssidEqualFlag == 0) {
+								hex_dump("Apclibssid", pApCliEntry->CfgApCliBssid, 6);
+								hex_dump("IEbssid", ie_list->Bssid, 6);
+							}
+						}
+#endif
 		DBGPRINT(RT_DEBUG_TRACE, ("SYNC - bssidEqualFlag=%d, ssidEqualFlag=%d, matchFlag=%d\n",
 					bssidEqualFlag, ssidEqualFlag, matchFlag));
 		if (matchFlag)
@@ -474,72 +520,21 @@ static VOID ApCliPeerProbeRspAtJoinAction(
 				
 				pApCliEntry->MlmeAux.VarIELen = 0;
 			}
-
-#ifdef SMART_MESH
-			PSMART_MESH_CFG pSmartMeshCfg = NULL;
-			pSmartMeshCfg = &pApCliEntry->SmartMeshCfg;
-
-			if(((pSmartMeshCfg->HiFiFlagMask != 0) && (pSmartMeshCfg->HiFiFlagValue != 0)) &&
-				((ie_list->VIEFlag & pSmartMeshCfg->HiFiFlagMask) == pSmartMeshCfg->HiFiFlagValue))
-			{
-				pAd->ScanTab.BssEntry[Bssidx].bHyperFiPeer = TRUE;
-				pApCliEntry->MlmeAux.bHyperFiPeer = TRUE;
-			}
-			else
-			{
-				pAd->ScanTab.BssEntry[Bssidx].bHyperFiPeer = FALSE;
-				pApCliEntry->MlmeAux.bHyperFiPeer = FALSE;
-			}
-			
-			if((pSmartMeshCfg->bHiFiPeerFilter == TRUE) &&
-			   (pAd->ScanTab.BssEntry[Bssidx].bHyperFiPeer == FALSE))
-			{
-				DBGPRINT(RT_DEBUG_OFF, ("Reject this PROBE_RSP due to not desired Hyper-Fi peer(%02X:%02X:%02X:%02X:%02X:%02X).\n",PRINT_MAC(pAd->ScanTab.BssEntry[Bssidx].Bssid)));
-				goto LabelErr;
-			}
-
-			if(pAd->ScanTab.BssEntry[Bssidx].bSupportSmartMesh != ie_list->bSupportSmartMesh)
-				pAd->ScanTab.BssEntry[Bssidx].bSupportSmartMesh = ie_list->bSupportSmartMesh;
-			
-			if(pAd->ScanTab.BssEntry[Bssidx].bSupportSmartMesh)
-			{
-				pApCliEntry->MlmeAux.bSupportSmartMesh = TRUE;
-				DBGPRINT(RT_DEBUG_OFF, ("AP supports SMART MESH\n"));
-			}
-			else
-				pApCliEntry->MlmeAux.bSupportSmartMesh = FALSE;
-
-			if(pAd->ScanTab.BssEntry[Bssidx].bHyperFiPeer)
-				DBGPRINT(RT_DEBUG_OFF, ("AP is Hyper-Fi device\n"));
-#endif /* SMART_MESH */
 #ifdef MWDS
-			if(pAd->ScanTab.BssEntry[Bssidx].bSupportMWDS != ie_list->bSupportMWDS)
-				pAd->ScanTab.BssEntry[Bssidx].bSupportMWDS = ie_list->bSupportMWDS;
-			
-			if(pAd->ScanTab.BssEntry[Bssidx].bSupportMWDS)
-			{
-				pApCliEntry->MlmeAux.bSupportMWDS = TRUE;
-				DBGPRINT(RT_DEBUG_OFF, ("AP supports MWDS\n"));
+			pApCliEntry->MlmeAux.bSupportMWDS = FALSE;
+			if (ie_list->vendor_ie.mtk_cap_found) {
+				if (ie_list->vendor_ie.support_mwds) {
+					pAd->ScanTab.BssEntry[Bssidx].bSupportMWDS = TRUE;
+					pApCliEntry->MlmeAux.bSupportMWDS = TRUE;
+					DBGPRINT(RT_DEBUG_OFF, ("AP supports MWDS\n"));
+				} else {
+					pAd->ScanTab.BssEntry[Bssidx].bSupportMWDS = FALSE;
+					pApCliEntry->MlmeAux.bSupportMWDS = FALSE;
+					DBGPRINT(RT_DEBUG_OFF, ("AP non-supports MWDS\n"));
+				}
 			}
-			else
-				pApCliEntry->MlmeAux.bSupportMWDS = FALSE;
 #endif /* MWDS */
 
-#ifdef WSC_AP_SUPPORT
-#ifdef SMART_MESH_HIDDEN_WPS
-            if(pAd->ScanTab.BssEntry[Bssidx].bSupportHiddenWPS != ie_list->bSupportHiddenWPS)
-			   pAd->ScanTab.BssEntry[Bssidx].bSupportHiddenWPS = ie_list->bSupportHiddenWPS;
-            
-            if(pAd->ScanTab.BssEntry[Bssidx].bSupportHiddenWPS)
-				DBGPRINT(RT_DEBUG_OFF, ("AP supports HiddenWPS\n"));
-
-            if(pAd->ScanTab.BssEntry[Bssidx].bRunningHiddenWPS != ie_list->bRunningHiddenWPS)
-                pAd->ScanTab.BssEntry[Bssidx].bRunningHiddenWPS = ie_list->bRunningHiddenWPS;
-
-            if(pAd->ScanTab.BssEntry[Bssidx].bRunningHiddenWPS)
-                DBGPRINT(RT_DEBUG_OFF, ("AP is running HiddenWPS\n"));
-#endif /* SMART_MESH_HIDDEN_WPS */
-#endif /* WSC_AP_SUPPORT */
 			DBGPRINT(RT_DEBUG_TRACE, ("SYNC - receive desired PROBE_RSP at JoinWaitProbeRsp... Channel = %d\n",
 							ie_list->Channel));
 
@@ -550,13 +545,19 @@ static VOID ApCliPeerProbeRspAtJoinAction(
 				CHAR Rssi0 = ConvertToRssi(pAd, Elem->Rssi0, RSSI_0);
 				CHAR Rssi1 = ConvertToRssi(pAd, Elem->Rssi1, RSSI_1);
 				CHAR Rssi2 = ConvertToRssi(pAd, Elem->Rssi2, RSSI_2);
-				LONG RealMaxRssi = (LONG)(RTMPMaxRssi(pAd, Rssi0, Rssi1, Rssi2));
+				LONG RealRssi = (LONG)(RTMPMaxRssi(pAd, Rssi0, Rssi1, Rssi2));
 
-				DBGPRINT(RT_DEBUG_TRACE, ("SYNC - previous Rssi = %ld current Rssi=%ld\n", pApCliEntry->MlmeAux.Rssi, (LONG)RealMaxRssi));
-				if (pApCliEntry->MlmeAux.Rssi > (LONG)RealMaxRssi)
+				DBGPRINT(RT_DEBUG_TRACE, ("SYNC - previous Rssi = %ld current Rssi=%ld\n", pApCliEntry->MlmeAux.Rssi, (LONG)RealRssi));
+				if (pApCliEntry->MlmeAux.Rssi > (LONG)RealRssi)
 					goto LabelErr;
 				else
-					pApCliEntry->MlmeAux.Rssi = RealMaxRssi;
+					pApCliEntry->MlmeAux.Rssi = RealRssi;
+				
+				if (ie_list->Channel != pApCliEntry->MlmeAux.Channel)                                                                                     
+				{
+					DBGPRINT(RT_DEBUG_TRACE, ("\x1b[33mSYNC - current rootap ie channel=%d, apcli channel=%d! \x1b[m\n", ie_list->Channel, pApCliEntry->MlmeAux.Channel));                             
+					goto LabelErr;                                                                                                                    
+				} 
 			}
 			else
 			{
@@ -572,7 +573,6 @@ static VOID ApCliPeerProbeRspAtJoinAction(
 			pApCliEntry->MlmeAux.BssType = ie_list->BssType;
 			pApCliEntry->MlmeAux.BeaconPeriod = ie_list->BeaconPeriod;
 			pApCliEntry->MlmeAux.Channel = ie_list->Channel;
-			pApCliEntry->MlmeAux.CentralChannel = ie_list->Channel; /* by default */
 			pApCliEntry->MlmeAux.AtimWin = ie_list->AtimWin;
 			pApCliEntry->MlmeAux.CfpPeriod = ie_list->CfParm.CfpPeriod;
 			pApCliEntry->MlmeAux.CfpMaxDuration = ie_list->CfParm.CfpMaxDuration;
@@ -605,18 +605,10 @@ static VOID ApCliPeerProbeRspAtJoinAction(
 #endif /* APCLI_CERT_SUPPORT */
 #ifdef DOT11_N_SUPPORT
 			NdisZeroMemory(pApCliEntry->RxMcsSet,sizeof(pApCliEntry->RxMcsSet));
-		
-#ifdef APCLI_AUTO_BW_SUPPORT
-	        	PhyMode = pApCliEntry->wdev.PhyMode;
-			DBGPRINT(RT_DEBUG_OFF, ("%s: check HT Rule --> %d %d %d %d\n", __FUNCTION__, (ie_list->HtCapabilityLen > 0),  
-				(pApCliEntry->wdev.DesiredHtPhyInfo.bHtEnable), WMODE_CAP_N(pApCliEntry->wdev.PhyMode), 
-				!(pAd->CommonCfg.HT_DisallowTKIP && IS_INVALID_HT_SECURITY(wdev->WepStatus))));	
-#endif /* APCLI_AUTO_BW_SUPPORT */
-
 			/* filter out un-supported ht rates */
 			if ((ie_list->HtCapabilityLen > 0) && 
 				(pApCliEntry->wdev.DesiredHtPhyInfo.bHtEnable) &&
-				WMODE_CAP_N(PhyMode) &&
+				WMODE_CAP_N(pAd->CommonCfg.PhyMode) &&
 				/* For Dissallow TKIP rule on STA */
 				!(pAd->CommonCfg.HT_DisallowTKIP && IS_INVALID_HT_SECURITY(wdev->WepStatus)))
 			{
@@ -631,7 +623,6 @@ static VOID ApCliPeerProbeRspAtJoinAction(
 		 			/* Check again the Bandwidth capability of this AP. */
 					CentralChannel = get_cent_ch_by_htinfo(pAd, &ie_list->AddHtInfo,
 														&ie_list->HtCapability);
-					pApCliEntry->MlmeAux.CentralChannel = CentralChannel;									
 		 			DBGPRINT(RT_DEBUG_TRACE, ("PeerBeaconAtJoinAction HT===>CentralCh = %d, ControlCh = %d\n",
 									CentralChannel, ie_list->AddHtInfo.ControlChan));
 				}
@@ -647,7 +638,7 @@ static VOID ApCliPeerProbeRspAtJoinAction(
 
 #ifdef DOT11_N_SUPPORT
 			/* copy QOS related information */
-			if (WMODE_CAP_N(PhyMode))
+			if (WMODE_CAP_N(pAd->CommonCfg.PhyMode))
 			{
 				NdisMoveMemory(&pApCliEntry->MlmeAux.APEdcaParm, &ie_list->EdcaParm, sizeof(EDCA_PARM));
 				NdisMoveMemory(&pApCliEntry->MlmeAux.APQbssLoad, &ie_list->QbssLoad, sizeof(QBSS_LOAD_PARM));
@@ -672,14 +663,6 @@ static VOID ApCliPeerProbeRspAtJoinAction(
 			else  /* Used the default TX Power Percentage. */
 				pAd->CommonCfg.TxPowerPercentage = pAd->CommonCfg.TxPowerDefault;
 
-#ifdef APCLI_AUTO_BW_SUPPORT
-			if ((ie_list->HtCapabilityLen > 0) &&
-			    (ie_list->HtCapability.HtCapInfo.ChannelWidth == BW_40))
-			{
-				ApCliAutoBwAction(pAd, ifIndex);
-			}
-#endif /* APCLI_AUTO_BW_SUPPORT */	
-			
 			if(bssidEqualFlag == TRUE)
 			{
 				*pCurrState = APCLI_SYNC_IDLE;
@@ -689,74 +672,25 @@ static VOID ApCliPeerProbeRspAtJoinAction(
 				ApCliCtrlMsg.BssIdx = ifIndex;
 				ApCliCtrlMsg.CliIdx = 0xFF;
 #endif /* MAC_REPEATER_SUPPORT */
-
+#ifdef WH_EZ_SETUP
+			if (IS_EZ_SETUP_ENABLED(wdev)
+				&& pApCliEntry->MlmeAux.support_easy_setup) {
+				ez_prepare_security_key(wdev, ie_list->Addr2, FALSE);
+			}
+#endif/* WH_EZ_SETUP */
 				MlmeEnqueue(pAd, APCLI_CTRL_STATE_MACHINE, APCLI_CTRL_PROBE_RSP,
 					sizeof(APCLI_CTRL_MSG_STRUCT), &ApCliCtrlMsg, ifIndex);
 			}
-
-#ifdef SMART_MESH_MONITOR
-			if(pFrame && (pFrame->Hdr.FC.SubType == SUBTYPE_PROBE_RSP))
-			{
-				struct nsmpif_drvevnt_buf drvevnt;
-				
-				drvevnt.data.proberesp.type = NSMPIF_DRVEVNT_AP_PROBE_RESP;
-				drvevnt.data.proberesp.channel = ie_list->Channel;
-				COPY_MAC_ADDR(drvevnt.data.proberesp.ap_mac, ie_list->Addr2);
-				drvevnt.data.proberesp.is_ucast = 1;
-				drvevnt.data.proberesp.rate = pAd->LastMgmtRxRate;
-				drvevnt.data.proberesp.rssi = RealRssi;
-				drvevnt.data.proberesp.snr = ConvertToSnr(pAd, Elem->Signal);
-#ifdef RTMP_MAC
-				if (pAd->chipCap.hif_type == HIF_RTMP)
-				{
-					if (IS_RT6352(pAd))
-					{
-						if ((42 - drvevnt.data.proberesp.snr) >= 0)
-							drvevnt.data.proberesp.snr = (42 - drvevnt.data.proberesp.snr);
-						else
-						    drvevnt.data.proberesp.snr = 0;
-					}
-				}
-#endif /* RTMP_MAC */
-
-				NdisZeroMemory(drvevnt.data.proberesp.ssid,sizeof(drvevnt.data.proberesp.ssid));
-				NdisCopyMemory(drvevnt.data.proberesp.ssid,ie_list->Ssid,ie_list->SsidLen);
-				drvevnt.data.proberesp.cap = 0;
-#ifdef DOT11_N_SUPPORT
-				if(ie_list->HtCapabilityLen > 0)
-					drvevnt.data.proberesp.cap |= NSMP_WLCAP_80211_N;
-#endif /* DOT11_N_SUPPORT */
-#ifdef DOT11_VHT_AC
-				if (ie_list->vht_cap_len > 0)
-					drvevnt.data.proberesp.cap |= NSMP_WLCAP_80211_AC;
-#endif /* DOT11_VHT_AC */
-				// Bandwdith
-				if (ie_list->HtCapability.HtCapInfo.ChannelWidth == BW_40)
-				{
-#ifdef DOT11_VHT_AC
-					if(ie_list->vht_op_len > 0 && ie_list->vht_op_ie.vht_op_info.ch_width >= 1)
-						drvevnt.data.proberesp.cap |= NSMP_WLCAP_HT80;
-					else
-#endif /* DOT11_VHT_AC */				
-						drvevnt.data.proberesp.cap |= NSMP_WLCAP_HT40;
-				}
-				// RX/TX STREAM
-				drvevnt.data.proberesp.cap |= \
-				(ie_list->HtCapability.MCSSet[3] != 0x00) ? (NSMP_WLCAP_RX_4_STREAMS|NSMP_WLCAP_TX_4_STREAMS) :\
-				(ie_list->HtCapability.MCSSet[2] != 0x00) ? (NSMP_WLCAP_RX_3_STREAMS|NSMP_WLCAP_TX_3_STREAMS) :\
-				(ie_list->HtCapability.MCSSet[1] != 0x00) ? (NSMP_WLCAP_RX_2_STREAMS|NSMP_WLCAP_TX_2_STREAMS) : 0;
-	
-				/* Vendor information element */
-				drvevnt.data.proberesp.ntgr_vie_len = ie_list->vendor_ie_len;
-				NdisZeroMemory(drvevnt.data.proberesp.ntgr_vie,sizeof(drvevnt.data.proberesp.ntgr_vie));
-				if(ie_list->vendor_ie_len > 0)
-					NdisCopyMemory(drvevnt.data.proberesp.ntgr_vie,ie_list->vendor_ie,ie_list->vendor_ie_len);
-				
-				RtmpOSWrielessEventSend(pAd->net_dev, RT_WLAN_EVENT_CUSTOM,NSMPIF_DRVEVNT_AP_PROBE_RESP,
-										NULL, (PUCHAR)&drvevnt.data.proberesp, sizeof(drvevnt.data.proberesp));
-			}
-#endif /* SMART_MESH_MONITOR */
 		}
+#ifdef WH_EVENT_NOTIFIER
+		{
+			EventHdlr pEventHdlrHook = NULL;
+
+			pEventHdlrHook = GetEventNotiferHook(WHC_DRVEVNT_AP_PROBE_RSP);
+			if (pEventHdlrHook && pApCliEntry)
+				pEventHdlrHook(pAd, &pApCliEntry->wdev, ie_list, Elem);
+		}
+#endif/* WH_EVENT_NOTIFIER */
 	}
 
 LabelErr:
@@ -843,12 +777,154 @@ static VOID ApCliInvalidStateWhenJoin(
 	==========================================================================
 	Description:
 	==========================================================================
- */
+*/
+static VOID ApCliEnqueueProbeRequest_A3Bcast(
+	IN PRTMP_ADAPTER pAd,
+	IN UCHAR SsidLen,
+	OUT PCHAR Ssid,
+	IN USHORT ifIndex)
+{
+	NDIS_STATUS NState;
+	PUCHAR pOutBuffer;
+	ULONG FrameLen = 0;
+	HEADER_802_11 Hdr80211;
+	UCHAR SsidIe = IE_SSID;
+	UCHAR SupRateIe = IE_SUPP_RATES;
+	UCHAR ssidLen;
+	CHAR ssid[MAX_LEN_OF_SSID];
+	APCLI_STRUCT *pApCliEntry = NULL;
+	BOOLEAN bHasWscIe = FALSE;
+
+	DBGPRINT(RT_DEBUG_TRACE, ("force out a ProbeRequest ...\n"));
+	if (ifIndex >= MAX_APCLI_NUM)
+		return;
+	pApCliEntry = &pAd->ApCfg.ApCliTab[ifIndex];
+	NState = MlmeAllocateMemory(pAd, &pOutBuffer);/* Get an unused nonpaged memory */
+	if (NState != NDIS_STATUS_SUCCESS) {
+		DBGPRINT(RT_DEBUG_TRACE, ("EnqueueProbeRequest() allocate memory fail\n"));
+	} else {
+		if (MAC_ADDR_EQUAL(pAd->ApCfg.ApCliTab[ifIndex].CfgApCliBssid, ZERO_MAC_ADDR))
+			ApCliMgtMacHeaderInit(pAd, &Hdr80211, SUBTYPE_PROBE_REQ, 0,
+				BROADCAST_ADDR, BROADCAST_ADDR, ifIndex);
+		else
+			ApCliMgtMacHeaderInit(pAd, &Hdr80211, SUBTYPE_PROBE_REQ, 0,
+				pAd->ApCfg.ApCliTab[ifIndex].CfgApCliBssid, BROADCAST_ADDR, ifIndex);
+		ssidLen = SsidLen;
+		NdisZeroMemory(ssid, MAX_LEN_OF_SSID);
+		NdisMoveMemory(ssid, Ssid, ssidLen);
+		/* this ProbeRequest explicitly specify SSID to reduce unwanted ProbeResponse */
+		MakeOutgoingFrame(pOutBuffer, &FrameLen,
+			sizeof(HEADER_802_11), &Hdr80211,
+			1, &SsidIe,
+			1, &ssidLen,
+			ssidLen, ssid,
+			1, &SupRateIe,
+			1, &pApCliEntry->MlmeAux.SupRateLen,
+			pApCliEntry->MlmeAux.SupRateLen, pApCliEntry->MlmeAux.SupRate,
+			END_OF_ARGS);
+		/* Add the extended rate IE */
+		if (pApCliEntry->MlmeAux.ExtRateLen != 0) {
+			ULONG tmp;
+
+			MakeOutgoingFrame(pOutBuffer + FrameLen, &tmp,
+				1, &ExtRateIe,
+				1, &pApCliEntry->MlmeAux.ExtRateLen,
+				pApCliEntry->MlmeAux.ExtRateLen, pApCliEntry->MlmeAux.ExtRate,
+				END_OF_ARGS);
+			FrameLen += tmp;
+		}
+
+#ifdef DOT11_VHT_AC
+		if (WMODE_CAP_AC(pAd->CommonCfg.PhyMode) &&
+			(pAd->CommonCfg.Channel > 14)) {
+			BOOLEAN fgBfeeCapSu;
+
+			build_vht_cap_ie(pAd, (UCHAR *)&pApCliEntry->MlmeAux.vht_cap);
+			pApCliEntry->MlmeAux.vht_cap_len = sizeof(VHT_CAP_IE);
+#ifdef VHT_TXBF_SUPPORT
+			fgBfeeCapSu = pAd->CommonCfg.vht_cap_ie.vht_cap.bfee_cap_su;
+			pAd->BeaconSndDimensionFlag = 0;
+			if (pApCliEntry->MlmeAux.vht_cap.vht_cap.num_snd_dimension >= 2)
+				pAd->BeaconSndDimensionFlag = 1;
+			else
+				pAd->CommonCfg.vht_cap_ie.vht_cap.bfee_cap_su = TRUE;
+			FrameLen += build_vht_ies(pAd, (UCHAR *)(pOutBuffer + FrameLen), SUBTYPE_PROBE_REQ);
+			pAd->CommonCfg.vht_cap_ie.vht_cap.bfee_cap_su = fgBfeeCapSu;
+#else
+			FrameLen += build_vht_ies(pAd, (UCHAR *)(pOutBuffer + FrameLen), SUBTYPE_PROBE_REQ);
+#endif/* VHT_TXBF_SUPPORT */
+		}
+#endif /* DOT11_VHT_AC */
+#ifdef WH_EZ_SETUP
+		if (IS_EZ_SETUP_ENABLED(&pApCliEntry->wdev) &&
+			pApCliEntry->MlmeAux.support_easy_setup) {
+			FrameLen += ez_build_probe_request_ie(&pApCliEntry->wdev,
+				pOutBuffer + FrameLen);
+		}
+#endif/* WH_EZ_SETUP */
+#ifdef WH_EVENT_NOTIFIER
+		if (pApCliEntry->wdev.custom_vie.ie_hdr.len > 0) {
+			ULONG custom_vie_len;
+			ULONG total_custom_vie_len = sizeof(struct Custom_IE_Header) +
+				pApCliEntry->wdev.custom_vie.ie_hdr.len;
+
+			MakeOutgoingFrame((pOutBuffer + FrameLen), &custom_vie_len,
+				total_custom_vie_len, (UCHAR *)&pApCliEntry->wdev.custom_vie, END_OF_ARGS);
+			FrameLen += custom_vie_len;
+		}
+#endif /* WH_EVENT_NOTIFIER */
+#ifdef WSC_AP_SUPPORT
+/* Append WSC information in probe request if WSC state is running */
+		if ((pAd->ApCfg.ApCliTab[ifIndex].WscControl.WscConfMode != WSC_DISABLE) &&
+			(pAd->ApCfg.ApCliTab[ifIndex].WscControl.bWscTrigger)) {
+			bHasWscIe = TRUE;
+		}
+#ifdef WSC_V2_SUPPORT
+		else if (pAd->ApCfg.ApCliTab[ifIndex].WscControl.WscV2Info.bEnableWpsV2)
+			bHasWscIe = TRUE;
+#endif /* WSC_V2_SUPPORT */
+		if (bHasWscIe) {
+			UCHAR WscIeLen = 0;
+			UCHAR *WscBuf = NULL;
+			ULONG WscTmpLen = 0;
+			/* allocate memory */
+			os_alloc_mem(NULL, (UCHAR **)&WscBuf, 512);
+			if (WscBuf != NULL) {
+				NdisZeroMemory(WscBuf, 512);
+				WscBuildProbeReqIE(pAd, STA_MODE, WscBuf, &WscIeLen);
+				MakeOutgoingFrame(pOutBuffer + FrameLen, &WscTmpLen,
+					WscIeLen, WscBuf,
+					END_OF_ARGS);
+				FrameLen += WscTmpLen;
+				os_free_mem(NULL, WscBuf);
+			} else
+				DBGPRINT(RT_DEBUG_ERROR, ("%s: Allocate memory fail!!!\n", __func__));
+		}
+#endif /*WSC_AP_SUPPORT*/
+#ifdef RT_CFG80211_P2P_CONCURRENT_DEVICE
+		if ((pAd->StaCfg.wpa_supplicant_info.WpaSupplicantUP != WPA_SUPPLICANT_DISABLE) &&
+			(pAd->cfg80211_ctrl.ExtraIeLen != 0)) {
+			ULONG ExtraIeTmpLen = 0;
+
+			MakeOutgoingFrame(pOutBuffer + FrameLen, &ExtraIeTmpLen,
+				pAd->cfg80211_ctrl.ExtraIeLen, pAd->cfg80211_ctrl.pExtraIe, END_OF_ARGS);
+			FrameLen += ExtraIeTmpLen;
+		}
+#endif/* RT_CFG80211_P2P_CONCURRENT_DEVICE*/
+		MiniportMMRequest(pAd, QID_AC_BE, pOutBuffer, FrameLen);
+		MlmeFreeMemory(pAd, pOutBuffer);
+	}
+}
+
+/*
+*	==========================================================================
+*	Description:
+*	==========================================================================
+*/
 static VOID ApCliEnqueueProbeRequest(
 	IN PRTMP_ADAPTER pAd,
 	IN UCHAR SsidLen,
-	IN PCHAR Ssid,
-	IN PCHAR Bssid,
+	OUT PCHAR Ssid,
 	IN USHORT ifIndex)
 {
 	NDIS_STATUS     NState;
@@ -861,17 +937,13 @@ static VOID ApCliEnqueueProbeRequest(
 	CHAR ssid[MAX_LEN_OF_SSID];
 	APCLI_STRUCT *pApCliEntry = NULL;
 	BOOLEAN bHasWscIe = FALSE;
-	UCHAR   PhyMode = pAd->CommonCfg.PhyMode;
-	
+
 	DBGPRINT(RT_DEBUG_TRACE, ("force out a ProbeRequest ...\n"));
 
 	if (ifIndex >= MAX_APCLI_NUM)
 		return;
 
 	pApCliEntry = &pAd->ApCfg.ApCliTab[ifIndex];
-#ifdef APCLI_AUTO_BW_SUPPORT
-    PhyMode = pApCliEntry->wdev.PhyMode;
-#endif /* APCLI_AUTO_BW_SUPPORT */	
 	
 	NState = MlmeAllocateMemory(pAd, &pOutBuffer);  /* Get an unused nonpaged memory */
 	if(NState != NDIS_STATUS_SUCCESS)
@@ -881,13 +953,19 @@ static VOID ApCliEnqueueProbeRequest(
 	}
 	else
 	{
-		if(MAC_ADDR_EQUAL(Bssid, ZERO_MAC_ADDR))
+		if(MAC_ADDR_EQUAL(pAd->ApCfg.ApCliTab[ifIndex].CfgApCliBssid, ZERO_MAC_ADDR))
 			ApCliMgtMacHeaderInit(pAd, &Hdr80211, SUBTYPE_PROBE_REQ, 0,
 				BROADCAST_ADDR, BROADCAST_ADDR, ifIndex);
-		else
+		else {
 			ApCliMgtMacHeaderInit(pAd, &Hdr80211, SUBTYPE_PROBE_REQ, 0,
-				Bssid, Bssid, ifIndex);
-
+				pAd->ApCfg.ApCliTab[ifIndex].CfgApCliBssid,
+				pAd->ApCfg.ApCliTab[ifIndex].CfgApCliBssid, ifIndex);
+				ApCliEnqueueProbeRequest_A3Bcast(
+					pAd,
+					SsidLen,
+					Ssid,
+					ifIndex);
+		}
 		ssidLen = SsidLen;
 		NdisZeroMemory(ssid, MAX_LEN_OF_SSID);
 		NdisMoveMemory(ssid, Ssid, ssidLen);
@@ -916,24 +994,55 @@ static VOID ApCliEnqueueProbeRequest(
 			FrameLen += tmp;
 		}
 
-#ifdef SMART_MESH
-		SMART_MESH_INSERT_IE(pApCliEntry->SmartMeshCfg,
-							pOutBuffer,
-							FrameLen,
-							SM_IE_PROBE_REQ);
-#endif /* SMART_MESH */
-
 #ifdef DOT11_VHT_AC
-		if (WMODE_CAP_AC(PhyMode) &&
+		if (WMODE_CAP_AC(pAd->CommonCfg.PhyMode) &&
 			(pAd->CommonCfg.Channel > 14))
 		{
-
+			BOOLEAN fgBfeeCapSu;
+			    
 			build_vht_cap_ie(pAd, (UCHAR *)&pApCliEntry->MlmeAux.vht_cap);
 			pApCliEntry->MlmeAux.vht_cap_len = sizeof(VHT_CAP_IE);
 
+#ifdef VHT_TXBF_SUPPORT
+            fgBfeeCapSu = pAd->CommonCfg.vht_cap_ie.vht_cap.bfee_cap_su;
+
+            //Disable beamform capability in Associate Request with 3x3 AP to avoid throughput drop issue
+            // MT76x2 only supports up to 2x2 sounding feedback 
+            pAd->BeaconSndDimensionFlag = 0;
+            if (pApCliEntry->MlmeAux.vht_cap.vht_cap.num_snd_dimension >=2 )
+            {
+                pAd->BeaconSndDimensionFlag = 1;
+            }
+            else
+            {
+                pAd->CommonCfg.vht_cap_ie.vht_cap.bfee_cap_su = TRUE;
+            }
+
             FrameLen += build_vht_ies(pAd, (UCHAR *)(pOutBuffer + FrameLen), SUBTYPE_PROBE_REQ);
+            pAd->CommonCfg.vht_cap_ie.vht_cap.bfee_cap_su = fgBfeeCapSu;
+#else
+            FrameLen += build_vht_ies(pAd, (UCHAR *)(pOutBuffer + FrameLen), SUBTYPE_PROBE_REQ);
+#endif /* VHT_TXBF_SUPPORT */			
 		}
 #endif /* DOT11_VHT_AC */
+#ifdef WH_EZ_SETUP
+		if (IS_EZ_SETUP_ENABLED(&pApCliEntry->wdev) &&
+			pApCliEntry->MlmeAux.support_easy_setup) {
+			FrameLen += ez_build_probe_request_ie(&pApCliEntry->wdev,
+				pOutBuffer + FrameLen);
+		}
+#endif/* WH_EZ_SETUP */
+#ifdef WH_EVENT_NOTIFIER
+		if (pApCliEntry->wdev.custom_vie.ie_hdr.len > 0) {
+			ULONG custom_vie_len;
+			ULONG total_custom_vie_len = sizeof(struct Custom_IE_Header) +
+				pApCliEntry->wdev.custom_vie.ie_hdr.len;
+
+			MakeOutgoingFrame((pOutBuffer + FrameLen), &custom_vie_len,
+				total_custom_vie_len, (UCHAR *)&pApCliEntry->wdev.custom_vie, END_OF_ARGS);
+			FrameLen += custom_vie_len;
+		}
+#endif /* WH_EVENT_NOTIFIER */
 #ifdef WSC_AP_SUPPORT
 /* Append WSC information in probe request if WSC state is running */
 		if ((pAd->ApCfg.ApCliTab[ifIndex].WscControl.WscConfMode != WSC_DISABLE) &&
@@ -947,14 +1056,6 @@ static VOID ApCliEnqueueProbeRequest(
 			bHasWscIe = TRUE;	
 		}
 #endif /* WSC_V2_SUPPORT */
-
-#ifdef WSC_AP_SUPPORT
-#ifdef SMART_MESH_HIDDEN_WPS
-        if(pAd->ApCfg.ApCliTab[ifIndex].SmartMeshCfg.bSupportHiddenWPS)
-            bHasWscIe = FALSE;
-#endif /* SMART_MESH_HIDDEN_WPS */
-#endif /* WSC_AP_SUPPORT */
-
 		if (bHasWscIe)
 		{
 			UCHAR		/* WscBuf[256], */ WscIeLen = 0;
@@ -989,7 +1090,6 @@ static VOID ApCliEnqueueProbeRequest(
 				FrameLen += ExtraIeTmpLen;
 		}
 #endif /* RT_CFG80211_P2P_CONCURRENT_DEVICE*/		
-
 		MiniportMMRequest(pAd, QID_AC_BE, pOutBuffer, FrameLen);
 		MlmeFreeMemory(pAd, pOutBuffer);
 	}
@@ -997,238 +1097,5 @@ static VOID ApCliEnqueueProbeRequest(
 	return;
 }
 
-VOID ApCliSiteSurvey(
-	IN	RTMP_ADAPTER  		*pAd,
-	IN	UCHAR			ifIndex,
-	IN	NDIS_802_11_SSID	*pSsid,
-	IN	UCHAR				ScanType,
-	IN	BOOLEAN				ChannelSel)
-{
-	MLME_SCAN_REQ_STRUCT    ScanReq;
-
-	if (RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_BSS_SCAN_IN_PROGRESS))
-	{
-		/*	
-		* Still scanning, ignore this scan.
-		*/
-		DBGPRINT(RT_DEBUG_TRACE, ("ApCliSiteSurvey:: scanning now\n"));
-		return;
-	}
-
-	if(ifIndex >= MAX_APCLI_NUM)
-		return;
-
-#ifdef WSC_AP_SUPPORT
-    if ((pAd->ApCfg.ApCliTab[ifIndex].WscControl.WscConfMode != WSC_DISABLE) &&
-    	(pAd->ApCfg.ApCliTab[ifIndex].WscControl.bWscTrigger == TRUE))
-    {
-       DBGPRINT(RT_DEBUG_TRACE, ("%s(): Stop scanning due to WPS triggered!\n",__FUNCTION__));
-       return;
-    }
-#endif /* WSC_AP_SUPPORT */
-
-	AsicDisableSync(pAd);
-
-#ifdef AP_PARTIAL_SCAN_SUPPORT
-	if (((pAd->ApCfg.bPartialScanning == TRUE) && (pAd->ApCfg.LastPartialScanChannel == 0)) ||
-		(pAd->ApCfg.bPartialScanning == FALSE))
-#endif /* AP_PARTIAL_SCAN_SUPPORT */
-	{
-		BssTableInit(&pAd->ScanTab);
-	}
-	pAd->Mlme.ApSyncMachine.CurrState = AP_SYNC_IDLE;
-	pAd->ApCfg.ApCliTab[ifIndex].SyncCurrState = APCLI_SYNC_IDLE;
-
-	RTMPZeroMemory(ScanReq.Ssid, MAX_LEN_OF_SSID);
-	ScanReq.SsidLen = 0;
-	if (pSsid)
-	{
-	    ScanReq.SsidLen = pSsid->SsidLength;
-	    NdisMoveMemory(ScanReq.Ssid, pSsid->Ssid, pSsid->SsidLength);
-	}
-    ScanReq.BssType = BSS_ANY;
-    ScanReq.ScanType = ScanType;
-    pAd->ApCfg.bAutoChannelAtBootup = ChannelSel;
-    
-    MlmeEnqueue(pAd, APCLI_SYNC_STATE_MACHINE, APCLI_MT2_MLME_SCAN_REQ, sizeof(MLME_SCAN_REQ_STRUCT), &ScanReq, 0);
-    RTMP_MLME_HANDLER(pAd);
-}
-
-static VOID ApCliMlmeScanReqAction(
-	IN RTMP_ADAPTER *pAd,
-	IN MLME_QUEUE_ELEM *Elem)
-{
-	BOOLEAN Cancelled;
-	UCHAR Ssid[MAX_LEN_OF_SSID], SsidLen, ScanType, BssType;
-
-	/* Suspend MSDU transmission here */
-	RTMPSuspendMsduTransmission(pAd);
-
-	/* first check the parameter sanity */
-	if (MlmeScanReqSanity(pAd, Elem->Msg, Elem->MsgLen, &BssType, (PCHAR)Ssid, &SsidLen, &ScanType))
-	{
-		DBGPRINT(RT_DEBUG_TRACE, ("%s(): mlme scan req action!\n", __FUNCTION__));
-		NdisGetSystemUpTime(&pAd->ApCfg.LastScanTime);
-
-		RTMPCancelTimer(&pAd->MlmeAux.APScanTimer, &Cancelled);
-
-		/* record desired BSS parameters */
-		pAd->MlmeAux.BssType = BssType;
-		pAd->MlmeAux.ScanType = ScanType;
-		pAd->MlmeAux.SsidLen = SsidLen;
-		NdisMoveMemory(pAd->MlmeAux.Ssid, Ssid, SsidLen);
-
-		/* start from the first channel */
-#ifdef AP_PARTIAL_SCAN_SUPPORT
-		pAd->MlmeAux.Channel = RTMPFindScanChannel(pAd, 0);
-#else
-		pAd->MlmeAux.Channel = FirstChannel(pAd);
-#endif /* AP_PARTIAL_SCAN_SUPPORT */
-
-		/* Let BBP register at 20MHz to do scan */
-		bbp_set_bw(pAd, BW_20);
-		DBGPRINT(RT_DEBUG_TRACE, ("SYNC - BBP R4 to 20MHz.l\n"));
-
-#ifdef CONFIG_AP_SUPPORT
-		IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
-		{
-			if (pAd->ApCfg.bAutoChannelAtBootup == TRUE)/* iwpriv set auto channel selection */
-			{
-				APAutoChannelInit(pAd);	
-				pAd->ApCfg.AutoChannel_Channel = pAd->ChannelList[0].Channel;
-			}
-#ifdef SMART_MESH
-			Set_Scan_False_CCA(pAd, 0, CCA_RESET);
-#endif /* SMART_MESH */		
-		}
-#endif /* CONFIG_AP_SUPPORT */
-		ScanNextChannel(pAd, OPMODE_AP, INT_APCLI);
-	}
-	else
-	{
-		DBGPRINT(RT_DEBUG_ERROR, ("%s(): sanity check fail. BUG!!!!\n", __FUNCTION__));
-		pAd->Mlme.ApSyncMachine.CurrState = AP_SYNC_IDLE;
-	}
-}
-
-#ifdef SMART_MESH_MONITOR
-static VOID ApCliPeerProbeRspAtScanReqAction(
-	IN RTMP_ADAPTER *pAd,
-	IN MLME_QUEUE_ELEM *Elem)
-{
-	USHORT LenVIE;
-	UCHAR *VarIE = NULL;
-	PFRAME_802_11 pFrame = NULL;
-	PAPCLI_STRUCT pApCliEntry = NULL;
-	NDIS_802_11_VARIABLE_IEs *pVIE = NULL;
-	USHORT ifIndex = (USHORT)(Elem->Priv);
-	BCN_IE_LIST *ie_list = NULL;
-	
-	if (ifIndex >= MAX_APCLI_NUM)
-		return;
-
-	/* Init Variable IE structure */
-	os_alloc_mem(NULL, (UCHAR **)&VarIE, MAX_VIE_LEN);
-	if (VarIE == NULL)
-	{
-		DBGPRINT(RT_DEBUG_ERROR, ("%s: Allocate memory fail!!!\n", __FUNCTION__));
-		goto lblErr;
-	}
-	pVIE = (PNDIS_802_11_VARIABLE_IEs) VarIE;
-	pVIE->Length = 0;
-	
-	os_alloc_mem(NULL, (UCHAR **)&ie_list, sizeof(BCN_IE_LIST));
-	if (ie_list == NULL)
-	{
-		DBGPRINT(RT_DEBUG_ERROR, ("%s: Allocate ie_list fail!!!\n", __FUNCTION__));
-		goto lblErr;
-	}
-	NdisZeroMemory(ie_list, sizeof(BCN_IE_LIST));
-	pFrame = (PFRAME_802_11)Elem->Msg;
-	pApCliEntry = &pAd->ApCfg.ApCliTab[ifIndex];
-
-	if (PeerBeaconAndProbeRspSanity(pAd, 
-								Elem->Msg, 
-								Elem->MsgLen, 
-								Elem->Channel,
-								ie_list,
-								&LenVIE,
-								pVIE))
-	{
-		CHAR RealRssi = -127;
-
-		RealRssi = (LONG)(RTMPMaxRssi(pAd, ConvertToRssi(pAd, Elem->Rssi0, RSSI_0), 
-						   ConvertToRssi(pAd, Elem->Rssi1, RSSI_1), 
-						   ConvertToRssi(pAd, Elem->Rssi2, RSSI_2)));
-		if(pFrame && (pFrame->Hdr.FC.SubType == SUBTYPE_PROBE_RSP))
-		{
-			struct nsmpif_drvevnt_buf drvevnt;
-			
-			drvevnt.data.proberesp.type = NSMPIF_DRVEVNT_AP_PROBE_RESP;
-			drvevnt.data.proberesp.channel = ie_list->Channel;
-			COPY_MAC_ADDR(drvevnt.data.proberesp.ap_mac, ie_list->Addr2);
-			drvevnt.data.proberesp.is_ucast = 1;
-			drvevnt.data.proberesp.rate = pAd->LastMgmtRxRate;
-			drvevnt.data.proberesp.rssi = RealRssi;
-			drvevnt.data.proberesp.snr = ConvertToSnr(pAd, Elem->Signal);
-#ifdef RTMP_MAC
-			if (pAd->chipCap.hif_type == HIF_RTMP)
-			{
-				if (IS_RT6352(pAd))
-				{
-					if ((42 - drvevnt.data.proberesp.snr) >= 0)
-						drvevnt.data.proberesp.snr = (42 - drvevnt.data.proberesp.snr);
-					else
-						drvevnt.data.proberesp.snr = 0;
-				}
-			}
-#endif /* RTMP_MAC */
-			NdisZeroMemory(drvevnt.data.proberesp.ssid,sizeof(drvevnt.data.proberesp.ssid));
-			NdisCopyMemory(drvevnt.data.proberesp.ssid,ie_list->Ssid,ie_list->SsidLen);
-			drvevnt.data.proberesp.cap = 0;
-#ifdef DOT11_N_SUPPORT
-			if(ie_list->HtCapabilityLen > 0)
-				drvevnt.data.proberesp.cap |= NSMP_WLCAP_80211_N;
-#endif /* DOT11_N_SUPPORT */
-#ifdef DOT11_VHT_AC
-			if (ie_list->vht_cap_len > 0)
-				drvevnt.data.proberesp.cap |= NSMP_WLCAP_80211_AC;
-#endif /* DOT11_VHT_AC */
-			// Bandwdith
-			if (ie_list->HtCapability.HtCapInfo.ChannelWidth == BW_40)
-			{
-#ifdef DOT11_VHT_AC
-				if(ie_list->vht_op_len > 0 && ie_list->vht_op_ie.vht_op_info.ch_width >= 1)
-					drvevnt.data.proberesp.cap |= NSMP_WLCAP_HT80;
-				else
-#endif /* DOT11_VHT_AC */				
-					drvevnt.data.proberesp.cap |= NSMP_WLCAP_HT40;
-			}
-			// RX/TX STREAM
-			drvevnt.data.proberesp.cap |= \
-			(ie_list->HtCapability.MCSSet[3] != 0x00) ? (NSMP_WLCAP_RX_4_STREAMS|NSMP_WLCAP_TX_4_STREAMS) :\
-			(ie_list->HtCapability.MCSSet[2] != 0x00) ? (NSMP_WLCAP_RX_3_STREAMS|NSMP_WLCAP_TX_3_STREAMS) :\
-			(ie_list->HtCapability.MCSSet[1] != 0x00) ? (NSMP_WLCAP_RX_2_STREAMS|NSMP_WLCAP_TX_2_STREAMS) : 0;
-
-			/* Vendor information element */
-			drvevnt.data.proberesp.ntgr_vie_len = ie_list->vendor_ie_len;
-			NdisZeroMemory(drvevnt.data.proberesp.ntgr_vie,sizeof(drvevnt.data.proberesp.ntgr_vie));
-			if(ie_list->vendor_ie_len > 0)
-				NdisCopyMemory(drvevnt.data.proberesp.ntgr_vie,ie_list->vendor_ie,ie_list->vendor_ie_len);
-
-			RtmpOSWrielessEventSend(pAd->net_dev, RT_WLAN_EVENT_CUSTOM,NSMPIF_DRVEVNT_AP_PROBE_RESP,
-									NULL, (PUCHAR)&drvevnt.data.proberesp, sizeof(drvevnt.data.proberesp));
-		}
-	}
-
-lblErr:
-	if (VarIE != NULL)
-		os_free_mem(NULL, VarIE);
-	if (ie_list != NULL)
-		os_free_mem(NULL, ie_list);
-
-	return;
-}
-#endif /* SMART_MESH_MONITOR */
 #endif /* APCLI_SUPPORT */
 

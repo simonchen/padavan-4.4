@@ -54,7 +54,8 @@
 #define MT2_EAPOLLogoff              2
 #define MT2_EAPOLKey                 3
 #define MT2_EAPOLASFAlert            4
-#define MAX_WPA_MSG                  5
+#define MT2_EAPOLTIMEOUT			5
+#define MAX_WPA_MSG					6
 
 #define WPA_FUNC_SIZE                (MAX_WPA_PTK_STATE * MAX_WPA_MSG)
 
@@ -205,9 +206,6 @@ typedef struct _CIPHER_KEY {
 	UCHAR RxTsc[16];	/* TSC value. Change it from 48bit to 128bit */
 	UCHAR CipherAlg;	/* 0:none, 1:WEP64, 2:WEP128, 3:TKIP, 4:AES, 5:CKIP64, 6:CKIP128 */
 	UCHAR KeyLen;		/* Key length for each key, 0: entry is invalid */
-#ifdef CONFIG_STA_SUPPORT
-	UCHAR BssId[6];
-#endif				/* CONFIG_STA_SUPPORT */
 	UCHAR Type;		/* Indicate Pairwise/Group when reporting MIC error */
 } CIPHER_KEY, *PCIPHER_KEY;
 

@@ -290,10 +290,6 @@ VOID	WscSendEapFragData(
 	}
 #endif // CONFIG_AP_SUPPORT //
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAdapter)
-		WscSendMessage(pAdapter, WSC_OPCODE_MSG, pData, DataLen, pWscControl, STA_MODE, EAP_CODE_RSP);
-#endif // CONFIG_STA_SUPPORT //
 }
 
 #endif /* WSC_V2_SUPPORT */

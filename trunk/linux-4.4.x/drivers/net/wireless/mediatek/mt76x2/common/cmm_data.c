@@ -26,10 +26,6 @@
  
 #include "rt_config.h"
 
-#ifdef LED_SOFT_SUPPORT
-#include <ralink/ralink_gpio.h>
-#endif
-
 #define IS_MULTICAST_MAC_ADDR(Addr)			((((Addr[0]) & 0x01) == 0x01) && ((Addr[0]) != 0xff))
 #define IS_BROADCAST_MAC_ADDR(Addr)			((((Addr[0]) & 0xff) == 0xff))
 
@@ -48,7 +44,6 @@ UCHAR WMM_UP2AC_MAP[8] = {QID_AC_BE, QID_AC_BK,
 							QID_AC_VI, QID_AC_VI,
 							QID_AC_VO, QID_AC_VO};
 
-#ifdef DBG
 VOID dump_rxinfo(RTMP_ADAPTER *pAd, RXINFO_STRUC *pRxInfo)
 {
 	hex_dump("RxInfo Raw Data", (UCHAR *)pRxInfo, sizeof(RXINFO_STRUC));
@@ -96,10 +91,8 @@ VOID dump_txinfo(RTMP_ADAPTER *pAd, TXINFO_STRUC *pTxInfo)
 	DBGPRINT(RT_DEBUG_OFF, ("TxInfo Fields:\n"));
 
 #ifdef RLT_MAC
-#ifdef DBG
 	if (pAd->chipCap.hif_type == HIF_RLT)
 		dump_rlt_txinfo(pAd, pTxInfo);
-#endif
 #endif /* RLT_MAC */
 
 #ifdef RTMP_MAC
@@ -115,17 +108,13 @@ VOID dump_txwi(RTMP_ADAPTER *pAd, TXWI_STRUC *pTxWI)
 
 	DBGPRINT(RT_DEBUG_OFF, ("TxWI Fields:\n"));
 #ifdef RLT_MAC
-#ifdef DBG
 	if (pAd->chipCap.hif_type == HIF_RLT)
 		dump_rlt_txwi(pAd, pTxWI);
-#endif
 #endif /* RLT_MAC */
 
 #ifdef RTMP_MAC
-#ifdef DBG
 	if (pAd->chipCap.hif_type == HIF_RTMP)
 		dump_rtmp_txwi(pAd, pTxWI);
-#endif
 #endif /* RTMP_MAC */
 }
 
@@ -136,20 +125,16 @@ VOID dump_rxwi(RTMP_ADAPTER *pAd, RXWI_STRUC *pRxWI)
 
 	DBGPRINT(RT_DEBUG_OFF, ("RxWI Fields:\n"));
 #ifdef RLT_MAC
-#ifdef DBG
 	if (pAd->chipCap.hif_type == HIF_RLT)
 		dump_rlt_rxwi(pAd, pRxWI);	
-#endif
 #endif /* RLT_MAC */
 
 #ifdef RTMP_MAC
-#ifdef DBG
 	if (pAd->chipCap.hif_type == HIF_RTMP)
 		dump_rtmp_rxwi(pAd, pRxWI);
-#endif
 #endif /* RTMP_MAC */
 }
-#endif /* DBG */
+
 
 #ifdef DBG_DIAGNOSE
 static VOID dump_txblk(TX_BLK *pTxBlk)
@@ -161,7 +146,7 @@ static VOID dump_txblk(TX_BLK *pTxBlk)
 	DBGPRINT(RT_DEBUG_TRACE,("Dump TX_BLK Structure:\n"));
 	DBGPRINT(RT_DEBUG_TRACE,("\tTxFrameType=%d!\n", pTxBlk->TxFrameType));
 	DBGPRINT(RT_DEBUG_TRACE,("\tTotalFrameLen=%d\n", pTxBlk->TotalFrameLen));
-	DBGPRINT(RT_DEBUG_TRACE,("\tTotalFrameNum=%d!\n", pTxBlk->TxPacketList.Number));
+	DBGPRINT(RT_DEBUG_TRACE,("\tTotalFrameNum=%ld!\n", pTxBlk->TxPacketList.Number));
 	DBGPRINT(RT_DEBUG_TRACE,("\tTotalFragNum=%d!\n", pTxBlk->TotalFragNum));
 	DBGPRINT(RT_DEBUG_TRACE,("\tpPacketList=\n"));
 
@@ -190,7 +175,10 @@ static VOID dump_txblk(TX_BLK *pTxBlk)
 	DBGPRINT(RT_DEBUG_TRACE,("\tWcid=%d!\n", pTxBlk->Wcid));
 	DBGPRINT(RT_DEBUG_TRACE,("\tapidx=%d!\n", pTxBlk->apidx));
 	DBGPRINT(RT_DEBUG_TRACE,("----EndOfDump\n"));
+
 }
+#endif
+
 
 VOID dump_rxblk(RTMP_ADAPTER *pAd, RX_BLK *pRxBlk)
 {
@@ -203,12 +191,10 @@ VOID dump_rxblk(RTMP_ADAPTER *pAd, RX_BLK *pRxBlk)
 	DBGPRINT(RT_DEBUG_TRACE,("\t\tpRxInfo=0x%p\n", pRxBlk->pRxInfo));
 	dump_rxinfo(pAd, pRxBlk->pRxInfo);
 #ifdef RLT_MAC
-#ifdef DBG
 	if (pAd->chipCap.hif_type == HIF_RLT) {
 		DBGPRINT(RT_DEBUG_TRACE,("\t\tpRxFceInfo=0x%p\n", pRxBlk->pRxFceInfo));
 		dumpRxFCEInfo(pAd, pRxBlk->pRxFceInfo);
 	}
-#endif
 #endif /* RLT_MAC */
 	DBGPRINT(RT_DEBUG_TRACE,("\t\tpRxWI=0x%p\n", pRxBlk->pRxWI));
 	dump_rxwi(pAd, pRxBlk->pRxWI);
@@ -240,7 +226,6 @@ VOID dump_rxblk(RTMP_ADAPTER *pAd, RX_BLK *pRxBlk)
 	DBGPRINT(RT_DEBUG_TRACE,("\t\tSNR=%d:%d:%d\n", pRxBlk->snr[0], pRxBlk->snr[1], pRxBlk->snr[2]));
 	DBGPRINT(RT_DEBUG_TRACE,("\t\tFreqOffset=%d\n", pRxBlk->freq_offset));
 }
-#endif /* DBG_DIAGNOSE */
 
 
 #ifdef DOT11_N_SUPPORT
@@ -282,25 +267,6 @@ VOID RTMP_BASetup(RTMP_ADAPTER *pAd, MAC_TABLE_ENTRY *pEntry, UINT8 UPriority)
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		if ((pAd->CommonCfg.BACapability.field.AutoBA == TRUE) && (pEntry->NoBADataCountDown == 0) && IS_HT_STA(pEntry))
-		{
-			if (((pEntry->TXBAbitmap & (1 << UPriority)) == 0) &&
-			    ((pEntry->BADeclineBitmap & (1 << UPriority)) == 0) &&
-			    (pEntry->PortSecured == WPA_802_1X_PORT_SECURED)
-			    &&
-			    ((IS_ENTRY_CLIENT(pEntry) && pAd->MlmeAux.APRalinkIe != 0x0) || (pEntry->WepStatus != Ndis802_11WEPEnabled && pEntry->WepStatus != Ndis802_11TKIPEnable))
-			    &&
-			    (!(RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_BSS_SCAN_IN_PROGRESS)))
-			    )
-			{
-				BAOriSessionSetUp(pAd, pEntry, UPriority, 0, 10, FALSE);
-			}
-		}
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 }
 #endif /* DOT11_N_SUPPORT */
@@ -433,14 +399,15 @@ NDIS_STATUS MiniportMMRequest(
 #ifdef RT_CFG80211_P2P_SUPPORT
 			|| IS_CFG80211_P2P_ABSENCE(pAd)
 #endif /* RT_CFG80211_P2P_SUPPORT */
+#ifdef ED_SUPPORT
+			|| pAd->ed_tx_stopped
+#endif
 			)
 		{
 			Status = NDIS_STATUS_FAILURE;
 			break;
 		}
 
-#ifdef CONFIG_STA_SUPPORT
-#endif /* CONFIG_STA_SUPPORT */
 
 		/* Check Free priority queue*/
 		/* Since we use PBF Queue2 for management frame.  Its corresponding DMA ring should be using TxRing.*/
@@ -478,17 +445,9 @@ NDIS_STATUS MiniportMMRequest(
 			}
 
 #ifdef DOT11W_PMF_SUPPORT
-#ifdef CONFIG_STA_SUPPORT
-			if (INFRA_ON(pAd))
-#endif /* CONFIG_STA_SUPPORT */
 				PMF_PerformTxFrameAction(pAd, pPacket);
 #endif /* DOT11W_PMF_SUPPORT */
 
-#if defined(DOT11Z_TDLS_SUPPORT) || defined(CFG_TDLS_SUPPORT)
-#ifdef UAPSD_SUPPORT
-			UAPSD_MR_QOS_NULL_HANDLE(pAd, pData, pPacket);
-#endif /* UAPSD_SUPPORT */
-#else
 #ifdef CONFIG_AP_SUPPORT
 #ifdef UAPSD_SUPPORT
 #ifdef RT_CFG80211_P2P_SUPPORT
@@ -501,7 +460,6 @@ NDIS_STATUS MiniportMMRequest(
 			}
 #endif /* UAPSD_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
-#endif /* defined(DOT11Z_TDLS_SUPPORT) || defined(CFG_TDLS_SUPPORT) */
 
 #ifdef RTMP_MAC_PCI
 			if (bUseDataQ)
@@ -742,7 +700,7 @@ NDIS_STATUS MlmeHardTransmit(
 	PACKET_INFO PacketInfo;
 	UCHAR *pSrcBufVA;
 	UINT SrcBufLen;
-
+	NDIS_STATUS Status;
 	if ((pAd->Dot11_H.RDMode != RD_NORMAL_MODE)
 #ifdef CARRIER_DETECTION_SUPPORT
 #ifdef CONFIG_AP_SUPPORT
@@ -873,9 +831,18 @@ NDIS_STATUS MlmeHardTransmit(
 #ifdef RTMP_MAC_PCI
     	if (FlgDataQForce == TRUE)
     		return MlmeHardTransmitTxRing(pAd,QueIdx,pPacket);
-    	else
+		else
+#ifdef WH_EZ_SETUP
+		if ((pEntry && IS_EZ_SETUP_ENABLED(pEntry->wdev))
+			&& (pHeader_802_11->FC.Type == FC_TYPE_DATA)
+			&& (pHeader_802_11->FC.SubType == SUBTYPE_DATA_NULL)
+			&& (pHeader_802_11->FC.PwrMgmt == PWR_SAVE))
+			Status = MlmeHardTransmitTxRing(pAd, QueIdx, pPacket);
+		else
+#endif
 #endif /* RTMP_MAC_PCI */
-    		return MlmeHardTransmitMgmtRing(pAd,QueIdx,pPacket);
+		Status = MlmeHardTransmitMgmtRing(pAd, QueIdx, pPacket);
+		return Status;
     }
 }
 
@@ -893,9 +860,10 @@ NDIS_STATUS MlmeHardTransmitMgmtRing(
 	UCHAR MlmeRate;
 	TXWI_STRUC *pFirstTxWI;
 	MAC_TABLE_ENTRY *pMacEntry = NULL;
-	UCHAR PID, wcid/*, tx_rate*/;
+	UCHAR PID, wcid, tx_rate;
 	HTTRANSMIT_SETTING *transmit;
 	UINT8 TXWISize = pAd->chipCap.TXWISize;
+        UINT8 PrevMcs, PrevMode;
 #ifdef CONFIG_AP_SUPPORT
 #ifdef SPECIFIC_TX_POWER_SUPPORT
 	UCHAR TxPwrAdj = 0;
@@ -913,14 +881,6 @@ NDIS_STATUS MlmeHardTransmitMgmtRing(
 		return NDIS_STATUS_FAILURE;
 	}
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		/* outgoing frame always wakeup PHY to prevent frame lost*/
-		if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_DOZE))
-			AsicForceWakeup(pAd, TRUE);
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	pFirstTxWI = (TXWI_STRUC *)(pSrcBufVA +  TXINFO_SIZE);
 	pHeader_802_11 = (PHEADER_802_11) (pSrcBufVA + TXINFO_SIZE + TSO_SIZE + TXWISize);
@@ -942,33 +902,6 @@ NDIS_STATUS MlmeHardTransmitMgmtRing(
 		pMacEntry = MacTableLookup(pAd, pHeader_802_11->Addr1);
 	}
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		/* Fixed W52 with Activity scan issue in ABG_MIXED and ABGN_MIXED mode.*/
-		// TODO: shiang-6590, why we need this condition check here?
-		if (WMODE_EQUAL(pAd->CommonCfg.PhyMode, WMODE_A | WMODE_B | WMODE_G)
-#ifdef DOT11_N_SUPPORT
-			|| WMODE_EQUAL(pAd->CommonCfg.PhyMode, WMODE_A | WMODE_B | WMODE_G | WMODE_AN | WMODE_GN)
-#endif /* DOT11_N_SUPPORT */
-#ifdef DOT11_VHT_AC
-			|| WMODE_CAP(pAd->CommonCfg.PhyMode, WMODE_AC)
-#endif /* DOT11_VHT_AC*/
-		)
-		{
-			if (pAd->LatchRfRegs.Channel > 14)
-			{
-				pAd->CommonCfg.MlmeTransmit.field.MODE = MODE_OFDM;
-				pAd->CommonCfg.MlmeTransmit.field.MCS = MCS_RATE_6;
-			}
-			else
-			{
-				pAd->CommonCfg.MlmeTransmit.field.MODE = MODE_CCK;
-				pAd->CommonCfg.MlmeTransmit.field.MCS = MCS_0;
-			}
-		}
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 //CFG_TODO YF
 
@@ -979,48 +912,8 @@ NDIS_STATUS MlmeHardTransmitMgmtRing(
 		By the way this will cause frame to be send on PWR_SAVE failed.
 	*/
 	
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		if (RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_BSS_SCAN_IN_PROGRESS))
-		{
-			/* We are in scan progress, just let the PwrMgmt bit keep as it orginally should be.*/
-		}
-		else
-#endif /* CONFIG_STA_SUPPORT */
 			pHeader_802_11->FC.PwrMgmt = PWR_ACTIVE;
-#ifdef CONFIG_STA_SUPPORT
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	/*
-		In WMM-UAPSD, mlme frame should be set psm as power saving but probe 
-		request frame, Data-Null packets alse pass through MMRequest in RT2860,
-		however, we hope control the psm bit to pass APSD
-	*/
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		if ((pHeader_802_11->FC.SubType == SUBTYPE_ACTION) ||
-			((pHeader_802_11->FC.Type == FC_TYPE_DATA) &&
-			((pHeader_802_11->FC.SubType == SUBTYPE_QOS_NULL) ||
-			(pHeader_802_11->FC.SubType == SUBTYPE_DATA_NULL))))
-		{
-			if (RtmpPktPmBitCheck(pAd) == TRUE)
-				pHeader_802_11->FC.PwrMgmt = PWR_SAVE;
-			else if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED) && 
-					INFRA_ON(pAd) && 
-					RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_BSS_SCAN_IN_PROGRESS))
-			{
-				/* We are in scan progress, just let the PwrMgmt bit keep as it orginally should be */
-			}
-			else
-			{
-				pHeader_802_11->FC.PwrMgmt = pAd->CommonCfg.bAPSDForcePowerSave;
-			}
-		}
-	}
-#endif /* CONFIG_STA_SUPPORT */
 	
 
 #ifdef CONFIG_AP_SUPPORT
@@ -1031,13 +924,6 @@ NDIS_STATUS MlmeHardTransmitMgmtRing(
 	bInsertTimestamp = FALSE;
 	if (pHeader_802_11->FC.Type == FC_TYPE_CNTL) /* must be PS-POLL*/
 	{
-#ifdef CONFIG_STA_SUPPORT
-		/*Set PM bit in ps-poll, to fix WLK 1.2  PowerSaveMode_ext failure issue.*/
-		if ((pAd->OpMode == OPMODE_STA) && (pHeader_802_11->FC.SubType == SUBTYPE_PS_POLL))
-		{
-			pHeader_802_11->FC.PwrMgmt = PWR_SAVE;
-		}
-#endif /* CONFIG_STA_SUPPORT */
 		bAckRequired = FALSE;
 
 #ifdef VHT_TXBF_SUPPORT
@@ -1078,17 +964,15 @@ NDIS_STATUS MlmeHardTransmitMgmtRing(
 					bAckRequired = FALSE; /* Disable ACK to prevent retry 0x1f for Probe Response*/
 #ifdef CONFIG_AP_SUPPORT
 #ifdef SPECIFIC_TX_POWER_SUPPORT
-					{
-						/* Find which MBSSID to be send this probeRsp */
-						UINT32 apidx = get_apidx_by_addr(pAd, pHeader_802_11->Addr2);
+					/* Find which MBSSID to be send this probeRsp */
+					UINT32 apidx = get_apidx_by_addr(pAd, pHeader_802_11->Addr2);
 
-						if ( !(apidx >= pAd->ApCfg.BssidNum) && 
-						     (pAd->ApCfg.MBSSID[apidx].TxPwrAdj != -1) /* &&
-						     (pAd->CommonCfg.MlmeTransmit.field.MODE == MODE_CCK) &&
-						     (pAd->CommonCfg.MlmeTransmit.field.MCS == RATE_1)*/)
-						{
-							TxPwrAdj = pAd->ApCfg.MBSSID[apidx].TxPwrAdj;
-						}
+					if ( !(apidx >= pAd->ApCfg.BssidNum) && 
+					     (pAd->ApCfg.MBSSID[apidx].TxPwrAdj != -1) /* &&
+					     (pAd->CommonCfg.MlmeTransmit.field.MODE == MODE_CCK) &&
+					     (pAd->CommonCfg.MlmeTransmit.field.MCS == RATE_1)*/)
+					{
+						TxPwrAdj = pAd->ApCfg.MBSSID[apidx].TxPwrAdj;
 					}
 #endif /* SPECIFIC_TX_POWER_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
@@ -1122,10 +1006,6 @@ NDIS_STATUS MlmeHardTransmitMgmtRing(
 		return NDIS_STATUS_FAILURE;
 	}
 
-#ifdef RT_BIG_ENDIAN
-	RTMPFrameEndianChange(pAd, (PUCHAR)pHeader_802_11, DIR_WRITE, FALSE);
-#endif
-
 	
 	/*
 		fill scatter-and-gather buffer list into TXD. Internally created NDIS PACKET
@@ -1151,7 +1031,7 @@ NDIS_STATUS MlmeHardTransmitMgmtRing(
 	if (pMacEntry == NULL)
 	{
 		wcid = RESERVED_WCID;
-		/*tx_rate = (UCHAR)pAd->CommonCfg.MlmeTransmit.field.MCS;*/
+		tx_rate = (UCHAR)pAd->CommonCfg.MlmeTransmit.field.MCS;
 		transmit = &pAd->CommonCfg.MlmeTransmit;
 #ifdef VHT_TXBF_SUPPORT
 		if (pAd->NDPA_Request)
@@ -1166,42 +1046,39 @@ NDIS_STATUS MlmeHardTransmitMgmtRing(
 //#if defined(P2P_SUPPORT) || defined(RT_CFG80211_P2P_SUPPORT)
 		/* P2P Test Case 6.1.12, only OFDM rate can be captured by sniffer */
 		if(
+#ifdef APCLI_SUPPORT
+		   (!IS_ENTRY_APCLI(pMacEntry)) &&
+#endif /* APCLI_SUPPORT */
 #ifdef RT_CFG80211_P2P_SUPPORT
 		   (CLIENT_STATUS_TEST_FLAG(pMacEntry, fCLIENT_STATUS_APSD_CAPABLE)) &&	
 #endif /* RT_CFG80211_P2P_SUPPORT */
 		   ((pHeader_802_11->FC.Type == FC_TYPE_DATA) &&
 		   (pHeader_802_11->FC.SubType == SUBTYPE_QOS_NULL)))
 		{
-
-			HTTRANSMIT_SETTING NullFramePhyMode;
-			NdisZeroMemory(&NullFramePhyMode, sizeof(NullFramePhyMode));
-			NdisCopyMemory(&NullFramePhyMode, &pMacEntry->HTPhyMode, sizeof(NullFramePhyMode));		
-		
 			DBGPRINT(RT_DEBUG_TRACE, ("%s:: Using Low Rate to send QOS NULL!!\n", __FUNCTION__));
-			
+
 			if ((pAd->LatchRfRegs.Channel > 14)
 			)
 			{
-				NullFramePhyMode.field.MODE = MODE_OFDM;
-				NullFramePhyMode.field.MCS = MCS_RATE_24;
+				pMacEntry->HTPhyMode.field.MODE = MODE_OFDM;
+				pMacEntry->HTPhyMode.field.MCS = MCS_RATE_24;
 			}
 			else
 			{
-				NullFramePhyMode.field.MODE = MODE_CCK;
-				NullFramePhyMode.field.MCS = MCS_1;
+				pMacEntry->HTPhyMode.field.MODE = MODE_CCK;
+				pMacEntry->HTPhyMode.field.MCS = MCS_1;
 			}
 
-			wcid = pMacEntry->wcid;
-			/*tx_rate = (UCHAR)NullFramePhyMode.field.MCS;*/
-			transmit = &NullFramePhyMode;			
-
+			wcid = pMacEntry->Aid;
+			tx_rate = (UCHAR)pMacEntry->HTPhyMode.field.MCS;
+			transmit = &pMacEntry->HTPhyMode;
 		} 
 		else 
 //#endif /* P2P_SUPPORT || RT_CFG80211_SUPPORT */
 		{
 			/* dont use low rate to send QoS Null data frame */
-			wcid = pMacEntry->wcid;
-			/*tx_rate = (UCHAR)pMacEntry->MaxHTPhyMode.field.MCS;*/
+			wcid = pMacEntry->Aid;
+			tx_rate = (UCHAR)pMacEntry->MaxHTPhyMode.field.MCS;
 			transmit = &pMacEntry->MaxHTPhyMode;
 		}
 	}
@@ -1230,8 +1107,6 @@ NDIS_STATUS MlmeHardTransmitMgmtRing(
 #ifdef VHT_TXBF_SUPPORT	      	
      	    if ((pHeader_802_11->FC.Type == FC_TYPE_CNTL) && (pHeader_802_11->FC.SubType == SUBTYPE_VHT_NDPA))
 	    {
-	    	  UINT8 PrevMcs, PrevMode;
-
                 PrevMcs = transmit->field.MCS;
                 PrevMode = transmit->field.MODE;
 
@@ -1271,6 +1146,7 @@ NDIS_STATUS MlmeHardTransmitMgmtRing(
 //---Add by shiang for debug
 
 #ifdef RT_BIG_ENDIAN
+	RTMPFrameEndianChange(pAd, (PUCHAR)pHeader_802_11, DIR_WRITE, FALSE);
 	RTMPWIEndianChange(pAd, (PUCHAR)pFirstTxWI, TYPE_TXWI);
 #endif
 
@@ -1341,10 +1217,16 @@ NDIS_STATUS MlmeHardTransmitMgmtRing(
 
  ********************************************************************************/
 #define DEQUEUE_LOCK(lock, bIntContext, IrqFlags) 				\
-	RTMP_IRQ_LOCK((lock), IrqFlags)
+			do{													\
+				if (bIntContext == FALSE)						\
+				RTMP_IRQ_LOCK((lock), IrqFlags);		\
+			}while(0)
 
 #define DEQUEUE_UNLOCK(lock, bIntContext, IrqFlags)				\
-	RTMP_IRQ_UNLOCK((lock), IrqFlags)
+			do{													\
+				if (bIntContext == FALSE)						\
+					RTMP_IRQ_UNLOCK((lock), IrqFlags);	\
+			}while(0)
 
 
 /*
@@ -1401,6 +1283,9 @@ static UCHAR TxPktClassification(RTMP_ADAPTER *pAd, PNDIS_PACKET  pPacket, TX_BL
 	UCHAR TxFrameType = TX_UNKOWN_FRAME;
 	UCHAR Wcid;
 	MAC_TABLE_ENTRY *pMacEntry = NULL;
+#ifdef DOT11_N_SUPPORT
+	BOOLEAN	 bHTRate = FALSE;
+#endif /* DOT11_N_SUPPORT */
 
 	Wcid = RTMP_GET_PACKET_WCID(pPacket);
 	if (Wcid == MCAST_WCID)
@@ -1432,18 +1317,13 @@ static UCHAR TxPktClassification(RTMP_ADAPTER *pAd, PNDIS_PACKET  pPacket, TX_BL
 	{	/* It's a specific packet need to force low rate, i.e., bDHCPFrame, bEAPOLFrame, bWAIFrame*/
 		TxFrameType = TX_LEGACY_FRAME;
 	}
-#if defined(DOT11Z_TDLS_SUPPORT) || defined(CFG_TDLS_SUPPORT)
-	else if (RTMP_GET_PACKET_TDLS(pPacket))
-	{
-		TxFrameType = TX_LEGACY_FRAME;		
-	}
-#endif /* DOT11Z_TDLS_SUPPORT */
 #ifdef DOT11_N_SUPPORT
 	else if (IS_HT_RATE(pMacEntry))
 	{	/* it's a 11n capable packet*/
 
 		/* Depends on HTPhyMode to check if the peer support the HTRate transmission.*/
 		/* 	Currently didn't support A-MSDU embedded in A-MPDU*/
+		bHTRate = TRUE;
 		TxFrameType = TX_UNKOWN_FRAME;
 
 #ifdef VHT_TXBF_SUPPORT		
@@ -1505,11 +1385,10 @@ static UCHAR TxPktClassification(RTMP_ADAPTER *pAd, PNDIS_PACKET  pPacket, TX_BL
 	/* Currently, our fragment only support when a unicast packet send as NOT-ARALINK, NOT-AMSDU and NOT-AMPDU.*/
 	
 	if ((RTMP_GET_PACKET_FRAGMENTS(pPacket) > 1)
-		 && (TxFrameType == TX_LEGACY_FRAME
+		 && (TxFrameType == TX_LEGACY_FRAME)
 #ifdef VHT_TXBF_SUPPORT
-		 || TxFrameType == (TX_LEGACY_FRAME | TX_NDPA_FRAME)
+		 || (TxFrameType == (TX_LEGACY_FRAME | TX_NDPA_FRAME))
 #endif
-		)
 #ifdef DOT11_N_SUPPORT
 		&& ((pMacEntry->TXBAbitmap & (1<<(RTMP_GET_PACKET_UP(pPacket)))) == 0)
 #endif /* DOT11_N_SUPPORT */
@@ -1578,31 +1457,6 @@ BOOLEAN RTMP_FillTxBlkInfo(RTMP_ADAPTER *pAd, TX_BLK *pTxBlk)
 		{
 			TX_BLK_SET_FLAG(pTxBlk, fTX_bMoreData);
 		}
-#ifdef ETH_CONVERT_SUPPORT
-		if (ADHOC_ON(pAd))
-		{
-			/* If we are running as Ethernet Converter, update MAT DataBase and duplicant the packet if necessary.*/
-			if (pAd->EthConvert.ECMode & ETH_CONVERT_MODE_DONGLE)
-			{
-				PNDIS_PACKET donglePkt;
-
-				if(!NdisEqualMemory(pAd->CurrentAddress, (GET_OS_PKT_DATAPTR(pPacket) + 6), MAC_ADDR_LEN))
-				{
-					TX_BLK_SET_FLAG(pTxBlk, fTX_bDonglePkt);
-				}
-
-				/* For each tx packet, update our MAT convert engine databases.*/
-				donglePkt = (PNDIS_PACKET)MATEngineTxHandle(pAd, pPacket, 0, pTxBlk->OpMode);
-				if(donglePkt)
-				{
-					RELEASE_NDIS_PACKET(pAd, pPacket, NDIS_STATUS_FAILURE);
-					pPacket = donglePkt;
-					RTMP_QueryPacketInfo(pPacket, &PacketInfo, &pTxBlk->pSrcBufHeader, &pTxBlk->SrcBufLen);
-					pTxBlk->pPacket = donglePkt;
-				}
-			}
-		}
-#endif /* ETH_CONVERT_SUPPORT */
 	}
 	else
 	{
@@ -1620,17 +1474,6 @@ BOOLEAN RTMP_FillTxBlkInfo(RTMP_ADAPTER *pAd, TX_BLK *pTxBlk)
 		else
 			TX_BLK_SET_FLAG(pTxBlk, fTX_bAckRequired);
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef XLINK_SUPPORT
-		if ((pAd->OpMode == OPMODE_STA) &&
-			(ADHOC_ON(pAd)) /*&& 
-			(RX_FILTER_TEST_FLAG(pAd, fRX_FILTER_ACCEPT_PROMISCUOUS))*/)
-		{
-			if(pAd->StaCfg.PSPXlink)
-				TX_BLK_CLEAR_FLAG(pTxBlk, fTX_bAckRequired);
-		}
-#endif /* XLINK_SUPPORT */
-#endif /* CONFIG_STA_SUPPORT */
 
 		{
 #ifdef CONFIG_AP_SUPPORT
@@ -1648,56 +1491,55 @@ BOOLEAN RTMP_FillTxBlkInfo(RTMP_ADAPTER *pAd, TX_BLK *pTxBlk)
 				else
 #endif /* WDS_SUPPORT */
 #ifdef MWDS
-				if(IS_ENTRY_MWDS(pMacEntry))
-				{
+		if (IS_ENTRY_MWDS(pMacEntry)) {
 #ifdef APCLI_SUPPORT
-					if(IS_MWDS_OPMODE_APCLI(pMacEntry))
-					{
-						TX_BLK_SET_FLAG(pTxBlk, fTX_bApCliPacket);
-						if(!RTMP_GET_PACKET_EAPOL(pTxBlk->pPacket))
-							TX_BLK_SET_FLAG(pTxBlk, fTX_bMWDSFrame);
-						
-						pTxBlk->pApCliEntry = &pAd->ApCfg.ApCliTab[pMacEntry->wdev_idx];
-					}
-					else
+			if (IS_MWDS_OPMODE_APCLI(pMacEntry)) {
+				TX_BLK_SET_FLAG(pTxBlk, fTX_bApCliPacket);
+				if (!RTMP_GET_PACKET_EAPOL(pTxBlk->pPacket))
+					TX_BLK_SET_FLAG(pTxBlk, fTX_bMWDSFrame);
+				if (pMacEntry->func_tb_idx < MAX_APCLI_NUM)
+					pTxBlk->pApCliEntry =
+					&pAd->ApCfg.ApCliTab[pMacEntry->func_tb_idx];
+			} else
 #endif /* APCLI_SUPPORT */
-					if(IS_MWDS_OPMODE_AP(pMacEntry))
-					{
-						if (VALID_MBSS(pAd, pMacEntry->apidx) && !RTMP_GET_PACKET_EAPOL(pTxBlk->pPacket))
-							TX_BLK_SET_FLAG(pTxBlk, fTX_bMWDSFrame);
-					}
-				}
-				else
+			if (IS_MWDS_OPMODE_AP(pMacEntry)) {
+				if (!RTMP_GET_PACKET_EAPOL(pTxBlk->pPacket))
+					TX_BLK_SET_FLAG(pTxBlk, fTX_bMWDSFrame);
+			}
+		} else
 #endif /* MWDS */
+
 #ifdef APCLI_SUPPORT
 				if(IS_ENTRY_APCLI(pMacEntry))
 				{
 #ifdef MAT_SUPPORT
 					PNDIS_PACKET apCliPkt = NULL;
-					UCHAR tmpIdx = pMacEntry->wdev_idx;
-					BOOLEAN bNeedMATHandle = TRUE;
 						
 #ifdef MAC_REPEATER_SUPPORT
 					if ((pMacEntry->bReptCli) && (pAd->ApCfg.bMACRepeaterEn))
 					{
+						UCHAR tmpIdx;
+
 						pAd->MatCfg.bMACRepeaterEn = pAd->ApCfg.bMACRepeaterEn;
 						if(pAd->ApCfg.MACRepeaterOuiMode != 1)
+						{
 							tmpIdx = (64 + (MAX_EXT_MAC_ADDR_SIZE * pMacEntry->wdev_idx) + pMacEntry->MatchReptCliIdx);
-						else
-							bNeedMATHandle = FALSE;
+							apCliPkt = (PNDIS_PACKET)MATEngineTxHandle(pAd, pPacket, tmpIdx, pTxBlk->OpMode);
 						}
+					}
+					else
 #endif /* MAC_REPEATER_SUPPORT */
-					if(bNeedMATHandle)
 					{
 						/* For each tx packet, update our MAT convert engine databases.*/
-						apCliPkt = (PNDIS_PACKET)MATEngineTxHandle(pAd, pPacket, tmpIdx, pTxBlk->OpMode);
-						if(apCliPkt)
-						{
-							RELEASE_NDIS_PACKET(pAd, pPacket, NDIS_STATUS_SUCCESS);
-							pPacket = apCliPkt;
-							RTMP_QueryPacketInfo(pPacket, &PacketInfo, &pTxBlk->pSrcBufHeader, &pTxBlk->SrcBufLen);
-							pTxBlk->pPacket = apCliPkt;
-						}
+						apCliPkt = (PNDIS_PACKET)MATEngineTxHandle(pAd, pPacket, pMacEntry->wdev_idx, pTxBlk->OpMode);
+					}
+
+					if(apCliPkt)
+					{
+						RELEASE_NDIS_PACKET(pAd, pPacket, NDIS_STATUS_SUCCESS);
+						pPacket = apCliPkt;
+						RTMP_QueryPacketInfo(pPacket, &PacketInfo, &pTxBlk->pSrcBufHeader, &pTxBlk->SrcBufLen);
+						pTxBlk->pPacket = apCliPkt;
 					}
 #endif /* MAT_SUPPORT */
 					pTxBlk->pApCliEntry = &pAd->ApCfg.ApCliTab[pMacEntry->wdev_idx];
@@ -1732,49 +1574,6 @@ BOOLEAN RTMP_FillTxBlkInfo(RTMP_ADAPTER *pAd, TX_BLK *pTxBlk)
 			}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-#if defined(P2P_SUPPORT) || defined(RT_CFG80211_P2P_SUPPORT)
-			if (pTxBlk->OpMode == OPMODE_STA)
-#else
-			IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-#endif /* P2P_SUPPORT || RT_CFG80211_P2P_SUPPORT */
-			{
-#if defined(DOT11Z_TDLS_SUPPORT) || defined(CFG_TDLS_SUPPORT)
-				if(IS_ENTRY_TDLS(pMacEntry))
-				{
-					TX_BLK_SET_FLAG(pTxBlk, fTX_bTdlsEntry);
-				}
-#endif /* defined(DOT11Z_TDLS_SUPPORT) || defined(CFG_TDLS_SUPPORT) */
-
-#ifdef ETH_CONVERT_SUPPORT
-				/* If we are running as Ethernet Converter, update MAT DataBase and duplicant the packet if necessary.*/
-				if (pAd->EthConvert.ECMode & ETH_CONVERT_MODE_DONGLE)
-				{
-					PNDIS_PACKET donglePkt;
-		
-					if(!NdisEqualMemory(pAd->CurrentAddress, (GET_OS_PKT_DATAPTR(pPacket) + 6), MAC_ADDR_LEN))
-					{
-						TX_BLK_SET_FLAG(pTxBlk, fTX_bDonglePkt);
-					}
-				
-					/* For each tx packet, update our MAT convert engine databases.*/
-					donglePkt = (PNDIS_PACKET)MATEngineTxHandle(pAd, pPacket, 0, pTxBlk->OpMode);
-					if(donglePkt)
-					{
-						RELEASE_NDIS_PACKET(pAd, pPacket, NDIS_STATUS_SUCCESS);
-						pPacket = donglePkt;
-						RTMP_QueryPacketInfo(pPacket, &PacketInfo, &pTxBlk->pSrcBufHeader, &pTxBlk->SrcBufLen);
-						pTxBlk->pPacket = donglePkt;
-					}
-				}
-#endif /* ETH_CONVERT_SUPPORT */
-
-				/* If support WMM, enable it.*/
-				if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_WMM_INUSED) &&
-					CLIENT_STATUS_TEST_FLAG(pMacEntry, fCLIENT_STATUS_WMM_CAPABLE))
-					TX_BLK_SET_FLAG(pTxBlk, fTX_bWMM);
-			}
-#endif /* CONFIG_STA_SUPPORT */
 		}
 
 		if (pTxBlk->TxFrameType == TX_LEGACY_FRAME)
@@ -1883,11 +1682,6 @@ BOOLEAN CanDoAggregateTransmit(
 		return FALSE;
 	}
 
-#ifdef CONFIG_STA_SUPPORT
-	if ((INFRA_ON(pAd)) && (pAd->OpMode == OPMODE_STA)) /* must be unicast to AP*/
-		return TRUE;
-	else
-#endif /* CONFIG_STA_SUPPORT */
 #ifdef CONFIG_AP_SUPPORT
 	/* CFG_TODO */
 	if ((MAC_ADDR_EQUAL(GET_OS_PKT_DATAPTR(pTxBlk->pPacket), GET_OS_PKT_DATAPTR(pPacket))) 
@@ -1908,28 +1702,19 @@ VOID TxDoneCleanupExec(
 	IN PVOID SystemSpecific3)
 {
 	RTMP_ADAPTER *pAd = (RTMP_ADAPTER *)FunctionContext;
-	unsigned long IrqFlags = 0;
-	ULONG FreeNum;
-	int NeedCleanupTimer = 0;
+	unsigned long	IrqFlags = 0;
 	UCHAR QueIdx;
 
-	if (RTMP_TEST_FLAG(pAd, (fRTMP_ADAPTER_RADIO_OFF |
-				 fRTMP_ADAPTER_RESET_IN_PROGRESS |
-				 fRTMP_ADAPTER_HALT_IN_PROGRESS)))
-		return;
-
 	DEQUEUE_LOCK(&pAd->irq_lock, FALSE, IrqFlags);
-	for (QueIdx=0; QueIdx<NUM_OF_TX_RING; QueIdx++) {
+	for( QueIdx=0; QueIdx<NUM_OF_TX_RING; QueIdx++ ) {
+		ULONG FreeNum;
 		FreeNum = GET_TXRING_FREENO(pAd, QueIdx);
-		if (FreeNum < (TX_RING_SIZE-1)) {
+		if( FreeNum != (TX_RING_SIZE-1) ) {
 			RTMPFreeTXDUponTxDmaDone(pAd, QueIdx);
-			NeedCleanupTimer = 1;
+			RTMPModTimer(&pAd->TxDoneCleanupTimer, 50);
 		}
 	}
 	DEQUEUE_UNLOCK(&pAd->irq_lock, FALSE, IrqFlags);
-
-	if (NeedCleanupTimer)
-		RTMPModTimer(&pAd->TxDoneCleanupTimer, 50);
 }
 #endif /* RTMP_MAC_PCI */
 
@@ -1982,9 +1767,7 @@ VOID RTMPDeQueuePacket(
 	BOOLEAN firstRound;
 	RtmpDiagStruct *pDiagStruct = &pAd->DiagStruct;
 #endif
-#if defined (LED_SOFT_SUPPORT)
-	ULONG HardTxTotal = 0;
-#endif
+
 
 	if (QIdx == NUM_OF_TX_RING)
 	{
@@ -2018,9 +1801,6 @@ VOID RTMPDeQueuePacket(
 				|| IS_CFG80211_P2P_ABSENCE(pAd)
 #endif /* RT_CFG80211_P2P_SUPPORT */
 
-#if defined(DOT11Z_TDLS_SUPPORT) || defined(CFG_TDLS_SUPPORT)
-				|| RTMP_TEST_MORE_FLAG(pAd, fRTMP_ADAPTER_DISABLE_DEQUEUE)
-#endif /* DOT11Z_TDLS_SUPPORT */
 				)
 			{
 				RTMP_STOP_DEQUEUE(pAd, QueIdx, IrqFlags);
@@ -2064,9 +1844,6 @@ VOID RTMPDeQueuePacket(
 #endif /* DBG_TX_RING_DEPTH */
 #endif /* DBG_DIAGNOSE */
 
-#ifdef CONFIG_ARCH_MT7623
-			if (1)
-#else
 			/* We should never let more than 64kBytes of tx data not be
 			 * cleaned up, or the TCP TX throughput will suffer as the
 			 * window will not fill and so expand. 64kBytes ~ 44 full
@@ -2076,7 +1853,6 @@ VOID RTMPDeQueuePacket(
 			 */
 
 			if ((TX_RING_SIZE - FreeNumber[QueIdx]) > 32)
-#endif
 			{
 				/* free Tx(QueIdx) resources*/
 				RTMPFreeTXDUponTxDmaDone(pAd, QueIdx);
@@ -2155,7 +1931,6 @@ VOID RTMPDeQueuePacket(
 						pEntry = RemoveHeadQueue(pQueue);
 						RELEASE_NDIS_PACKET(pAd, pPacket, NDIS_STATUS_FAILURE);
 						DEQUEUE_UNLOCK(&pAd->irq_lock, bIntContext, IrqFlags);
-						Count++;
 						continue;
 					}
 					else
@@ -2185,6 +1960,7 @@ VOID RTMPDeQueuePacket(
 					*/
 #define ENTRY_RETRY_INTERVAL	(100 * OS_HZ / 1000)
 					ULONG Now32;
+
 					NdisGetSystemUpTime(&Now32);
 					if(RTMP_TIME_BEFORE(Now32, pMacEntry->TimeStamp_toTxRing + ENTRY_RETRY_INTERVAL))
 					{
@@ -2295,31 +2071,6 @@ VOID RTMPDeQueuePacket(
 				Status = APHardTransmit(pAd, pTxBlk, QueIdx);
 #endif
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-			IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-			{
-#if defined(P2P_SUPPORT) || defined(RT_CFG80211_P2P_SUPPORT)
-			//if (FromWhichBSSID >= MIN_NET_DEVICE_FOR_APCLI)
-			if (RTMP_GET_PACKET_OPMODE(pPacket))
-#ifdef TXBF_SUPPORT			    
-				Status = APHardTransmit(pAd, pTxBlk, QueIdx, TxSndgType);
-#else
-				Status = APHardTransmit(pAd, pTxBlk, QueIdx);
-#endif
-			else
-#endif /* P2P_SUPPORT || RT_CFG80211_P2P_SUPPORT */
-#ifdef TXBF_SUPPORT
-				Status = STAHardTransmit(pAd, pTxBlk, QueIdx, TxSndgType);
-#else
-				Status = STAHardTransmit(pAd, pTxBlk, QueIdx);
-#endif
-			}
-#endif /* CONFIG_STA_SUPPORT */
-
-			if (Status != NDIS_STATUS_SUCCESS)
-			{
-				DBGPRINT(RT_DEBUG_ERROR, ("Errror!! APHardTransmit() failed. ErrorCode = %d\n", Status));
-			}
 
 #ifdef RTMP_MAC_PCI
 			DEQUEUE_UNLOCK(&pAd->irq_lock, bIntContext, IrqFlags);
@@ -2333,9 +2084,6 @@ VOID RTMPDeQueuePacket(
 			}
 #endif /* RTMP_MAC_PCI */
 
-#if defined (LED_SOFT_SUPPORT)
-			HardTxTotal++;
-#endif
 		}
 
 		RTMP_STOP_DEQUEUE(pAd, QueIdx, IrqFlags);
@@ -2349,17 +2097,6 @@ VOID RTMPDeQueuePacket(
 		}
 #endif /* BLOCK_NET_IF */
 	}
-
-#if defined (LED_SOFT_SUPPORT)
-	if (HardTxTotal > 0 && pAd->MacTab.Size > 0) {
-#if defined (DRIVER_HAS_MULTI_DEV) && (LED_SOFT_BLINK_GPIO_DEV1 >= 0) && (LED_SOFT_BLINK_GPIO_DEV1 != LED_SOFT_BLINK_GPIO)
-		if (pAd->dev_idx == 1)
-			ralink_gpio_led_blink(LED_SOFT_BLINK_GPIO_DEV1);
-		else
-#endif
-			ralink_gpio_led_blink(LED_SOFT_BLINK_GPIO);
-	}
-#endif
 }
 
 #ifdef CUSTOMER_DCC_FEATURE
@@ -2674,23 +2411,6 @@ UINT deaggregate_AMSDU_announce(
 		/* convert to 802.3 header*/
         CONVERT_TO_802_3(Header802_3, pDA, pSA, pPayload, PayloadSize, pRemovedLLCSNAP);
 
-#ifdef CONFIG_STA_SUPPORT
-		if ((Header802_3[12] == 0x88) && (Header802_3[13] == 0x8E)
-			)
-		{
-			MLME_QUEUE_ELEM *Elem;
-
-			os_alloc_mem(pAd, (UCHAR **)&Elem, sizeof(MLME_QUEUE_ELEM));
-			if (Elem != NULL)
-			{
-				memmove(Elem->Msg+(LENGTH_802_11 + LENGTH_802_1_H), pPayload, PayloadSize);
-				Elem->MsgLen = LENGTH_802_11 + LENGTH_802_1_H + PayloadSize;
-				REPORT_MGMT_FRAME_TO_MLME(pAd, BSSID_WCID, Elem->Msg, Elem->MsgLen, 0, 0, 0, 0, OPMODE_STA);
-				os_free_mem(NULL, Elem);
-				Elem = NULL;
-			}
-		}
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef APCLI_SUPPORT
 		if ((Header802_3[12] == 0x88) && (Header802_3[13] == 0x8E))
@@ -2770,17 +2490,6 @@ UINT deaggregate_AMSDU_announce(
 									FromWhichBSSID, TPID);
 		}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-		IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		{
-	        	if (pRemovedLLCSNAP)
-	        	{
-	    			pPayload -= LENGTH_802_3;
-	    			PayloadSize += LENGTH_802_3;
-	    			NdisMoveMemory(pPayload, &Header802_3[0], LENGTH_802_3);
-	        	}
-		}
-#endif /* CONFIG_STA_SUPPORT */
 
 		pClonePacket = ClonePacket(pAd, pPacket, pPayload, PayloadSize);
 		if (pClonePacket)
@@ -2789,10 +2498,6 @@ UINT deaggregate_AMSDU_announce(
 			IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 				AP_ANNOUNCE_OR_FORWARD_802_3_PACKET(pAd, pClonePacket, RTMP_GET_PACKET_IF(pPacket));
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-			IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-				ANNOUNCE_OR_FORWARD_802_3_PACKET(pAd, pClonePacket, RTMP_GET_PACKET_IF(pPacket));
-#endif /* CONFIG_STA_SUPPORT */
 		}
 
 
@@ -2845,16 +2550,15 @@ VOID Indicate_AMSDU_Packet(
 	IN	RX_BLK			*pRxBlk,
 	IN	UCHAR			FromWhichBSSID)
 {
-#ifdef APCLI_SUPPORT
+	UINT			nMSDU;
 	if (check_rx_pkt_pn_allowed(pAd, pRxBlk) == FALSE) {
 		DBGPRINT(RT_DEBUG_WARN, ("%s:drop packet by PN mismatch!\n", __func__));
 		RELEASE_NDIS_PACKET(pAd, pRxBlk->pRxPacket, NDIS_STATUS_FAILURE);
 		return;
 	}
-#endif /* APCLI_SUPPORT */
 	RTMP_UPDATE_OS_PACKET_INFO(pAd, pRxBlk, FromWhichBSSID);
 	RTMP_SET_PACKET_IF(pRxBlk->pRxPacket, FromWhichBSSID);
-	deaggregate_AMSDU_announce(pAd, pRxBlk, pRxBlk->pRxPacket, pRxBlk->pData, pRxBlk->DataSize, pRxBlk->OpMode);
+	nMSDU = deaggregate_AMSDU_announce(pAd, pRxBlk, pRxBlk->pRxPacket, pRxBlk->pData, pRxBlk->DataSize, pRxBlk->OpMode);
 }
 #endif /* DOT11_N_SUPPORT */
 
@@ -3041,9 +2745,6 @@ BOOLEAN RTMPCheckEtherType(
 {
 	UINT16 TypeLen;
 	UCHAR Byte0, Byte1, *pSrcBuf, up = 0;
-#ifdef CONFIG_AP_SUPPORT
-	BOOLEAN isMcast = FALSE;
-#endif /* CONFIG_AP_SUPPORT */
 
 	pSrcBuf = GET_OS_PKT_DATAPTR(pPacket);
 	ASSERT(pSrcBuf);
@@ -3051,6 +2752,7 @@ BOOLEAN RTMPCheckEtherType(
 	RTMP_SET_PACKET_SPECIFIC(pPacket, 0);
 
 #ifdef CONFIG_AP_SUPPORT
+	BOOLEAN isMcast = FALSE;
 	if(IS_MULTICAST_MAC_ADDR(pSrcBuf))
 		isMcast = TRUE;
 #endif /* CONFIG_AP_SUPPORT */
@@ -3195,39 +2897,22 @@ BOOLEAN RTMPCheckEtherType(
 	{
 		case ETH_TYPE_IPv4:
 			{
-				UINT8 ipv4_proto = *(pSrcBuf + 9);
+				UINT32 pktLen = GET_OS_PKT_LEN(pPacket);
 
-				ASSERT((GET_OS_PKT_LEN(pPacket) > (ETH_HDR_LEN + IP_HDR_LEN)));	/* 14 for ethernet header, 20 for IP header*/
+				ASSERT((pktLen > (ETH_HDR_LEN + IP_HDR_LEN)));	/* 14 for ethernet header, 20 for IP header*/
 				RTMP_SET_PACKET_IPV4(pPacket, 1);
-
-#ifdef DATA_QUEUE_RESERVE
-				if (ipv4_proto == 0x01)
-				{
-					RTMP_SET_PACKET_ICMP(pPacket, 1);
-				}
-				else
-#endif /* DATA_QUEUE_RESERVE */
-				if (ipv4_proto == IP_PROTO_UDP)
+				if (*(pSrcBuf + 9) == IP_PROTO_UDP)
 				{
 					UINT16 srcPort, dstPort;
-	
+									
 					pSrcBuf += IP_HDR_LEN;
 					srcPort = OS_NTOHS(get_unaligned((PUINT16)(pSrcBuf)));
 					dstPort = OS_NTOHS(get_unaligned((PUINT16)(pSrcBuf+2)));
 		
 					if ((srcPort==0x44 && dstPort==0x43) || (srcPort==0x43 && dstPort==0x44))
-					{
-						/*It's a BOOTP/DHCP packet*/
+					{	/*It's a BOOTP/DHCP packet*/
 						RTMP_SET_PACKET_DHCP(pPacket, 1);
 					}
-
-#ifdef AIRPLAY_SUPPORT
-					if ((srcPort==5353 && dstPort==5353))
-					{
-						DBGPRINT(RT_DEBUG_INFO, ("%s: this is mDns packet from upper layer ..... on V4\n", __FUNCTION__));
-						RTMP_SET_PACKET_EAPOL(pPacket, 1);
-					}		
-#endif /* AIRPLAY_SUPPORT */
 
 #ifdef CONFIG_AP_SUPPORT
 					if (wdev->wdev_type == WDEV_TYPE_AP)
@@ -3245,6 +2930,21 @@ BOOLEAN RTMPCheckEtherType(
 					}
 #endif /* CONFIG_AP_SUPPORT */
 				}
+				else if (*(pSrcBuf + 9) == 0x01)
+				{
+					ASSERT((pktLen > 34));  /* 14 for ethernet header, 20 for IP header*/
+					pSrcBuf += 20;  /* Skip the IP header*/
+					
+					if (*pSrcBuf == 0x08)
+					{
+						pSrcBuf++;
+						if ((*pSrcBuf == 0x00) && (pktLen < 2000))
+						{
+							DBGPRINT(RT_DEBUG_TRACE, ("PS DEBUG: %s[%d]==PING PACKET (%d)\n", 
+								__FUNCTION__, __LINE__, pktLen));
+						}
+					}	
+				}	
 			}
 			break;
 		case ETH_TYPE_ARP:
@@ -3331,27 +3031,6 @@ BOOLEAN RTMPCheckEtherType(
 				/* return AC_BE if packet is not IPv6 */
 				if ((*pSrcBuf & 0xf0) != 0x60)
 					up = 0;
-
-#ifdef AIRPLAY_SUPPORT					
-
-				/* point to the Next Header */
-				if (*(pSrcBuf + 6) == IP_PROTO_UDP)
-				{
-					UINT16 srcPort = 0, dstPort = 0;
-
-					pSrcBuf += 40; /* IPV6 Header */
-					srcPort = OS_NTOHS(get_unaligned((PUINT16)(pSrcBuf)));
-					dstPort = OS_NTOHS(get_unaligned((PUINT16)(pSrcBuf+2)));
-
-					if ((srcPort==5353 && dstPort==5353))
-					{						
-						DBGPRINT(RT_DEBUG_INFO, ("%s: this is mDns packet from upper layer ..... on V6\n", __FUNCTION__));
-						RTMP_SET_PACKET_EAPOL(pPacket, 1);
-					}	
-				}	
-
-#endif /* AIRPLAY_SUPPORT */				
-
 			}
 			break;
 		case ETH_TYPE_EAPOL:
@@ -3363,21 +3042,6 @@ BOOLEAN RTMPCheckEtherType(
 			break;
 #endif /* WAPI_SUPPORT */
 
-#if defined(DOT11Z_TDLS_SUPPORT) || defined(CFG_TDLS_SUPPORT)
-		case 0x890d:
-			{
-				RTMP_SET_PACKET_TDLS(pPacket, 1);
-				up = 5;
-			}
-			break;
-#endif /* defined(DOT11Z_TDLS_SUPPORT) || defined(CFG_TDLS_SUPPORT) */
-
-#ifdef SMART_MESH
-        case ETH_TYPE_SMART_MESH:
-            if(pMacEntry && IS_ENTRY_APCLI(pMacEntry))
-                return FALSE;
-            break;
-#endif /* SMART_MESH */
 
 		default:
 			break;
@@ -3418,7 +3082,6 @@ BOOLEAN RTMPCheckEtherType(
 	return TRUE;
 }
 
-#ifdef FORCE_ANNOUNCE_CRITICAL_AMPDU
 VOID RTMP_RxPacketClassify(
 	IN RTMP_ADAPTER *pAd,
 	IN RX_BLK		*pRxBlk,
@@ -3427,54 +3090,42 @@ VOID RTMP_RxPacketClassify(
 	PUCHAR pData = NdisEqualMemory(SNAP_802_1H, pRxBlk->pData, 6) ? (pRxBlk->pData + 6) : pRxBlk->pData;
 	UINT16 protoType = OS_NTOHS(*((UINT16 *)(pData)));
 
+	RTMP_SET_PACKET_ETHTYPE(pRxBlk->pRxPacket, 0);
+
 	if (protoType == ETH_P_ARP)
 	{
-		pRxBlk->CriticalPkt = 1;	// ARP
+		UINT16 ArpOp;
+		RXWI_STRUC *pRxWI = pRxBlk->pRxWI;
 
-		DBGPRINT(RT_DEBUG_TRACE, ("rx path arp #(aid=%d,wcid=%d, pHeader seq=%d, ampdu = %d)\n",
-			pEntry->Aid, pRxBlk->wcid, pRxBlk->pHeader->Sequence, RX_BLK_TEST_FLAG(pRxBlk, fRX_AMPDU))); 
+		pData = pData + 8;
+		ArpOp = OS_NTOHS(*((UINT16 *)(pData)));
+
+		DBGPRINT(RT_DEBUG_WARN, ("rx path ARP #(aid=%d,wcid=%d,arp op = %d, ampdu = %d)\n",
+						pEntry->Aid, pRxBlk->wcid, ArpOp, RX_BLK_TEST_FLAG(pRxBlk, fRX_AMPDU)));
+
+
+		RTMP_SET_PACKET_ETHTYPE(pRxBlk->pRxPacket, 0x1);
 	}
 	else if (protoType == ETH_P_IP)
 	{
-	
 		UINT8 protocol = *(pData + 11);
-		//UINT8 icmp_type = *(pData + 22);
+		UINT8 icmp_type = *(pData + 22);
+		RXWI_STRUC *pRxWI = pRxBlk->pRxWI;
 
 		if (protocol == 0x1)
 		{
-			pRxBlk->CriticalPkt = 1;	// ICMP
-
-			DBGPRINT(RT_DEBUG_TRACE, ("rx path PING #(aid=%d,wcid=%d, pHeader seq=%d, ampdu = %d)\n",
-				pEntry->Aid, pRxBlk->wcid, pRxBlk->pHeader->Sequence, RX_BLK_TEST_FLAG(pRxBlk, fRX_AMPDU)));
+			RTMP_SET_PACKET_ETHTYPE(pRxBlk->pRxPacket, 0x2);
 		}
-#if 0
-		else if (protocol == IP_PROTO_UDP)
-		{
-			PUCHAR pUdpHdr = pData + 22;
-			UINT16 srcPort, dstPort;
-
-			srcPort = OS_NTOHS(get_unaligned((PUINT16)(pUdpHdr)));
-			dstPort = OS_NTOHS(get_unaligned((PUINT16)(pUdpHdr+2)));
-			if ((srcPort==67 && dstPort==68)||(srcPort==68 && dstPort==67)) /*It's a DHCP packet */
-			{
-				pRxBlk->CriticalPkt = 1;	// DHCP
-
-				DBGPRINT(RT_DEBUG_TRACE, ("rx path dhcp #(aid=%d,wcid=%d, pHeader seq=%d, ampdu = %d)\n",
-					pEntry->Aid, pRxBlk->wcid, pRxBlk->pHeader->Sequence, RX_BLK_TEST_FLAG(pRxBlk, fRX_AMPDU)));
-			}
-		}
-#endif
 	}
 }
-#endif /* FORCE_ANNOUNCE_CRITICAL_AMPDU */
 
 VOID Update_Rssi_Sample(
 	IN RTMP_ADAPTER *pAd,
 	IN RSSI_SAMPLE *pRssi,
 	IN RXWI_STRUC *pRxWI)
 {
-	CHAR rssi[3] = {0};
-	UCHAR snr[3] = {0};
+	CHAR rssi[3];
+	UCHAR snr[3];
 	BOOLEAN bInitial = FALSE;
 	CHAR Phymode = get_pkt_phymode_by_rxwi(pAd, pRxWI);
 
@@ -3583,22 +3234,17 @@ VOID Indicate_Legacy_Packet(RTMP_ADAPTER *pAd, RX_BLK *pRxBlk, UCHAR FromWhichBS
 	UCHAR Header802_3[LENGTH_802_3];
 	USHORT VLAN_VID = 0, VLAN_Priority = 0;
 
-#ifdef DBG
 //+++Add by shiang for debug
 if (0) {
 	hex_dump("Indicate_Legacy_Packet", pRxBlk->pData, pRxBlk->DataSize);
 	hex_dump("802_11_hdr", (UCHAR *)pRxBlk->pHeader, LENGTH_802_11);
 }
-//---Add by shiang for debug
-#endif
-
-#ifdef APCLI_SUPPORT
 	if (check_rx_pkt_pn_allowed(pAd, pRxBlk) == FALSE) {
 		DBGPRINT(RT_DEBUG_WARN, ("%s:drop packet by PN mismatch!\n", __func__));
 		RELEASE_NDIS_PACKET(pAd, pRxPacket, NDIS_STATUS_FAILURE);
 		return;
 	}
-#endif /* APCLI_SUPPORT */
+//---Add by shiang for debug
 
 	/*
 		1. get 802.3 Header
@@ -3611,12 +3257,24 @@ if (0) {
 #else
 #ifdef CONFIG_AP_SUPPORT
 	IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
+        {
+                 /* Skip IEEE 802.3 header if present. 802.3 header is front of LLC */
+                 {
+                         static const UCHAR LLC_Header[] = { 0xaa, 0xaa, 0x03, 0x00,
+                                 0x00, 0x00 };
+
+                         if( ( memcmp(LLC_Header, pRxBlk->pData, 6) != 0 ) &&
+                                         ( memcmp(LLC_Header, &(pRxBlk->pData[14]), 6) == 0 ) )
+                         {
+                                 /* IEEE 802.3 header - skip it */
+                                 printk("%s: SKIP IEEE802.3!!!\n", __FUNCTION__);
+                                 pRxBlk->pData += 14;
+                                 pRxBlk->DataSize -= 14;
+                         }
+                 }
 		RTMP_AP_802_11_REMOVE_LLC_AND_CONVERT_TO_802_3(pRxBlk, Header802_3);
+	}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		RTMP_802_11_REMOVE_LLC_AND_CONVERT_TO_802_3(pRxBlk, Header802_3);
-#endif /* CONFIG_STA_SUPPORT */
 #endif /* RT_CFG80211_SUPPORT */
 
 	if (pRxBlk->DataSize > MAX_RX_PKT_LEN)
@@ -3637,37 +3295,66 @@ if (0) {
 #endif /* WDS_VLAN_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef DBG
 //+++Add by shiang for debug
 if (0) {
 	hex_dump("Before80211_2_8023", pRxBlk->pData, pRxBlk->DataSize);
 	hex_dump("header802_3", &Header802_3[0], LENGTH_802_3);
 }
 //---Add by shiang for debug
-#endif
 
 	RT_80211_TO_8023_PACKET(pAd, VLAN_VID, VLAN_Priority,
 							pRxBlk, Header802_3, FromWhichBSSID, TPID);
 
-#ifdef DBG
 //+++Add by shiang for debug
 if (0) {
 	hex_dump("After80211_2_8023", GET_OS_PKT_DATAPTR(pRxBlk->pRxPacket), GET_OS_PKT_LEN(pRxBlk->pRxPacket));
 }
 //---Add by shiang for debug
-#endif
 
 	
 	/* pass this 802.3 packet to upper layer or forward this packet to WM directly*/
 #ifdef RT_CFG80211_SUPPORT
 	CFG80211_Announce802_3Packet(pAd, pRxBlk, FromWhichBSSID);
 #else	
+#if (defined(WH_EZ_SETUP) && defined(EZ_DUAL_BAND_SUPPORT))
+	{
+		struct wifi_dev *wdev;
+		MAC_TABLE_ENTRY *pEntry = NULL;
+
+		pEntry = MacTableLookup(pAd, pRxBlk->pHeader->Addr2);
+		if (pEntry) {
+			wdev = pEntry->wdev;
+			if ((IS_EZ_SETUP_ENABLED(wdev))
+#ifdef EZ_API_SUPPORT
+				&& (wdev->ez_driver_params.ez_api_mode != CONNECTION_OFFLOAD)
+#endif
+			) {
+				if (MAC_ADDR_IS_GROUP(pRxBlk->pHeader->Addr1)
+					&& ez_sta_rx_pkt_handle(wdev,
+					GET_OS_PKT_DATAPTR(pRxBlk->pRxPacket),
+					GET_OS_PKT_LEN(pRxBlk->pRxPacket))) {
+					RELEASE_NDIS_PACKET(pAd, pRxPacket, NDIS_STATUS_FAILURE);
+					return;
+				}
+			}
+		}
+	}
+#endif
+
 #ifdef CONFIG_AP_SUPPORT
 	IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 	{
+#ifdef MWDS
+		MAC_TABLE_ENTRY *pEntry = NULL;
+
+		pEntry = MacTableLookup(pAd, pRxBlk->pHeader->Addr2);
+#endif
 #ifdef MAC_REPEATER_SUPPORT /* This should be moved to some where else */
-		if (pRxBlk->pRxInfo->Bcast && (pAd->ApCfg.bMACRepeaterEn) && (pAd->ApCfg.MACRepeaterOuiMode != 1))
-		{
+		if (pRxBlk->pRxInfo->Bcast && (pAd->ApCfg.bMACRepeaterEn) && (pAd->ApCfg.MACRepeaterOuiMode != 1)
+#ifdef MWDS
+			&& (pEntry && (!IS_ENTRY_MWDS(pEntry)))	/*add mwds disable code here*/
+#endif
+		) {
 			PUCHAR pPktHdr, pLayerHdr;
 
 			pPktHdr = GET_OS_PKT_DATAPTR(pRxBlk->pRxPacket);
@@ -3686,11 +3373,12 @@ if (0) {
 
 				if (srcPort==67 && dstPort==68) /*It's a DHCP packet */
 				{
-					PUCHAR bootpHdr, pCliHwAddr;
+					PUCHAR bootpHdr, dhcpHdr, pCliHwAddr;
 					REPEATER_CLIENT_ENTRY *pReptEntry = NULL;
 					UCHAR isLinkValid;
 
 					bootpHdr = pUdpHdr + 8;
+					dhcpHdr = bootpHdr + 236;
 					pCliHwAddr = (bootpHdr+28);
 					pReptEntry = RTMPLookupRepeaterCliEntry(pAd, FALSE, pCliHwAddr, TRUE, &isLinkValid);
 					if (pReptEntry)
@@ -3730,10 +3418,6 @@ if (0) {
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		ANNOUNCE_OR_FORWARD_802_3_PACKET(pAd, pRxPacket, FromWhichBSSID);
-#endif /* CONFIG_STA_SUPPORT */
 #endif /* RT_CFG80211_SUPPORT */
 }
 
@@ -3751,14 +3435,12 @@ VOID Indicate_Legacy_Packet_Hdr_Trns(
 
 	struct sk_buff *pOSPkt;
 
-#ifdef DBG
 //+++Add by shiang for debug
 if (0) {
 	hex_dump("Indicate_Legacy_Packet", pRxBlk->pTransData, pRxBlk->TransDataSize);
 	hex_dump("802_11_hdr", pRxBlk->pHeader, LENGTH_802_11);
 }
 //---Add by shiang for debug
-#endif
 
 	/*
 		1. get 802.3 Header
@@ -3787,14 +3469,13 @@ if (0) {
 #endif /* WDS_VLAN_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef DBG
 //+++Add by shiang for debug
 if (0) {
 	hex_dump("Before80211_2_8023", pRxBlk->pData, pRxBlk->TransDataSize);
 	hex_dump("header802_3", &Header802_3[0], LENGTH_802_3);
 }
 //---Add by shiang for debug
-#endif
+
 
 	{
 		pOSPkt = RTPKT_TO_OSPKT(pRxPacket);
@@ -3807,13 +3488,12 @@ if (0) {
 		//printk("\x1b[31m%s: rx trans ...%d\x1b[m\n", __FUNCTION__, __LINE__);
 	}
 
-#ifdef DBG
 //+++Add by shiang for debug
 if (0) {
 	hex_dump("After80211_2_8023", GET_OS_PKT_DATAPTR(pRxBlk->pRxPacket), GET_OS_PKT_LEN(pRxBlk->pRxPacket));
 }
 //---Add by shiang for debug
-#endif
+
 
 	/* pass this 802.3 packet to upper layer or forward this packet to WM directly*/
 	
@@ -3821,10 +3501,6 @@ if (0) {
 	IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 		AP_ANNOUNCE_OR_FORWARD_802_3_PACKET(pAd, pRxPacket, FromWhichBSSID);
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		ANNOUNCE_OR_FORWARD_802_3_PACKET(pAd, pRxPacket, FromWhichBSSID);
-#endif /* CONFIG_STA_SUPPORT */
 
 }
 #endif /* HDR_TRANS_SUPPORT */
@@ -3916,10 +3592,6 @@ VOID CmmRxRalinkFrameIndicate(
 	IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 		RTMP_AP_802_11_REMOVE_LLC_AND_CONVERT_TO_802_3(pRxBlk, Header802_3);
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		RTMP_802_11_REMOVE_LLC_AND_CONVERT_TO_802_3(pRxBlk, Header802_3);
-#endif /* CONFIG_STA_SUPPORT */
 
 
 	ASSERT(pRxBlk->pRxPacket);
@@ -3946,12 +3618,6 @@ VOID CmmRxRalinkFrameIndicate(
 							Payload2Size, FromWhichBSSID, TPID);
 	}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		pPacket2 = duplicate_pkt(get_netdev_from_bssid(pAd, FromWhichBSSID),
-								(pData2-LENGTH_802_3), LENGTH_802_3, pData2,
-								Payload2Size, FromWhichBSSID);
-#endif /* CONFIG_STA_SUPPORT */
 
 	if (!pPacket2)
 	{
@@ -3983,10 +3649,6 @@ VOID CmmRxRalinkFrameIndicate(
 	IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 		AP_ANNOUNCE_OR_FORWARD_802_3_PACKET(pAd, pRxBlk->pRxPacket, FromWhichBSSID);
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		ANNOUNCE_OR_FORWARD_802_3_PACKET(pAd, pRxBlk->pRxPacket, FromWhichBSSID);
-#endif /* CONFIG_STA_SUPPORT */
 
 	if (pPacket2)
 	{
@@ -3994,10 +3656,6 @@ VOID CmmRxRalinkFrameIndicate(
 		IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 			AP_ANNOUNCE_OR_FORWARD_802_3_PACKET(pAd, pPacket2, FromWhichBSSID);
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-		IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-			ANNOUNCE_OR_FORWARD_802_3_PACKET(pAd, pPacket2, FromWhichBSSID);
-#endif /* CONFIG_STA_SUPPORT */
 	}
 }
 
@@ -4152,13 +3810,11 @@ VOID Indicate_EAPOL_Packet(
 		RELEASE_NDIS_PACKET(pAd, pRxBlk->pRxPacket, NDIS_STATUS_FAILURE);
 		return;
 	}
-#ifdef APCLI_SUPPORT
 	if (check_rx_pkt_pn_allowed(pAd, pRxBlk) == FALSE) {
 		DBGPRINT(RT_DEBUG_WARN, ("%s:drop packet by PN mismatch!\n", __func__));
 		RELEASE_NDIS_PACKET(pAd, pRxBlk->pRxPacket, NDIS_STATUS_FAILURE);
 		return;
-	}	
-#endif /* APCLI_SUPPORT */
+	}
 #ifdef CONFIG_AP_SUPPORT
 	IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 	{		
@@ -4167,24 +3823,6 @@ VOID Indicate_EAPOL_Packet(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 	
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-#if defined(P2P_APCLI_SUPPORT) || defined(RT_CFG80211_P2P_SUPPORT)
-		if (IS_PKT_OPMODE_AP(pRxBlk))
-		{	
-			APRxEAPOLFrameIndicate(pAd, pEntry, pRxBlk, FromWhichBSSID);
-			return;
-		}
-		else
-#endif /* P2P_SUPPORT */
-		{
-			ASSERT((pRxBlk->wcid == BSSID_WCID));
-			STARxEAPOLFrameIndicate(pAd, pEntry, pRxBlk, FromWhichBSSID);
-			return;
-		}
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 }
 
@@ -4304,24 +3942,6 @@ VOID RtmpEnqueueNullFrame(
 		}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-		IF_DEV_CONFIG_OPMODE_ON_STA(pAd) {
-			pNullFr->FC.FrDs = 0;
-			pNullFr->FC.ToDs = 1;
-
-#if defined(DOT11Z_TDLS_SUPPORT) || defined(CFG_TDLS_SUPPORT)
-			if ((pEntry != NULL) && (IS_ENTRY_TDLS(pEntry)))
-			{
-				pNullFr->FC.FrDs = 0;
-				pNullFr->FC.ToDs = 0;
-
-				COPY_MAC_ADDR(pNullFr->Addr1, pAddr);
-				COPY_MAC_ADDR(pNullFr->Addr2, pAd->CurrentAddress);
-				COPY_MAC_ADDR(pNullFr->Addr3, pAd->CommonCfg.Bssid);
-			}
-#endif /* DOT11Z_TDLS_SUPPORT */
-		}
-#endif /* CONFIG_STA_SUPPORT */
 
 body:
 		pNullFr->FC.Type = FC_TYPE_DATA;
@@ -4516,7 +4136,6 @@ VOID dev_rx_mgmt_frm(RTMP_ADAPTER *pAd, RX_BLK *pRxBlk)
 	PNDIS_PACKET pRxPacket = pRxBlk->pRxPacket;
 	INT op_mode = pRxBlk->OpMode;
 	BOOLEAN 	bPassTheBcastPkt = FALSE;
-
 #ifdef APCLI_SUPPORT
 #ifdef APCLI_CERT_SUPPORT	
 	PAPCLI_STRUCT pApCliEntry = NULL;
@@ -4642,53 +4261,6 @@ VOID dev_rx_mgmt_frm(RTMP_ADAPTER *pAd, RX_BLK *pRxBlk)
 #endif /* CONFIG_AP_SUPPORT */
 
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		op_mode = OPMODE_STA;
-
-#ifdef RT_CFG80211_P2P_SUPPORT		
-		/* CFG_TODO */
-		op_mode = pRxBlk->OpMode;
-#endif /* RT_CFG80211_P2P_SUPPORT */
-
-		/* check if need to resend PS Poll when received packet with MoreData = 1 */
-		if ((RtmpPktPmBitCheck(pAd) == TRUE) && (pHeader->FC.MoreData == 1)) {
-			/* for UAPSD, all management frames will be VO priority */
-			if (pAd->CommonCfg.bAPSDAC_VO == 0) {
-				/* non-UAPSD delivery-enabled AC */
-				RTMP_PS_POLL_ENQUEUE(pAd);
-			}
-		}
-
-		/* TODO: if MoreData == 0, station can go to sleep */
-
-		/* We should collect RSSI not only U2M data but also my beacon */
-		if ((pHeader->FC.SubType == SUBTYPE_BEACON)
-		    && (MAC_ADDR_EQUAL(&pAd->CommonCfg.Bssid, &pHeader->Addr2))
-		    && (pAd->RxAnt.EvaluatePeriod == 0)) {
-			Update_Rssi_Sample(pAd, &pAd->StaCfg.RssiSample, pRxBlk->pRxWI);
-
-			pAd->StaCfg.LastSNR0 = (UCHAR) (pRxBlk->snr[0]);
-			pAd->StaCfg.LastSNR1 = (UCHAR) (pRxBlk->snr[1]);
-#ifdef DOT11N_SS3_SUPPORT
-			pAd->StaCfg.LastSNR2 = (UCHAR) (pRxBlk->snr[2]);
-#endif /* DOT11N_SS3_SUPPORT */
-
-#ifdef PRE_ANT_SWITCH
-#endif /* PRE_ANT_SWITCH */
-		}
-
-		if ((pHeader->FC.SubType == SUBTYPE_BEACON) &&
-		    (ADHOC_ON(pAd)) &&
-		    (pRxBlk->wcid < MAX_LEN_OF_MAC_TABLE)) {
-			MAC_TABLE_ENTRY *pEntry = NULL;
-			pEntry = &pAd->MacTab.Content[pRxBlk->wcid];
-			if (pEntry)
-				Update_Rssi_Sample(pAd, &pEntry->RssiSample, pRxBlk->pRxWI);
-		}
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	if (pRxBlk->DataSize > MAX_RX_PKT_LEN) {
 		DBGPRINT(RT_DEBUG_TRACE, ("DataSize=%d\n", pRxBlk->DataSize));
@@ -4706,9 +4278,6 @@ VOID dev_rx_mgmt_frm(RTMP_ADAPTER *pAd, RX_BLK *pRxBlk)
 			pMacEntry = &pAd->MacTab.Content[pRxBlk->wcid];
 
 		if (pMacEntry && ((op_mode == OPMODE_AP && IS_ENTRY_CLIENT(pMacEntry))
-#if defined(DOT11Z_TDLS_SUPPORT) || defined(CFG_TDLS_SUPPORT)
-			|| (op_mode == OPMODE_STA && IS_ENTRY_TDLS(pMacEntry))
-#endif /* defined(DOT11Z_TDLS_SUPPORT) || defined(CFG_TDLS_SUPPORT) */
 		))
 		   	RtmpPsIndicate(pAd, pHeader->Addr2, pRxBlk->wcid, pHeader->FC.PwrMgmt);
 
@@ -4726,50 +4295,6 @@ VOID dev_rx_mgmt_frm(RTMP_ADAPTER *pAd, RX_BLK *pRxBlk)
 		*/
 	}
 #endif /* defined(CONFIG_AP_SUPPORT) defined(DOT11Z_TDLS_SUPPORT) || defined(CFG_TDLS_SUPPORT) */
-#ifdef SMART_MESH_MONITOR
-	HTTRANSMIT_SETTING HTSetting;
-#ifdef RLT_MAC
-	if (pAd->chipCap.hif_type == HIF_RLT)
-	{
-		HTSetting.field.MODE = pRxBlk->pRxWI->RXWI_N.phy_mode;
-		HTSetting.field.MCS = pRxBlk->pRxWI->RXWI_N.mcs;
-		HTSetting.field.BW = pRxBlk->pRxWI->RXWI_N.bw;
-		HTSetting.field.ShortGI = pRxBlk->pRxWI->RXWI_N.sgi;	
-	}
-#endif /* RLT_MAC */
-#ifdef RTMP_MAC
-	if (pAd->chipCap.hif_type == HIF_RTMP)
-	{
-		HTSetting.field.MODE = pRxBlk->pRxWI->RXWI_O.phy_mode;
-		HTSetting.field.MCS = pRxBlk->pRxWI->RXWI_O.mcs;
-		HTSetting.field.BW = pRxBlk->pRxWI->RXWI_O.bw;
-		HTSetting.field.ShortGI = pRxBlk->pRxWI->RXWI_O.sgi;
-	}
-#endif /* RTMP_MAC */
-	getRate(HTSetting, &pAd->LastMgmtRxRate);
-
-#ifdef RLT_MAC
-	if (pAd->chipCap.hif_type == HIF_RLT)
-	{
-		if (IS_MT76x2(pAd))
-		{
-			pRxBlk->snr[0] = pRxBlk->pRxWI->RXWI_N.bbp_rxinfo[2];
-			pRxBlk->snr[1] = pRxBlk->pRxWI->RXWI_N.bbp_rxinfo[2];
-		}
-	}
-#endif /* RLT_MAC */
-
-#ifdef RTMP_MAC
-	if (pAd->chipCap.hif_type == HIF_RTMP)
-	{
-		if (IS_RT6352(pAd))
-		{
-			pRxBlk->snr[1] = pRxBlk->snr[0];
-		}
-	}
-#endif /* RTMP_MAC */
-#endif /*SMART_MESH_MONITOR*/
-
 #ifdef CUSTOMER_DCC_FEATURE
 	REPORT_MGMT_FRAME_TO_MLME(pAd, pRxBlk->wcid, pHeader,
 					pRxBlk->DataSize,
@@ -4887,24 +4412,24 @@ VOID dev_rx_ctrl_frm(RTMP_ADAPTER *pAd, RX_BLK *pRxBlk)
 	{
 #ifdef DOT11_N_SUPPORT
 		case SUBTYPE_BLOCK_ACK_REQ:
+#ifdef AIR_MONITOR
+#ifdef CONFIG_AP_SUPPORT
+			IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 			{
 				FRAME_BA_REQ *bar = (FRAME_BA_REQ *)pHeader;
-#ifdef SMART_MESH_MONITOR
-#ifdef CONFIG_AP_SUPPORT
-                IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
-                {
-                     /*
-                                        To avoid control frames captured by sniffer confusing due to lack of Addr 3
-                                   */
-                    if(!IsValidUnicastToMe(pAd, pRxBlk->wcid, bar->Addr1))
-                    {
-                        RELEASE_NDIS_PACKET(pAd, pRxPacket, NDIS_STATUS_SUCCESS);
-                        return;
-                    }
-                }
+				 /*
+				 *To avoid control frames captured by sniffer confusing due to lack of Addr 3
+				 */
+				if (!IsValidUnicastToMe(pAd, pRxBlk->wcid, bar->Addr1))  {
+					RELEASE_NDIS_PACKET(pAd, pRxPacket, NDIS_STATUS_SUCCESS);
+					return;
+				}
+			}
 #endif /* CONFIG_AP_SUPPORT */
-#endif /* SMART_MESH_MONITOR */
-			    CntlEnqueueForRecv(pAd, pRxBlk->wcid, (pRxBlk->MPDUtotalByteCnt), (PFRAME_BA_REQ)pHeader);
+#endif /* AIR_MONITOR */
+			CntlEnqueueForRecv(pAd, pRxBlk->wcid, (pRxBlk->MPDUtotalByteCnt), (PFRAME_BA_REQ)pHeader);
+			{
+				FRAME_BA_REQ *bar = (FRAME_BA_REQ *)pHeader;
 				if (bar->BARControl.Compressed == 0) {
 					UCHAR tid = bar->BARControl.TID;
 					BARecSessionTearDown(pAd, pRxBlk->wcid, tid, FALSE);
@@ -5015,6 +4540,9 @@ BOOLEAN rtmp_rx_done_handle(RTMP_ADAPTER *pAd)
 	HEADER_802_11 *pHeader;
 	RX_BLK rxblk, *pRxBlk;
 	BOOLEAN bCmdRspPacket = FALSE;
+#ifdef AIR_MONITOR
+		MAC_TABLE_ENTRY *pEntry = NULL;
+#endif
 
 #ifdef LINUX
 #ifdef RTMP_RBUS_SUPPORT
@@ -5091,10 +4619,6 @@ BOOLEAN rtmp_rx_done_handle(RTMP_ADAPTER *pAd)
 				b. be released if it is discarded
 		*/
 
-#ifdef FORCE_ANNOUNCE_CRITICAL_AMPDU
-		rxblk.CriticalPkt = 0;
-#endif /* FORCE_ANNOUNCE_CRITICAL_AMPDU */
-
 		pRxBlk = &rxblk;
 		pRxPacket = GetPacketFromRxRing(pAd, pRxBlk, &bReschedule, &RxPending, &bCmdRspPacket, 0);
 		if ((pRxPacket == NULL) && !bCmdRspPacket)
@@ -5110,41 +4634,29 @@ BOOLEAN rtmp_rx_done_handle(RTMP_ADAPTER *pAd)
 		pRxWI = (RXWI_STRUC *)pData;
 		pHeader = rxblk.pHeader;// (PHEADER_802_11)(pData + RXWISize);
 
-#ifdef SMART_MESH_MONITOR
-		MAC_TABLE_ENTRY *pEntry = NULL;
+#ifdef AIR_MONITOR
 #ifdef CONFIG_AP_SUPPORT
 		IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 		{
-			if(pAd->MntEnable && !pRxInfo->CipherErr && !pRxInfo->Crc)
-			{
-				if(VALID_WCID(pRxBlk->wcid))
+			pRxInfo = rxblk.pRxInfo;
+			if (pRxInfo != NULL && (pAd->MntEnable && !pRxInfo->CipherErr && !pRxInfo->Crc)) {
+				if (VALID_WCID(pRxBlk->wcid))
 					pEntry = &pAd->MacTab.Content[pRxBlk->wcid];
-
-				if(pEntry && IS_VALID_ENTRY(pEntry))
-				{
-					// One who has been authenticated needs to do report to upper.
-					if(pEntry->MonitorWCID >= WCID_OF_MONITOR_STA_BASE && pEntry->MonitorWCID <= MAX_WCID_OF_MONITOR_STA)
-						Smart_Mesh_Pkt_Report_Action(pAd, pEntry->MonitorWCID, pRxWI, (PUCHAR)pHeader);
-				}
-				else if (pRxBlk->wcid >= WCID_OF_MONITOR_STA_BASE && pRxBlk->wcid <= MAX_WCID_OF_MONITOR_STA)
-				{
-					// One who matchs range of monitor wcid needs to do report to upper.
-					DBGPRINT(RT_DEBUG_TRACE, ("Monitor pRxWI->wcid=%d\n",pRxBlk->wcid));
-
-					Smart_Mesh_Pkt_Report_Action(pAd, pRxBlk->wcid, pRxWI, (PUCHAR)pHeader);
-                    if(!((pHeader->FC.Type == FC_TYPE_MGMT) && (pHeader->FC.SubType == SUBTYPE_PROBE_REQ)))
-                    {
-    					if (!MAC_ADDR_EQUAL(pHeader->Addr3, pAd->CurrentAddress))
-    					{
-    						RELEASE_NDIS_PACKET(pAd, pRxPacket, NDIS_STATUS_SUCCESS);
-    						continue;
-    					}
-                    }
+				else
+					pEntry = NULL;
+				if (pEntry != NULL && (IS_ENTRY_MONITOR(pEntry))) {
+					Air_Monitor_Pkt_Report_Action(pAd, pRxBlk->wcid, pRxBlk);
+					if (!((pHeader->FC.Type == FC_TYPE_MGMT) &&
+						(pHeader->FC.SubType == SUBTYPE_PROBE_REQ))) {
+						RELEASE_NDIS_PACKET(pAd, pRxPacket,
+							NDIS_STATUS_SUCCESS);
+						continue;
+					}
 				}
 			}
 		}
 #endif /* CONFIG_AP_SUPPORT */
-#endif /* SMART_MESH_MONITOR */
+#endif /* AIR_MONITOR */
 
 #ifndef HDR_TRANS_SUPPORT
 #ifdef RLT_MAC
@@ -5157,7 +4669,11 @@ BOOLEAN rtmp_rx_done_handle(RTMP_ADAPTER *pAd)
 
             if (pFceInfo->info_type == CMD_PACKET)
             {
-                pci_rx_cmd_msg_complete(pAd, pFceInfo, (PUCHAR)pRxInfo);
+		pci_rx_cmd_msg_complete(pAd, pFceInfo,
+#ifdef MWDS
+		(PUCHAR)
+#endif
+		pRxInfo);
                 RELEASE_NDIS_PACKET(pAd, pRxPacket, NDIS_STATUS_SUCCESS);
                 continue;
             } 
@@ -5166,7 +4682,6 @@ BOOLEAN rtmp_rx_done_handle(RTMP_ADAPTER *pAd)
 #endif /* RTMP_MAC_PCI */
 			if ((pFceInfo->info_type != 0) || (pFceInfo->pkt_80211 != 1))
 			{
-#ifdef DBG
 				DBGPRINT(RT_DEBUG_OFF, ("==>%s(): GetFrameFromOtherPorts!\n", __FUNCTION__));
 				hex_dump("hw_rx_info", &rxblk.hw_rx_info[0], sizeof(rxblk.hw_rx_info));
 				DBGPRINT(RT_DEBUG_TRACE, ("Dump the RxD, RxFCEInfo and RxInfo:\n"));
@@ -5178,13 +4693,70 @@ BOOLEAN rtmp_rx_done_handle(RTMP_ADAPTER *pAd)
 				dump_rxinfo(pAd, pRxInfo);
 				hex_dump("RxFrame", (UCHAR *)pData, (pFceInfo->pkt_len));
 				DBGPRINT(RT_DEBUG_OFF, ("<==\n"));
-#endif
 				RELEASE_NDIS_PACKET(pAd, pRxPacket, NDIS_STATUS_SUCCESS);
 				continue;
 			}
 		}
 #endif /* RLT_MAC */
 #endif /* HDR_TRANS_SUPPORT */
+
+#ifdef CONFIG_SNIFFER_SUPPORT
+		if (MONITOR_ON(pAd) && pAd->monitor_ctrl.current_monitor_mode != MONITOR_MODE_OFF) {
+			PNDIS_PACKET	pClonePacket;
+			PNDIS_PACKET    pTmpRxPacket;
+
+			if (pAd->monitor_ctrl.current_monitor_mode == MONITOR_MODE_REGULAR_RX) {
+				USHORT Data;
+				PFRAME_CONTROL FC;
+
+				NdisMoveMemory((PUCHAR)(&Data), (PUCHAR)pHeader, 2);
+#ifdef RT_BIG_ENDIAN
+				Data = SWAP16(Data);
+#endif
+				FC = (PFRAME_CONTROL)(&Data);
+				/* only report Probe_Req */
+				if ((FC->Type == FC_TYPE_MGMT) &&
+					(FC->SubType == SUBTYPE_PROBE_REQ)) {
+					pClonePacket = CopyPacket(pAd, rxblk.pRxPacket, rxblk.pData, rxblk.DataSize);
+					if (CopyPacket) {
+						pTmpRxPacket = rxblk.pRxPacket;
+						rxblk.pRxPacket = pClonePacket;
+						SET_OS_PKT_DATAPTR(pClonePacket,
+							GET_OS_PKT_DATAPTR(pClonePacket) + sizeof(RXWI_STRUC));
+						SET_OS_PKT_LEN(pClonePacket,
+							GET_OS_PKT_LEN(pClonePacket) - sizeof(RXWI_STRUC));
+						STA_MonPktSend(pAd, &rxblk);
+						rxblk.pRxPacket = pTmpRxPacket;
+					}
+				}
+			} else if (pAd->monitor_ctrl.current_monitor_mode == MONITOR_MODE_FULL) {
+				pClonePacket = CopyPacket(pAd, rxblk.pRxPacket, rxblk.pData, rxblk.DataSize);
+				if (CopyPacket) {
+					pTmpRxPacket = rxblk.pRxPacket;
+					rxblk.pRxPacket = pClonePacket;
+					SET_OS_PKT_DATAPTR(pClonePacket,
+						GET_OS_PKT_DATAPTR(pClonePacket) + sizeof(RXWI_STRUC));
+					SET_OS_PKT_LEN(pClonePacket,
+						GET_OS_PKT_LEN(pClonePacket) - sizeof(RXWI_STRUC));
+					STA_MonPktSend(pAd, &rxblk);
+					rxblk.pRxPacket = pTmpRxPacket;
+				}
+			} else if (pAd->monitor_ctrl.current_monitor_mode == MONITOR_MODE_FULL_NO_CLONE) {
+				SET_OS_PKT_DATAPTR(rxblk.pRxPacket,
+					GET_OS_PKT_DATAPTR(rxblk.pRxPacket) + sizeof(RXWI_STRUC));
+				SET_OS_PKT_LEN(rxblk.pRxPacket,
+					GET_OS_PKT_LEN(rxblk.pRxPacket) - sizeof(RXWI_STRUC));
+				STA_MonPktSend(pAd, &rxblk);
+				continue;
+			}
+
+		}
+
+		if (rxblk.DataSize < 14) {
+			RELEASE_NDIS_PACKET(pAd, pRxPacket, NDIS_STATUS_FAILURE);
+			continue;
+		}
+#endif /* CONFIG_SNIFFER_SUPPORT */
 
 #ifdef RT_BIG_ENDIAN
 		RTMPFrameEndianChange(pAd, (PUCHAR)pHeader, DIR_READ, TRUE);
@@ -5214,12 +4786,6 @@ BOOLEAN rtmp_rx_done_handle(RTMP_ADAPTER *pAd)
 			SET_PKT_OPMODE_AP(&rxblk);
 		}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-		IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		{
-			SET_PKT_OPMODE_STA(&rxblk);
-		}
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef RT_CFG80211_P2P_SUPPORT
 #ifdef RT_CFG80211_P2P_CONCURRENT_DEVICE
@@ -5358,48 +4924,27 @@ BOOLEAN rtmp_rx_done_handle(RTMP_ADAPTER *pAd)
 		INC_COUNTER64(pAd->WlanCounters.ReceivedFragmentCount);
 #endif /* STATS_COUNT_SUPPORT */
 
-#ifdef CONFIG_SNIFFER_SUPPORT
-		if (MONITOR_ON(pAd) && pAd->monitor_ctrl.current_monitor_mode != MONITOR_MODE_OFF)
+#ifdef WDS_SUPPORT
+		if ((pHeader->FC.FrDs == 1) && (pHeader->FC.ToDs == 1))
 		{
-			PNDIS_PACKET	pClonePacket;
-			PNDIS_PACKET    pTmpRxPacket;
+			MAC_TABLE_ENTRY *pEntry = NULL;
 
-			if(pAd->monitor_ctrl.current_monitor_mode == MONITOR_MODE_REGULAR_RX)
-			{	
-				/* only report Probe_Req */
-				if((pHeader->FC.Type == FC_TYPE_MGMT) && (pHeader->FC.SubType == SUBTYPE_PROBE_REQ))	
-		    	{					
-					pTmpRxPacket = rxblk.pRxPacket;
-					pClonePacket = ClonePacket(pAd, rxblk.pRxPacket, rxblk.pData, rxblk.DataSize);
-					rxblk.pRxPacket = pClonePacket;
-					STA_MonPktSend(pAd, &rxblk);
-					
-					rxblk.pRxPacket = pTmpRxPacket;	
-				}
-			}
-			else if(pAd->monitor_ctrl.current_monitor_mode == MONITOR_MODE_FULL)
+			if (MAC_ADDR_EQUAL(pHeader->Addr1, pAd->CurrentAddress))
+				pEntry = FindWdsEntry(pAd, pRxBlk->wcid, pHeader->Addr2, pRxBlk->rx_rate.field.MODE);
+
+#ifdef STATS_COUNT_SUPPORT
+			if(pEntry)
 			{
-					pTmpRxPacket = rxblk.pRxPacket;
-					pClonePacket = ClonePacket(pAd, rxblk.pRxPacket, rxblk.pData, rxblk.DataSize);
-					rxblk.pRxPacket = pClonePacket;
-					STA_MonPktSend(pAd, &rxblk);
-					//RELEASE_NDIS_PACKET(pAd, rxblk.pRxPacket , NDIS_STATUS_SUCCESS);
-					rxblk.pRxPacket = pTmpRxPacket;	
-			}
-			else if(pAd->monitor_ctrl.current_monitor_mode == MONITOR_MODE_FULL_NO_CLONE)
-			{
-				STA_MonPktSend(pAd, &rxblk);
-				continue;
-			}
+				pAd->WdsTab.WdsEntry[pEntry->wdev_idx].WdsCounter.ReceivedByteCount += pRxBlk->MPDUtotalByteCnt;
+				INC_COUNTER64(pAd->WdsTab.WdsEntry[pEntry->wdev_idx].WdsCounter.ReceivedFragmentCount);
 
-		}
+				if(IS_MULTICAST_MAC_ADDR(pHeader->Addr3))
+					INC_COUNTER64(pAd->WdsTab.WdsEntry[pEntry->wdev_idx].WdsCounter.MulticastReceivedFrameCount);
 
-		if (rxblk.DataSize < 14)
-		{
-			RELEASE_NDIS_PACKET(pAd, pRxPacket, NDIS_STATUS_FAILURE);
-			continue;
+			}
+#endif /* STATS_COUNT_SUPPORT */
 		}
-#endif /* CONFIG_SNIFFER_SUPPORT */
+#endif /* WDS_SUPPORT */
 
 #ifdef CONFIG_AP_SUPPORT
 		IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
@@ -5448,27 +4993,10 @@ BOOLEAN rtmp_rx_done_handle(RTMP_ADAPTER *pAd)
 #endif /* STATS_COUNT_SUPPORT */
 #endif /* WDS_SUPPORT */
 
-#ifdef APCLI_SUPPORT
-#ifdef STATS_COUNT_SUPPORT
-				if ((pHeader->FC.FrDs == 1) && (pHeader->FC.ToDs == 0) && (pRxInfo->U2M))
-				{
-					MAC_TABLE_ENTRY *pEntry = NULL;
-
-					if (VALID_WCID(pRxBlk->wcid))
-						pEntry = &pAd->MacTab.Content[pRxBlk->wcid];
-					else
-						pEntry = MacTableLookup(pAd, pHeader->Addr2);
-					
-					if (pEntry && IS_ENTRY_APCLI(pEntry))
-						pAd->ApCfg.ApCliTab[pEntry->wdev_idx].ApCliCounter.RxErrors++;
-				}
-#endif /* STATS_COUNT_SUPPORT */
-#endif /* APCLI_SUPPORT */
-
 #ifdef DBG_DIAGNOSE
 				if (!pRxInfo->Crc)
-					DBGPRINT(RT_DEBUG_TRACE, ("%s(): CheckRxError!\n", __FUNCTION__));
 #endif
+					DBGPRINT(RT_DEBUG_TRACE, ("%s(): CheckRxError!\n", __FUNCTION__));
 
 				RELEASE_NDIS_PACKET(pAd, pRxPacket, NDIS_STATUS_FAILURE);
 
@@ -5488,24 +5016,6 @@ BOOLEAN rtmp_rx_done_handle(RTMP_ADAPTER *pAd)
 #endif /* APCLI_SUPPORT */
 
 
-#ifdef CONFIG_STA_SUPPORT
-		IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		{
-#ifdef RT_CFG80211_P2P_SUPPORT
-			//CFG_TOOD : NO GOOD 
-			if (IS_PKT_OPMODE_STA(pRxBlk))
-#endif /* RT_CFG80211_P2P_SUPPORT */		
-			/* Check for all RxD errors */
-			if (RTMPCheckRxError(pAd, pHeader, &rxblk, pRxInfo) != NDIS_STATUS_SUCCESS)
-			{
-				pAd->Counters8023.RxErrors++;
-				/* discard this frame */
-				RELEASE_NDIS_PACKET(pAd, pRxPacket, NDIS_STATUS_FAILURE);
-				continue;
-			}
-
-		}
-#endif /* CONFIG_STA_SUPPORT */
 
 
 		// TODO: shiang-usw, for P2P, we original has following code, need to check it and merge to correct place!!!
@@ -5513,11 +5023,6 @@ BOOLEAN rtmp_rx_done_handle(RTMP_ADAPTER *pAd)
 		switch (pHeader->FC.Type)
 		{
 			case FC_TYPE_DATA:
-#ifdef CONFIG_STA_SUPPORT
-				IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-				{
-				}
-#endif /* CONFIG_STA_SUPPORT */
 
 
 #ifdef HDR_TRANS_SUPPORT
@@ -5530,12 +5035,6 @@ BOOLEAN rtmp_rx_done_handle(RTMP_ADAPTER *pAd)
 						rxblk.TransDataSize = pRxBlk->MPDUtotalByteCnt;
 						rxblk.DataSize += 36;
 
-#ifdef CONFIG_STA_SUPPORT
-						IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-						{
-							STAHandleRxDataFrame_Hdr_Trns(pAd, &rxblk);
-						}
-#endif /* CONFIG_STA_SUPPORT */
 #ifdef CONFIG_AP_SUPPORT
 						IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 						{
@@ -5554,13 +5053,6 @@ BOOLEAN rtmp_rx_done_handle(RTMP_ADAPTER *pAd)
 						}
 #endif /* RT_CFG80211_P2P_SUPPORT */
 					
-#ifdef CONFIG_STA_SUPPORT
-						IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-						{
-							STAHandleRxDataFrame(pAd, &rxblk);
-							break;
-						}
-#endif /* CONFIG_STA_SUPPORT */
 #ifdef CONFIG_AP_SUPPORT
 						IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 						{
@@ -5638,14 +5130,17 @@ VOID drop_mask_init_per_client(
 	PRTMP_ADAPTER	ad,
 	PMAC_TABLE_ENTRY entry)
 {
-	BOOLEAN cancelled = FALSE;
-
+	BOOLEAN cancelled = 0;
+	
 	if (entry->dropmask_timer.Valid)
-		RTMPCancelTimer(&entry->dropmask_timer, &cancelled);
-
+			RTMPCancelTimer(&entry->dropmask_timer, &cancelled);
 	RTMPInitTimer(ad, &entry->dropmask_timer, GET_TIMER_FUNCTION(drop_mask_timer_action), entry, FALSE);
-
-	asic_set_drop_mask(ad, entry->Aid, FALSE);
+	
+	NdisAllocateSpinLock(ad, &entry->drop_mask_lock);
+	
+	entry->tx_fail_drop_mask_enabled = 0;
+	entry->ps_drop_mask_enabled = 0;
+	asic_set_drop_mask(ad, entry->Aid, 0);
 
 #ifdef NOISE_TEST_ADJUST
 	if ((ad->ApCfg.EntryClientCount >= 3) && IS_ENTRY_CLIENT(entry))
@@ -5657,30 +5152,109 @@ VOID drop_mask_release_per_client(
 	PRTMP_ADAPTER	ad,
 	PMAC_TABLE_ENTRY entry)
 {
-	BOOLEAN cancelled = FALSE;
-
+	BOOLEAN cancelled = 0;
+	
 	RTMPCancelTimer(&entry->dropmask_timer, &cancelled);
 	RTMPReleaseTimer(&entry->dropmask_timer, &cancelled);
+	NdisFreeSpinLock(&entry->drop_mask_lock);
+
+	entry->tx_fail_drop_mask_enabled = 0;
+	entry->ps_drop_mask_enabled = 0;
+	asic_set_drop_mask(ad, entry->Aid, 0);
+
+	if (ad->ApCfg.EntryClientCount == 2)
+	{
+		/* clear drop mask before client number fall below to threshold */
+		drop_mask_per_client_reset(ad);
+	}
 }
 
-VOID drop_mask_set_per_client(
+VOID drop_mask_per_client_reset(
+	PRTMP_ADAPTER	ad)
+{
+	INT i;
+	UINT32 max_wcid_num = MAX_LEN_OF_MAC_TABLE;
+	
+	for ( i = 0; i < max_wcid_num; i++)
+	{
+		PMAC_TABLE_ENTRY entry = &ad->MacTab.Content[i];
+		if (entry && (!IS_ENTRY_NONE(entry)))
+		{
+			NdisAcquireSpinLock(&entry->drop_mask_lock);
+			entry->tx_fail_drop_mask_enabled = 0;
+			entry->ps_drop_mask_enabled = 0;
+			NdisReleaseSpinLock(&entry->drop_mask_lock);
+#ifdef NOISE_TEST_ADJUST
+			if (IS_ENTRY_CLIENT(entry))
+				entry->pMbss->WPAREKEY.ReKeyMethod &= (~MAX_REKEY);
+#endif /* NOISE_TEST_ADJUST */
+		}
+	}
+
+	asic_drop_mask_reset(ad);
+	
+}
+
+VOID set_drop_mask_per_client(
 	PRTMP_ADAPTER		ad,
 	PMAC_TABLE_ENTRY 	entry,
+	UINT8				type,
 	BOOLEAN				enable)
 {
-	BOOLEAN cancelled = FALSE;
+	BOOLEAN cancelled = 0;
+	BOOLEAN write_to_mac = 0;
+	UINT32 timeout = 0;
 
 #ifdef NOISE_TEST_ADJUST
 	if (ad->ApCfg.EntryClientCount < 3)
 		return;
 #endif /* NOISE_TEST_ADJUST */
 
+
+	switch (type)
+	{
+		case 1: /* set drop mask due to tx_fail too high */
+		{
+			write_to_mac = (enable ^ entry->tx_fail_drop_mask_enabled);
+			NdisAcquireSpinLock(&entry->drop_mask_lock);
+			entry->tx_fail_drop_mask_enabled = (enable ? 1:0);
+			NdisReleaseSpinLock(&entry->drop_mask_lock);
+			timeout = 10;
+			break;
+		}
+		case 2: /* set drop mask due to client is in power saving */
+		{
+			write_to_mac = (enable ^ entry->ps_drop_mask_enabled);
+			NdisAcquireSpinLock(&entry->drop_mask_lock);
+			entry->ps_drop_mask_enabled = (enable ? 1:0);
+			NdisReleaseSpinLock(&entry->drop_mask_lock);
+			timeout = 1000;
+			break;
+		}
+		default:
+			break;
+	}
+
 	RTMPCancelTimer(&entry->dropmask_timer, &cancelled);
 
-	asic_set_drop_mask(ad, entry->Aid, enable);
-
 	if (enable)
-		RTMPSetTimer(&entry->dropmask_timer, 1000);
+	{		
+		RTMPSetTimer(&entry->dropmask_timer, timeout /* ms */);
+	}
+
+	/* if we don't need to change mac reg, just return */
+	if (!write_to_mac)
+		return;
+
+	if (enable) {
+		asic_set_drop_mask(ad, entry->Aid, enable);
+	} else {
+		if (!entry->tx_fail_drop_mask_enabled &&
+			!entry->ps_drop_mask_enabled)
+		{
+			asic_set_drop_mask(ad, entry->Aid, enable);
+		}
+	}
 }
 
 VOID  drop_mask_timer_action(
@@ -5689,12 +5263,16 @@ VOID  drop_mask_timer_action(
 	IN PVOID SystemSpecific2, 
 	IN PVOID SystemSpecific3)
 {
-	PMAC_TABLE_ENTRY entry = (MAC_TABLE_ENTRY *)FunctionContext;
+	PMAC_TABLE_ENTRY     entry = (MAC_TABLE_ENTRY *)FunctionContext;
 	PRTMP_ADAPTER ad = (PRTMP_ADAPTER)entry->pAd;
 
 	/* Disable drop mask */
-	asic_set_drop_mask(ad, entry->Aid, FALSE);
-}
+	if (entry->tx_fail_drop_mask_enabled)
+		set_drop_mask_per_client(ad, entry, 1, 0);
 
+	if (entry->ps_drop_mask_enabled)
+		set_drop_mask_per_client(ad, entry, 2, 0);
+
+}
 #endif /* DROP_MASK_SUPPORT */
 

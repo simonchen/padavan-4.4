@@ -29,7 +29,7 @@ VOID RtmpDrvRateGet(
 	IN	UINT8					ShortGI,
 	IN	UINT8					BW,
 	IN	UINT8					MCS,
-	IN  UINT8                   Antenna,
+	IN      UINT8                                   Antenna,
 	OUT	UINT32					*pRate)
 {
 	UINT32 MCS_1NSS = (UINT32) MCS;
@@ -46,8 +46,11 @@ VOID RtmpDrvRateGet(
 #ifdef DOT11_VHT_AC
     if (MODE >= MODE_VHT)
     {
-		 if(MCS_1NSS > 9)
-            MCS_1NSS %= 16;
+		if(MCS_1NSS > 9)
+		{
+			Antenna = (MCS / 10)+1;
+			MCS_1NSS %= 10;
+		}
         *pRate = RalinkRate_VHT_1NSS[BW][ShortGI][MCS_1NSS];
     }
     else
@@ -57,7 +60,10 @@ VOID RtmpDrvRateGet(
 	if ((MODE >= MODE_HTMIX) && (MODE < MODE_VHT))
 	{
 		if(MCS_1NSS > 7)
+		{			
+			Antenna = (MCS / 8)+1;
 			MCS_1NSS %= 8;
+		}
 		*pRate = RalinkRate_HT_1NSS[BW][ShortGI][MCS_1NSS];
 	}
 	else 
@@ -67,6 +73,8 @@ VOID RtmpDrvRateGet(
 	else 
 		*pRate = RalinkRate_Legacy[MCS_1NSS];
 
+
+	
 	*pRate *= 500000;
 #if defined(DOT11_VHT_AC) || defined(DOT11_N_SUPPORT)
     if (MODE >= MODE_HTMIX)
@@ -97,13 +105,6 @@ VOID RtmpMeshDown(
 }
 
 
-#ifdef ETH_CONVERT_SUPPORT
-USHORT RtmpOsNetPrivGet(
-	IN PNET_DEV pDev)
-{
-	return RT_DEV_PRIV_FLAGS_GET(pDev);
-}
-#endif /* ETH_CONVERT_SUPPORT */
 
 	
 BOOLEAN RtmpOsCmdDisplayLenCheck(
@@ -117,95 +118,9 @@ BOOLEAN RtmpOsCmdDisplayLenCheck(
 }
 
 
-#ifdef WPA_SUPPLICANT_SUPPORT
-VOID WpaSendMicFailureToWpaSupplicant(
-	IN PNET_DEV pNetDev,
-	IN const PUCHAR src_addr,
-	IN BOOLEAN bUnicast,
-	IN INT key_id,
-	IN const PUCHAR tsc)
-{    
-#ifdef RT_CFG80211_SUPPORT 
-	CFG80211OS_MICFailReport(pNetDev, src_addr, bUnicast, key_id, tsc);
-#else    
-	char custom[IW_CUSTOM_MAX] = {0};
-    
-	snprintf(custom, sizeof(custom), "MLME-MICHAELMICFAILURE.indication");
-	if(bUnicast)
-		sprintf(custom, "%s unicast", custom);
-
-	RtmpOSWrielessEventSend(pNetDev, RT_WLAN_EVENT_CUSTOM, -1, NULL, (PUCHAR)custom, strlen(custom));
-#endif /* RT_CFG80211_SUPPORT */	
-	
-	return;
-}
-#endif /* WPA_SUPPLICANT_SUPPORT */
 
 
-#ifdef NATIVE_WPA_SUPPLICANT_SUPPORT
-int wext_notify_event_assoc(
-	IN PNET_DEV pNetDev,
-	IN UCHAR *ReqVarIEs,
-	IN UINT32 ReqVarIELen)
-{
-	char custom[IW_CUSTOM_MAX] = {0};
 
-#if WIRELESS_EXT > 17
-	if (ReqVarIELen <= IW_CUSTOM_MAX)
-	{
-		NdisMoveMemory(custom, ReqVarIEs, ReqVarIELen);
-		RtmpOSWrielessEventSend(pNetDev, RT_WLAN_EVENT_ASSOC_REQ_IE, -1, NULL,
-								(UCHAR *)custom, ReqVarIELen);
-	}
-	else
-	    DBGPRINT(RT_DEBUG_TRACE, ("pAd->StaCfg.ReqVarIELen > MAX_CUSTOM_LEN\n"));
-#else
-	int len;
-
-	len = (ReqVarIELen*2) + 17;
-	if (len <= IW_CUSTOM_MAX)
-	{
-		UCHAR   idx;
-		snprintf(custom, sizeof(custom), "ASSOCINFO(ReqIEs=");
-		for (idx=0; idx<ReqVarIELen; idx++)
-		        sprintf(custom, "%s%02x", custom, ReqVarIEs[idx]);
-		RtmpOSWrielessEventSend(pNetDev, RT_WLAN_EVENT_CUSTOM, -1, NULL, custom, len);
-	}
-	else
-		DBGPRINT(RT_DEBUG_TRACE, ("len(%d) > MAX_CUSTOM_LEN\n", len));
-#endif
-
-	return 0;
-	
-}
-#endif /* NATIVE_WPA_SUPPLICANT_SUPPORT */
-
-#ifdef CONFIG_STA_SUPPORT
-#ifdef WPA_SUPPLICANT_SUPPORT
-#ifndef NATIVE_WPA_SUPPLICANT_SUPPORT
-VOID SendAssocIEsToWpaSupplicant( 
-	IN PNET_DEV pNetDev,
-	IN UCHAR *ReqVarIEs,
-	IN UINT32 ReqVarIELen)
-{
-	STRING custom[IW_CUSTOM_MAX] = {0};
-
-	if ((ReqVarIELen + 17) <= IW_CUSTOM_MAX)
-	{
-		snprintf(custom, sizeof(custom), "ASSOCINFO_ReqIEs=");
-		NdisMoveMemory(custom+17, ReqVarIEs, ReqVarIELen);
-		RtmpOSWrielessEventSend(pNetDev, RT_WLAN_EVENT_CUSTOM, RT_REQIE_EVENT_FLAG, NULL, (PUCHAR)custom, ReqVarIELen + 17);
-
-		RtmpOSWrielessEventSend(pNetDev, RT_WLAN_EVENT_CUSTOM, RT_ASSOCINFO_EVENT_FLAG, NULL, NULL, 0);
-	}
-	else
-		DBGPRINT(RT_DEBUG_TRACE, ("pAd->StaCfg.ReqVarIELen + 17 > MAX_CUSTOM_LEN\n"));
-
-	return;
-}
-#endif /* NATIVE_WPA_SUPPLICANT_SUPPORT */
-#endif /* WPA_SUPPLICANT_SUPPORT */
-#endif /*CONFIG_STA_SUPPORT*/
 
 INT32  RtPrivIoctlSetVal(VOID)
 {

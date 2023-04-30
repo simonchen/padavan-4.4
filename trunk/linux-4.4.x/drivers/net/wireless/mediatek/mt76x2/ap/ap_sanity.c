@@ -49,6 +49,7 @@ extern UCHAR    WPS_OUI[];
     ==========================================================================
  */
 
+
 BOOLEAN PeerAssocReqCmmSanity(
 	RTMP_ADAPTER *pAd, 
 	BOOLEAN isReassoc,
@@ -56,6 +57,7 @@ BOOLEAN PeerAssocReqCmmSanity(
 	INT MsgLen,
 	IE_LISTS *ie_lists)
 {
+    CHAR *Ptr;
     PFRAME_802_11	Fr = (PFRAME_802_11)Msg;
     PEID_STRUCT eid_ptr;
     UCHAR Sanity = 0;
@@ -65,7 +67,6 @@ BOOLEAN PeerAssocReqCmmSanity(
 	UCHAR HS2_OSEN_OUI[4] = { 0x50, 0x6f, 0x9a, 0x12 };
 	UCHAR HS2OUIBYTE[4] = {0x50, 0x6f, 0x9a, 0x10};
 #endif    
-
     MAC_TABLE_ENTRY *pEntry = (MAC_TABLE_ENTRY *)NULL;
 #ifdef DOT11R_FT_SUPPORT
 	PFT_INFO pFtInfo = &ie_lists->FtInfo;
@@ -82,6 +83,8 @@ BOOLEAN PeerAssocReqCmmSanity(
 
 	COPY_MAC_ADDR(&ie_lists->Addr2[0], &Fr->Hdr.Addr2[0]);
 	
+	Ptr = (PCHAR)Fr->Octet;
+
 	NdisMoveMemory(&ie_lists->CapabilityInfo, &Fr->Octet[0], 2);
 	NdisMoveMemory(&ie_lists->ListenInterval, &Fr->Octet[2], 2);
 
@@ -203,16 +206,69 @@ BOOLEAN PeerAssocReqCmmSanity(
 			if (eid_ptr->Len)
 			{
 				INT ext_len = eid_ptr->Len;
+#ifdef RT_BIG_ENDIAN
+				UCHAR *pextCapInfo = NULL;
+#endif
+
 
 				ext_len = ext_len > sizeof(EXT_CAP_INFO_ELEMENT) ? sizeof(EXT_CAP_INFO_ELEMENT) : ext_len;
 				NdisMoveMemory(&ie_lists->ExtCapInfo, eid_ptr->Octet, ext_len);
+#ifdef RT_BIG_ENDIAN
+				pextCapInfo = (UCHAR *)&ie_lists->ExtCapInfo;
+				*((UINT32*)pextCapInfo) = cpu2le32(*((UINT32 *)pextCapInfo));
+				*((UINT32*)(pextCapInfo + 4)) = cpu2le32(*((UINT32 *)(pextCapInfo + 4)));
+#endif
+
 				DBGPRINT(RT_DEBUG_WARN, ("PeerAssocReqSanity - IE_EXT_CAPABILITY!\n"));
 			}
 
 			break;
 
             case IE_WPA:    /* same as IE_VENDOR_SPECIFIC */
+#ifdef WH_EZ_SETUP
+			if (IS_EZ_SETUP_ENABLED((pEntry->wdev)) &&
+				NdisEqualMemory(&mtk_oui[0], &eid_ptr->Octet[0], MTK_OUI_LEN)) {
+				if (eid_ptr->Octet[MTK_OUI_LEN] & MTK_VENDOR_EASY_SETUP) {
+					EZ_DEBUG(DBG_CAT_AP, DBG_SUBCAT_ALL, EZ_DBG_LVL_TRACE,
+						("%s(%d) - Found MTK Easy Setup OUI.\n",
+						__func__, __LINE__));
+					pEntry->easy_setup_enabled = TRUE;
+				}
+				}
+#endif/* WH_EZ_SETUP */
+#ifdef WH_EVENT_NOTIFIER
+			if (pAd->ApCfg.EventNotifyCfg.CustomOUILen &&
+				(eid_ptr->Len >= pAd->ApCfg.EventNotifyCfg.CustomOUILen) &&
+				NdisEqualMemory(eid_ptr->Octet, pAd->ApCfg.EventNotifyCfg.CustomOUI,
+				pAd->ApCfg.EventNotifyCfg.CustomOUILen)) {
+				pEntry->custom_ie_len = eid_ptr->Len;
+				NdisMoveMemory(pEntry->custom_ie, eid_ptr->Octet, eid_ptr->Len);
+			}
+#endif /* WH_EVENT_NOTIFIER */
             case IE_WPA2:
+#ifdef MWDS
+			if(NdisEqualMemory(MTK_OUI, eid_ptr->Octet, 3))
+			{
+				if(MWDS_SUPPORT(eid_ptr->Octet[3]))
+				{
+					pEntry->bSupportMWDS = TRUE;
+					DBGPRINT(RT_DEBUG_OFF, ("Peer supports MWDS\n"));
+				}
+				else
+					pEntry->bSupportMWDS = FALSE;
+			}
+#endif /* MWDS */
+#ifdef STA_FORCE_ROAM_SUPPORT
+			if (pAd->en_force_roam_supp) {
+				if (NdisEqualMemory(MTK_OUI, eid_ptr->Octet, 3)) {
+				if (IS_MEDIATEK_CLI_ENTRY(eid_ptr->Octet[3])) {
+					pEntry->is_peer_entry_apcli = TRUE;
+					DBGPRINT(RT_DEBUG_OFF, ("Peer ENTRY IS MTK CLI\n"));
+				} else
+						pEntry->is_peer_entry_apcli = FALSE;
+				}
+			}
+#endif
 #ifdef CONFIG_HOTSPOT_R2
 				if (NdisEqualMemory(eid_ptr->Octet, HS2OUIBYTE, sizeof(HS2OUIBYTE)) && (eid_ptr->Len >= 5))
 				{
@@ -249,65 +305,6 @@ BOOLEAN PeerAssocReqCmmSanity(
 #endif /* WSC_AP_SUPPORT */
 					break;
 				}
-#ifdef SMART_MESH					
-				if ((eid_ptr->Len >= NTGR_OUI_LEN) && NdisEqualMemory(eid_ptr->Octet, NETGEAR_OUI, NTGR_OUI_LEN))
-				{
-					if(pEntry)
-					{
-						if(eid_ptr->Len > NTGR_OUI_LEN)
-						{
-							PSMART_MESH_CFG pSmartMeshCfg = NULL;
-							pSmartMeshCfg = &pAd->ApCfg.MBSSID[pEntry->apidx].SmartMeshCfg;
-							if ((eid_ptr->Octet[3] & 0x02))
-							{
-								pEntry->bSupportSmartMesh = TRUE;
-								if(pSmartMeshCfg->bSupportSmartMesh)
-									pEntry->bEnableSmartMesh = TRUE;
-								DBGPRINT(RT_DEBUG_ERROR, ("Peer supports SMART MESH\n"));
-							}
-							else
-								pEntry->bEnableSmartMesh = FALSE;
-							
-							if (((pSmartMeshCfg->HiFiFlagMask != 0) && (pSmartMeshCfg->HiFiFlagValue != 0)) &&
-								((eid_ptr->Octet[3] & pSmartMeshCfg->HiFiFlagMask) == pSmartMeshCfg->HiFiFlagValue))
-							{
-								pEntry->bHyperFiPeer = TRUE;
-								DBGPRINT(RT_DEBUG_ERROR, ("Peer is Hyper-Fi device\n"));
-							}
-							else
-								pEntry->bHyperFiPeer = FALSE;
-#ifdef MWDS
-							if ((eid_ptr->Octet[3] & 0x01))
-							{
-								pEntry->bSupportMWDS = TRUE;
-								if(pAd->ApCfg.MBSSID[pEntry->apidx].bSupportMWDS)
-									pEntry->bEnableMWDS = TRUE;
-								DBGPRINT(RT_DEBUG_ERROR, ("Peer supports MWDS\n"));
-							}
-							else
-								pEntry->bEnableMWDS = FALSE;
-#endif /* MWDS */
-#ifdef WSC_AP_SUPPORT
-#ifdef SMART_MESH_HIDDEN_WPS
-                            if ((eid_ptr->Octet[3] & 0x04))
-							{
-								pEntry->bSupportHiddenWPS = TRUE;
-								DBGPRINT(RT_DEBUG_ERROR, ("Peer supports HiddenWPS\n"));
-							}
-							else
-								pEntry->bSupportHiddenWPS = FALSE;
-
-                            if((eid_ptr->Len - NTGR_OUI_LEN) >= NTGR_CUSTOM_IE_MAX_LEN)
-                                pEntry->bRunningHiddenWPS = (eid_ptr->Octet[5] & HIDDEN_WPS_STATE_RUNNING) ? TRUE : FALSE;
-#endif /* SMART_MESH_HIDDEN_WPS */
-#endif /* WSC_AP_SUPPORT */
-						}
-					}
-					else
-						DBGPRINT(RT_DEBUG_ERROR, ("%s():pEntry is NULL\n",__func__));
-					break;
-				}				
-#endif /* SMART_MESH */
 
 				/* Handle Atheros and Broadcom draft 11n STAs */
 				if (NdisEqualMemory(eid_ptr->Octet, BROADCOM_OUI, 3))
@@ -375,8 +372,13 @@ BOOLEAN PeerAssocReqCmmSanity(
                     break;
                 }
 
-                if (pAd->ApCfg.MBSSID[pEntry->apidx].wdev.AuthMode < Ndis802_11AuthModeWPA)
-                    break;
+				if ((pAd->ApCfg.MBSSID[pEntry->apidx].wdev.AuthMode < Ndis802_11AuthModeWPA)
+#ifdef WH_EZ_SETUP
+					&&
+					(pAd->ApCfg.MBSSID[pEntry->apidx].wdev.AuthMode != AUTH_MODE_EZ)
+#endif
+				)
+					break;
                 
                 /* 	If this IE did not begins with 00:0x50:0xf2:0x01,  
                 	it would be proprietary. So we ignore it. */
@@ -390,12 +392,17 @@ BOOLEAN PeerAssocReqCmmSanity(
 						unsigned char *tmp = (unsigned char *)eid_ptr->Octet;
 		
 						DBGPRINT(RT_DEBUG_OFF, ("!!!!!!not found OSEN IE,%x:%x:%x:%x\n", *tmp, *(tmp+1), *(tmp+2), *(tmp+3)));
+						pEntry->OSEN_IE_Len = 0;
 						CLIENT_STATUS_CLEAR_FLAG(pEntry, fCLIENT_STATUS_OSEN_CAPABLE);
                     break;                          
                 }
 					else
 					{
 						CLIENT_STATUS_SET_FLAG(pEntry, fCLIENT_STATUS_OSEN_CAPABLE);
+				
+						NdisMoveMemory(pEntry->OSEN_IE, eid_ptr, eid_ptr->Len + 2);
+						pEntry->OSEN_IE_Len = eid_ptr->Len + 2;
+
 						DBGPRINT(RT_DEBUG_OFF, ("!!!!!!found OSEN IE\n"));
 					}
 #else
@@ -514,6 +521,33 @@ BOOLEAN PeerAssocReqCmmSanity(
 
         eid_ptr = (PEID_STRUCT)((UCHAR*)eid_ptr + 2 + eid_ptr->Len);        
     }
+#ifdef WH_EZ_SETUP
+#ifdef DOT1X_SUPPORT
+		if (IS_ADPTR_EZ_SETUP_ENABLED(pAd) &&
+			((APValidateRSNIE(pAd, pEntry, &ie_lists->RSN_IE[0],
+			ie_lists->RSNIE_Len)) == MLME_SUCCESS)) {
+			UINT8 pmkid_count;
+			PUINT8 pPmkid = WPA_ExtractSuiteFromRSNIE(ie_lists->RSN_IE,
+						ie_lists->RSNIE_Len, PMKID_LIST, &pmkid_count);
+			if (IS_AKM_WPA2_Entry(pEntry) &&
+					(pPmkid != NULL)) {
+				INT CacheIdx;
+
+				CacheIdx = RTMPSearchPMKIDCache(&pAd->ApCfg.MBSSID[pEntry->func_tb_idx].PMKIDCache,
+					pEntry->func_tb_idx, pEntry->Addr);
+				if ((CacheIdx == -1)
+					|| ((RTMPEqualMemory(pPmkid,
+					&pAd->ApCfg.MBSSID[pEntry->func_tb_idx].PMKIDCache.BSSIDInfo[CacheIdx].PMKID,
+					LEN_PMKID)) == 0)) {
+					MlmeDeAuthAction(pAd, pEntry, REASON_DISASSOC_STA_LEAVING, FALSE);
+					EZ_DEBUG(DBG_CAT_AP, DBG_SUBCAT_ALL, EZ_DBG_LVL_ERROR,
+					("%s: PMKID not found\n", __func__));
+					return FALSE;
+				}
+			}
+		}
+#endif/* DOT1X_SUPPORT */
+#endif
 
 	if ((Sanity&0x3) != 0x03)	 
 	{
@@ -528,8 +562,6 @@ BOOLEAN PeerAssocReqCmmSanity(
 }
 
 
-
-
 /* 
     ==========================================================================
     Description:
@@ -542,14 +574,12 @@ BOOLEAN PeerDisassocReqSanity(
     IN PRTMP_ADAPTER pAd, 
     IN VOID *Msg, 
     IN ULONG MsgLen, 
-    OUT PUCHAR pAddr1, 
     OUT PUCHAR pAddr2, 
     OUT	UINT16	*SeqNum,
     OUT USHORT *Reason) 
 {
     PFRAME_802_11 Fr = (PFRAME_802_11)Msg;
 
-    COPY_MAC_ADDR(pAddr1, &Fr->Hdr.Addr1);
     COPY_MAC_ADDR(pAddr2, &Fr->Hdr.Addr2);
 	*SeqNum = Fr->Hdr.Sequence;
     NdisMoveMemory(Reason, &Fr->Octet[0], 2);
@@ -614,7 +644,10 @@ BOOLEAN APPeerAuthSanity(
     NdisMoveMemory(Alg,    &Fr->Octet[0], 2);
     NdisMoveMemory(Seq,    &Fr->Octet[2], 2);
     NdisMoveMemory(Status, &Fr->Octet[4], 2);
-
+#ifdef WH_EZ_SETUP
+	if (IS_ADPTR_EZ_SETUP_ENABLED(pAd))
+		*Alg = le2cpu16(*Alg);
+#endif
     if (*Alg == AUTH_MODE_OPEN) 
     {
         if (*Seq == 1 || *Seq == 2) 
@@ -711,6 +744,16 @@ BOOLEAN APPeerAuthSanity(
 		}
 	}
 #endif /* DOT11R_FT_SUPPORT */
+#ifdef WH_EZ_SETUP
+	else if (IS_ADPTR_EZ_SETUP_ENABLED(pAd) &&
+		(*Alg == AUTH_MODE_EZ)) {
+		EZ_DEBUG(DBG_CAT_AP, DBG_SUBCAT_ALL, EZ_DBG_LVL_TRACE,
+			("%s(): receive easy setup auth request (alg=0x%02x)\n",
+			__func__, *Alg));
+		return TRUE;
+	}
+#endif/* WH_EZ_SETUP */
+
     else 
     {
         DBGPRINT(RT_DEBUG_TRACE, ("APPeerAuthSanity fail - wrong algorithm (=%d)\n", *Alg));

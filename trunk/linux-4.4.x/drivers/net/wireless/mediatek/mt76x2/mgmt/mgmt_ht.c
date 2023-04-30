@@ -285,13 +285,11 @@ VOID RTMPSetHT(
 			break;
 	}
 
-#ifdef DOT11N_DRAFT3
 	if (pAd->CommonCfg.bForty_Mhz_Intolerant && (pHTPhyMode->BW == BW_40))
 	{
 		pHTPhyMode->BW = BW_20;
 		ht_cap->HtCapInfo.Forty_Mhz_Intolerant = 1;
 	}
-#endif /* DOT11N_DRAFT3 */
 
 	// TODO: shiang-6590, how about the "bw" when channel 14 for JP region???
 	//CFG_TODO
@@ -434,23 +432,6 @@ VOID RTMPSetHT(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-
-#ifdef RT_CFG80211_P2P_SUPPORT
-		for (apidx = 0; apidx < pAd->ApCfg.BssidNum; apidx++)
-			RTMPSetIndividualHT(pAd, apidx + MIN_NET_DEVICE_FOR_CFG80211_VIF_P2P_GO);
-
-#ifdef RT_CFG80211_P2P_CONCURRENT_DEVICE
-                for (apidx = 0; apidx < MAX_APCLI_NUM; apidx++)
-                        RTMPSetIndividualHT(pAd, apidx + MIN_NET_DEVICE_FOR_APCLI);
-#endif /* RT_CFG80211_P2P_CONCURRENT_DEVICE */		
-#endif /* RT_CFG80211_P2P_SUPPORT */
-
-		RTMPSetIndividualHT(pAd, 0);
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 }
 
@@ -563,17 +544,6 @@ VOID RTMPSetIndividualHT(RTMP_ADAPTER *pAd, UCHAR apidx)
 		}			
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-		IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		{
-			wdev = &pAd->StaCfg.wdev;
-			
-			pDesired_ht_phy = &wdev->DesiredHtPhyInfo;					
-			DesiredMcs = wdev->DesiredTransmitSetting.field.MCS;
-			encrypt_mode = wdev->WepStatus;
-			break;
-		}	
-#endif /* CONFIG_STA_SUPPORT */
 	} while (FALSE);
 
 	if (pDesired_ht_phy == NULL)
@@ -596,33 +566,13 @@ VOID RTMPSetIndividualHT(RTMP_ADAPTER *pAd, UCHAR apidx)
 		DBGPRINT(RT_DEBUG_WARN, ("RTMPSetIndividualHT: MCS_32 is only supported in 40-MHz, reset it as MCS_0\n"));
 		DesiredMcs = MCS_0;		
 	}
-
-#ifdef APCLI_AUTO_BW_SUPPORT
-         if (apidx >= MIN_NET_DEVICE_FOR_APCLI)
-         {
-	        UCHAR idx = apidx - MIN_NET_DEVICE_FOR_APCLI;
-                if (idx < MAX_APCLI_NUM)
-                {
-                	if (WMODE_CAP_N(pAd->ApCfg.ApCliTab[idx].wdev.PhyMode))
-                        	goto ht_enable;
-                }
-         }
-#endif /* APCLI_AUTO_BW_SUPPORT */
 	   		
-#ifdef CONFIG_STA_SUPPORT
-	if ((pAd->OpMode == OPMODE_STA) && (pAd->StaCfg.BssType == BSS_INFRA) && (apidx == MIN_NET_DEVICE_FOR_MBSSID))
-		;
-	else
-#endif /* CONFIG_STA_SUPPORT */
 	/*
 		WFA recommend to restrict the encryption type in 11n-HT mode.
 	 	So, the WEP and TKIP are not allowed in HT rate. 
 	*/
 	if (pAd->CommonCfg.HT_DisallowTKIP && IS_INVALID_HT_SECURITY(encrypt_mode))
 	{
-#ifdef CONFIG_STA_SUPPORT
-		pAd->StaCfg.bAdhocN = FALSE;
-#endif /* CONFIG_STA_SUPPORT */
 		DBGPRINT(RT_DEBUG_WARN, ("%s : Use legacy rate in WEP/TKIP encryption mode (apidx=%d)\n", 
 									__FUNCTION__, apidx));
 		return;
@@ -630,17 +580,10 @@ VOID RTMPSetIndividualHT(RTMP_ADAPTER *pAd, UCHAR apidx)
 
 	if (pAd->CommonCfg.HT_Disable)
 	{
-#ifdef CONFIG_STA_SUPPORT
-		pAd->StaCfg.bAdhocN = FALSE;
-#endif /* CONFIG_STA_SUPPORT */
 		DBGPRINT(RT_DEBUG_TRACE, ("%s : HT is disabled\n", __FUNCTION__));
 		return;
 	}
-	
-#ifdef APCLI_AUTO_BW_SUPPORT
-ht_enable:		
-#endif /* APCLI_AUTO_BW_SUPPORT */
-
+			
 	pDesired_ht_phy->bHtEnable = TRUE;
 					 
 	/* Decide desired Tx MCS*/
@@ -741,24 +684,13 @@ VOID RTMPDisableDesiredHtInfo(RTMP_ADAPTER *pAd)
 #endif /* WDS_SUPPORT */
 #ifdef APCLI_SUPPORT
 		for (idx = 0; idx < MAX_APCLI_NUM; idx++)
-		{	
-#ifdef APCLI_AUTO_BW_SUPPORT
-			if (!WMODE_CAP_N(pAd->ApCfg.ApCliTab[idx].wdev.PhyMode))
-#endif /* APCLI_AUTO_BW_SUPPORT */		
-			{	
-				RTMPZeroMemory(&pAd->ApCfg.ApCliTab[idx].wdev.DesiredHtPhyInfo, sizeof(RT_PHY_INFO));
-			}
+		{				
+			RTMPZeroMemory(&pAd->ApCfg.ApCliTab[idx].wdev.DesiredHtPhyInfo, sizeof(RT_PHY_INFO));
 		}
 #endif /* APCLI_SUPPORT */
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		RTMPZeroMemory(&pAd->StaCfg.wdev.DesiredHtPhyInfo, sizeof(RT_PHY_INFO));
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 }
 
@@ -771,24 +703,11 @@ INT	SetCommonHT(RTMP_ADAPTER *pAd)
 	{
 		/* Clear previous HT information */
 		RTMPDisableDesiredHtInfo(pAd);
-
-#ifdef APCLI_AUTO_BW_SUPPORT
-                UINT apidx = 0;
-                for (apidx = 0; apidx < MAX_APCLI_NUM; apidx++)
-                {
-                        /* Recover the sub-Device PhyMode when MainPhyInfo clear */
-                        if (!ApCliSetPhyMode(pAd, apidx, pAd->ApCfg.ApCliTab[apidx].wdev.PhyMode))
-                        {
-                                DBGPRINT(RT_DEBUG_OFF, ("AUTOBW(%s): skip unknown ApCliEntry[%d].WMODE=%d\n",
-                                        __FUNCTION__, apidx, pAd->ApCfg.ApCliTab[apidx].wdev.PhyMode));
-                        }
-                }
-#endif /* APCLI_AUTO_BW_SUPPORT */
 		return FALSE;
 	}
-	
-	N_ChannelCheck(pAd);
-	
+
+	N_ChannelCheck(pAd); 
+
 #ifdef DOT11_VHT_AC
 	SetCommonVHT(pAd);
 #endif /* DOT11_VHT_AC */

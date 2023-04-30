@@ -257,7 +257,8 @@ VOID APMakeBssBeacon(RTMP_ADAPTER *pAd, INT apidx)
 
 		InsertChannelRepIE(pAd, pBeaconFrame+FrameLen, &FrameLen,
 							(PSTRING)pAd->CommonCfg.CountryCode,
-							pAd->CommonCfg.RegulatoryClass[i]);
+							pAd->CommonCfg.RegulatoryClass[i],
+							NULL);
 
 	}
 #else
@@ -305,6 +306,8 @@ VOID APMakeBssBeacon(RTMP_ADAPTER *pAd, INT apidx)
 	}
 #endif /* DOT11R_FT_SUPPORT */
 
+	BeaconTransmit.word = 0;
+
 #ifdef SPECIFIC_TX_POWER_SUPPORT
         /* Specific Power for Long-Range Beacon */
 	if ((pAd->ApCfg.MBSSID[apidx].TxPwrAdj != -1) /* && 
@@ -313,8 +316,6 @@ VOID APMakeBssBeacon(RTMP_ADAPTER *pAd, INT apidx)
 		TxPwrAdj = pAd->ApCfg.MBSSID[apidx].TxPwrAdj;
 	}
 #endif /* SPECIFIC_TX_POWER_SUPPORT */
-
-	BeaconTransmit.word = 0;
 
 	RTMPWriteTxWI(pAd, &pAd->BeaconTxWI, FALSE, FALSE, TRUE, FALSE, FALSE, TRUE, 0, BSS0Mcast_WCID, 
 					FrameLen, PID_MGMT, 0, 0,IFS_HTTXOP, &BeaconTransmit);
@@ -542,19 +543,6 @@ VOID APUpdateBeaconFrame(RTMP_ADAPTER *pAd, INT apidx)
 		bHasWpsIE = TRUE;
 #endif /* WSC_AP_SUPPORT */
 
-#ifdef WSC_AP_SUPPORT
-#ifdef SMART_MESH_HIDDEN_WPS
-    if(pMbss->SmartMeshCfg.bSupportHiddenWPS)
-    {
-        bHasWpsIE = FALSE;
-        if(pMbss->WscControl.bRunningHiddenWPS)
-            Set_HiddenWps_State(&pMbss->SmartMeshCfg, HIDDEN_WPS_STATE_RUNNING);
-        else
-            Set_HiddenWps_State(&pMbss->SmartMeshCfg, HIDDEN_WPS_STATE_STOP);
-    }  
-#endif /* SMART_MESH_HIDDEN_WPS */
-#endif /* WSC_AP_SUPPORT */
-
 	if (bHasWpsIE)
 	{
 		ULONG WscTmpLen = 0;
@@ -566,15 +554,11 @@ VOID APUpdateBeaconFrame(RTMP_ADAPTER *pAd, INT apidx)
 	}
 
 #ifdef WSC_AP_SUPPORT
-    if ((pMbss->WscControl.WscConfMode != WSC_DISABLE)
+    if ((pMbss->WscControl.WscConfMode != WSC_DISABLE) &&
 #ifdef DOT1X_SUPPORT
-        && (pMbss->wdev.IEEE8021X == FALSE) 
+        (pMbss->wdev.IEEE8021X == FALSE) && 
 #endif /* DOT1X_SUPPORT */		
-        && (pMbss->wdev.WepStatus == Ndis802_11WEPEnabled)
-#ifdef SMART_MESH_HIDDEN_WPS
-        && !pMbss->SmartMeshCfg.bSupportHiddenWPS
-#endif /* SMART_MESH_HIDDEN_WPS */
-        )
+        (pMbss->wdev.WepStatus == Ndis802_11WEPEnabled))
     {
         /*
             Non-WPS Windows XP and Vista PCs are unable to determine if a WEP enalbed network is static key based 
@@ -690,6 +674,7 @@ VOID APUpdateBeaconFrame(RTMP_ADAPTER *pAd, INT apidx)
 			FrameLen += (2 + wb_len + tp_len);
 		}
 #endif /* DOT11_VHT_AC */
+
 #endif /* DOT11_N_SUPPORT */
 	}
 #endif /* A_BAND_SUPPORT */
@@ -749,13 +734,6 @@ VOID APUpdateBeaconFrame(RTMP_ADAPTER *pAd, INT apidx)
 						  END_OF_ARGS);
 #endif
 		FrameLen += TmpLen;
-
-#ifdef SMART_MESH
-		SMART_MESH_INSERT_IE(pAd->ApCfg.MBSSID[apidx].SmartMeshCfg,
-							pBeaconFrame,
-							FrameLen,
-							SM_IE_BEACON);
-#endif /* SMART_MESH */
 
 #ifdef DOT11N_DRAFT3
 	 	/*
@@ -869,6 +847,9 @@ VOID APUpdateBeaconFrame(RTMP_ADAPTER *pAd, INT apidx)
 #ifdef CONFIG_DOT11V_WNM
 		if (pMbss->WNMCtrl.ProxyARPEnable)
 			extCapInfo.proxy_arp = 1;
+		if (pMbss->WNMCtrl.WNMBTMEnable)
+			extCapInfo.BssTransitionManmt = 1;
+
 #ifdef CONFIG_HOTSPOT_R2
 		if (pMbss->WNMCtrl.WNMNotifyEnable)
 			extCapInfo.wnm_notification = 1;
@@ -1038,11 +1019,12 @@ VOID APUpdateBeaconFrame(RTMP_ADAPTER *pAd, INT apidx)
 #ifdef DOT11K_RRM_SUPPORT
 	if (IS_RRM_ENABLE(pAd, apidx))
 	{
+#ifdef QUIET_SUPPORT
 		PRRM_QUIET_CB pQuietCB = &pMbss->RrmCfg.QuietCB;
 		RRM_InsertQuietIE(pAd, pBeaconFrame+FrameLen, &FrameLen,
 				pQuietCB->QuietCnt ,pQuietCB->QuietPeriod,
 				pQuietCB->QuietDuration, pQuietCB->QuietOffset);
-
+#endif
 #ifndef APPLE_11K_IOT
 		/* Insert BSS AC Access Delay IE. */
 		RRM_InsertBssACDelayIE(pAd, pBeaconFrame+FrameLen, &FrameLen);
@@ -1053,6 +1035,11 @@ VOID APUpdateBeaconFrame(RTMP_ADAPTER *pAd, INT apidx)
 
 	}
 #endif /* DOT11K_RRM_SUPPORT */
+
+#ifdef MWDS
+	/* add Ralink-specific IE here - Byte0.b0=1 for aggregation, Byte0.b1=1 for piggy-back */
+	FrameLen += build_vendor_ie(pAd, wdev, (pBeaconFrame + FrameLen));
+#endif /* MWDS */
 
 #ifdef DOT11_N_SUPPORT
 	if (WMODE_CAP_N(PhyMode) && 
@@ -1132,8 +1119,21 @@ VOID APUpdateBeaconFrame(RTMP_ADAPTER *pAd, INT apidx)
 		}
 	}
 #endif /* DOT11_N_SUPPORT */
+#ifdef WH_EZ_SETUP
+	if (IS_ADPTR_EZ_SETUP_ENABLED(pAd)) {
+		UCHAR vendor_ie_len;
+		ULONG TmpLen;
+		UCHAR BeaconIeBuffer[512] = {0};
 
-   	/* add Ralink-specific IE here - Byte0.b0=1 for aggregation, Byte0.b1=1 for piggy-back */
+		vendor_ie_len += ez_build_beacon_ie(&pAd->ApCfg.MBSSID[0].wdev,
+			(BeaconIeBuffer));
+		MakeOutgoingFrame(pBeaconFrame+FrameLen, &TmpLen,
+			vendor_ie_len, BeaconIeBuffer,
+			END_OF_ARGS);
+		FrameLen += TmpLen;
+	}
+#endif
+/* add Ralink-specific IE here - Byte0.b0=1 for aggregation, Byte0.b1=1 for piggy-back */
 {
 	ULONG TmpLen;
 	UCHAR RalinkSpecificIe[9] = {IE_VENDOR_SPECIFIC, 7, 0x00, 0x0c, 0x43, 0x00, 0x00, 0x00, 0x00};
@@ -1158,25 +1158,6 @@ VOID APUpdateBeaconFrame(RTMP_ADAPTER *pAd, INT apidx)
 	FrameLen += TmpLen;
 
 }
-
-#ifdef AIRPLAY_SUPPORT
-	if (AIRPLAY_ON(pAd))
-	{ 
-		ULONG	AirplayTmpLen = 0;
-	
-		/*User user setting IE*/
-		if (pAd->pAirplayIe && (pAd->AirplayIeLen != 0))
-		{	
-	        //hex_dump("[BCN]IE:", pAd->pAirplayIe , pAd->AirplayIeLen);
-
-			MakeOutgoingFrame(pBeaconFrame+FrameLen, &AirplayTmpLen,
-								 pAd->AirplayIeLen, pAd->pAirplayIe,	 
-									END_OF_ARGS);
-			FrameLen += AirplayTmpLen;
-		}
-
-	}
-#endif /* AIRPLAY_SUPPORT*/
 	
 	/* add Mediatek-specific IE here */
 	{
@@ -1331,29 +1312,26 @@ VOID APMakeAllBssBeacon(RTMP_ADAPTER *pAd)
 	}	
 	else if (NumOfMacs <= 2)
 	{
-#ifndef NEW_MBSSID_MODE
 		if ((pAd->CurrentAddress[5] % 2 != 0)
 		)
 			DBGPRINT(RT_DEBUG_ERROR, ("The 2-BSSID mode is enabled, the BSSID byte5 MUST be the multiple of 2\n"));
-#endif
+		
 		regValue |= (1<<16);
 		pAd->ApCfg.MacMask = ~(2-1);
 	}
 	else if (NumOfMacs <= 4)
 	{
-#ifndef NEW_MBSSID_MODE
 		if (pAd->CurrentAddress[5] % 4 != 0)
 			DBGPRINT(RT_DEBUG_ERROR, ("The 4-BSSID mode is enabled, the BSSID byte5 MUST be the multiple of 4\n"));
-#endif
+
 		regValue |= (2<<16);
 		pAd->ApCfg.MacMask = ~(4-1);
 	}
 	else if (NumOfMacs <= 8)
 	{
-#ifndef NEW_MBSSID_MODE
 		if (pAd->CurrentAddress[5] % 8 != 0)
 			DBGPRINT(RT_DEBUG_ERROR, ("The 8-BSSID mode is enabled, the BSSID byte5 MUST be the multiple of 8\n"));
-#endif
+	
 		regValue |= (3<<16);
 		pAd->ApCfg.MacMask = ~(8-1);
 	}
@@ -1450,15 +1428,30 @@ VOID APUpdateAllBeaconFrame(RTMP_ADAPTER *pAd)
 		if (pAd->CommonCfg.LastBSSCoexist2040.field.BSS20WidthReq ||
 			pAd->CommonCfg.LastBSSCoexist2040.field.Intolerant40 ||
 			(pAd->MacTab.fAnyStaFortyIntolerant == TRUE) ||
-			(FlgQloadIsAlarmIssued == TRUE))
-		{
+			(FlgQloadIsAlarmIssued == TRUE)) {
 			pAd->CommonCfg.AddHTInfo.AddHtInfo.RecomWidth = 0;
 			pAd->CommonCfg.AddHTInfo.AddHtInfo.ExtChanOffset = 0;
+#if (defined(WH_EZ_SETUP) && defined(EZ_NETWORK_MERGE_SUPPORT))
+			if (IS_ADPTR_EZ_SETUP_ENABLED(pAd)) {
+				EZ_DEBUG(DBG_CAT_MLME, DBG_SUBCAT_ALL, EZ_DBG_LVL_ERROR,
+					("\nupdateBeaconRoutineCase: Fallback thru updateBeaconRoutineCase ****\n"));
+				ez_set_ap_fallback_context(&pAd->ApCfg.MBSSID[0].wdev,
+					TRUE, pAd->CommonCfg.CentralChannel);
+			}
+#endif/* WH_EZ_SETUP */
 		}
 		else
 		{
 			pAd->CommonCfg.AddHTInfo.AddHtInfo.RecomWidth = pAd->CommonCfg.RegTransmitSetting.field.BW;
 			pAd->CommonCfg.AddHTInfo.AddHtInfo.ExtChanOffset = pAd->CommonCfg.RegTransmitSetting.field.EXTCHA;
+#if (defined(WH_EZ_SETUP) && defined(EZ_NETWORK_MERGE_SUPPORT))
+			if (IS_ADPTR_EZ_SETUP_ENABLED(pAd)) {
+				EZ_DEBUG(DBG_CAT_MLME, DBG_SUBCAT_ALL, EZ_DBG_LVL_ERROR,
+					("\nupdateBeaconRoutineCase: Fallback thru updateBeaconRoutineCase ****\n"));
+				ez_set_ap_fallback_context(&pAd->ApCfg.MBSSID[0].wdev,
+					FALSE, pAd->CommonCfg.CentralChannel);
+			}
+#endif/* WH_EZ_SETUP */
 		}
 		DBGPRINT(RT_DEBUG_TRACE,("\tNow RecomWidth=%d, ExtChanOffset=%d, prevBW=%d, prevExtOffset=%d\n", 
 				pAd->CommonCfg.AddHTInfo.AddHtInfo.RecomWidth,

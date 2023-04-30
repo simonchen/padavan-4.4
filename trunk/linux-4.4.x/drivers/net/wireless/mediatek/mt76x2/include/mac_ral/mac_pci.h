@@ -208,7 +208,6 @@ typedef	struct GNU_PACKED _RXD_STRUC{
 			RtmpPCI_FinalWriteTxResource(_pAd, _pTxBlk, _TotalMPDUSize, _FirstTxIdx)
 
 #define HAL_LastTxIdx(_pAd, _QueIdx,_LastTxIdx) \
-			if (_LastTxIdx) {};					\
 			/*RtmpPCIDataLastTxIdx(_pAd, _QueIdx,_LastTxIdx)*/
 
 #define HAL_KickOutTx(_pAd, _pTxBlk, _QueIdx)	\
@@ -319,7 +318,6 @@ typedef enum _RTMP_TX_DONE_MASK{
 		RTMP_INT_UNLOCK(&pAd->irq_lock, _irqFlags);\
 	} while(0)
 
-
 /* Disable MAC RX */
 #define RTMP_MAC_RX_DISABLE(pAd)	\
 		do{ 			\
@@ -338,7 +336,6 @@ typedef enum _RTMP_TX_DONE_MASK{
 				value |= (1<<3);	\
 				RTMP_IO_WRITE32(pAd, MAC_SYS_CTRL, value);	\
 		} while(0)
-
 
 /* ----------------- MLME Related MACRO ----------------- */
 // TODO: shiang-usw, need to verify this to make sure that's solid enough!
@@ -371,16 +368,6 @@ typedef enum _RTMP_TX_DONE_MASK{
 #define CID3MASK		0xff000000
 
 
-#ifdef CONFIG_STA_SUPPORT
-#define RTMP_STA_FORCE_WAKEUP(pAd, bFromTx) \
-    RT28xxPciStaAsicForceWakeup(pAd, bFromTx);
-
-#define RTMP_STA_SLEEP_THEN_AUTO_WAKEUP(pAd, TbttNumToNextWakeUp) \
-    RT28xxPciStaAsicSleepThenAutoWakeup(pAd, TbttNumToNextWakeUp);
-
-#define RTMP_SET_PSM_BIT(_pAd, _val) \
-	MlmeSetPsmBit(_pAd, _val);
-#endif /* CONFIG_STA_SUPPORT */
 
 #define RTMP_MLME_RADIO_ON(pAd) \
     RT28xxPciMlmeRadioOn(pAd);
@@ -410,11 +397,6 @@ typedef enum _RTMP_TX_DONE_MASK{
 #define RTMP_ASIC_SHARED_KEY_TABLE(_pAd, _BssIndex, _KeyIdx, _pCipherKey) \
 	AsicAddSharedKeyEntry(_pAd, _BssIndex, _KeyIdx, _pCipherKey)
 
-#ifdef CONFIG_STA_SUPPORT
-/* Set Port Secured */
-#define RTMP_SET_PORT_SECURED(_pAd) 										\
-	STA_PORT_SECURED(_pAd);
-#endif /* CONFIG_STA_SUPPORT */
 
 /* Remove Pairwise Key table */
 #define RTMP_REMOVE_PAIRWISE_KEY_ENTRY(_pAd, _Wcid)\

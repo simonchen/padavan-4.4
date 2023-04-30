@@ -235,7 +235,7 @@ BOOLEAN RT635xCheckTssiCompensation(
 #endif /* RTMP_INTERNAL_TX_ALC */
 
 #ifdef ED_MONITOR
-VOID RT6352_set_ed_cca(
+INT RT6352_set_ed_cca(
 	IN struct _RTMP_ADAPTER *pAd, BOOLEAN enable);
 #endif /* ED_MONITOR */
 

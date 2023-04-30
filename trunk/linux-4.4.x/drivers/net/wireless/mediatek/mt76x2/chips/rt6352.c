@@ -531,9 +531,6 @@ RTMP_REG_PAIR	RT6352_MACRegTable[] =	{
 	{TX_SW_CFG1,		0x000C0001},   // Jason,2012-09-13, 2015-10-08
 	{TX_SW_CFG2,		0x00},   // Jason,2012-08-27
 	{MIMO_PS_CFG,		0x02},   // Jason,2012-09-13
-
-	/* enable HW to autofallback to legacy rate to prevent ping fail in long range */
-	{HT_FBK_TO_LEGACY,	0x1818},	// HT_FBK_TO_LEGACY = OFDM_6
 };
 
 UCHAR RT6352_NUM_MAC_REG_PARMS = (sizeof(RT6352_MACRegTable) / sizeof(RTMP_REG_PAIR));
@@ -696,9 +693,6 @@ static VOID NICInitRT6352MacRegisters(
 {
 	UINT32 IdReg;
 	UINT32 Value = 0;
-#ifdef APCLI_SUPPORT
-	UINT32 pn_mode_value = 0;
-#endif /* APCLI_SUPPORT */
 #ifdef DESC_32B_SUPPORT
 	WPDMA_GLO_CFG_STRUC	GloCfg;
 #endif /* DESC_32B_SUPPORT */
@@ -733,20 +727,16 @@ static VOID NICInitRT6352MacRegisters(
 	RTMP_IO_READ32(pAd, TX_ALG_CFG_1, &Value);
 	Value = Value & (~0x80000000);
 	RTMP_IO_WRITE32(pAd, TX_ALG_CFG_1, Value);
-#ifdef APCLI_SUPPORT
-	/*
-	*bit 0 :  R/W PN_PAD_MODE Padding IV/EIV in RX MPDU when packet is decrypted
-	*0 : Disable                             1: Enable
-	*/
-	RTMP_IO_READ32(pAd, PN_PAD_MODE, &pn_mode_value);
-	pn_mode_value |= PN_PAD_MODE_OFFSET;
-	RTMP_IO_WRITE32(pAd, PN_PAD_MODE, pn_mode_value);
-#endif /* APCLI_SUPPORT */
+
 #ifdef DESC_32B_SUPPORT
 	RTMP_IO_READ32(pAd, WPDMA_GLO_CFG , &GloCfg.word);
 	GloCfg.field.Desc32BEn =1;
 	RTMP_IO_WRITE32(pAd, WPDMA_GLO_CFG, GloCfg.word);
 #endif /* DESC_32B_SUPPORT */
+
+	RTMP_IO_READ32(pAd, 0x150C, &Value);
+	Value |= 0x01;
+	RTMP_IO_WRITE32(pAd, 0x150C, Value);
 }
 
 
@@ -841,13 +831,6 @@ static VOID NICInitRT6352BbpRegisters(
 	RTMP_BBP_IO_READ8_BY_REG_ID(pAd, BBP_R4, &BbpReg);
 	BbpReg = ((BbpReg & ~0x40) | 0x40); /* MAC interface control (MAC_IF_80M, 1: 80 MHz) */
 	RTMP_BBP_IO_WRITE8_BY_REG_ID(pAd, BBP_R4, BbpReg);
-
-#ifdef MICROWAVE_OVEN_SUPPORT
-	/* Backup BBP_R65  */
-	RTMP_BBP_IO_READ8_BY_REG_ID(pAd, BBP_R65, &BbpReg);
-	pAd->CommonCfg.MO_Cfg.Stored_BBP_R65 = BbpReg;
-	DBGPRINT(RT_DEBUG_TRACE, ("Stored_BBP_R65=%x @%s \n", pAd->CommonCfg.MO_Cfg.Stored_BBP_R65, __FUNCTION__));
-#endif /* MICROWAVE_OVEN_SUPPORT */
 
 	DBGPRINT(RT_DEBUG_TRACE, ("<-- %s\n", __FUNCTION__));
 }
@@ -1117,24 +1100,6 @@ static VOID NICInitRT6352RFRegisters(
 	DBGPRINT(RT_DEBUG_TRACE, ("<-- %s\n", __FUNCTION__));
 }
 
-#ifdef CONFIG_STA_SUPPORT
-static UCHAR RT6352_ChipAGCAdjust(
-	IN PRTMP_ADAPTER		pAd,
-	IN CHAR					Rssi,
-	IN UCHAR				OrigR66Value)
-{
-	UCHAR R66 = OrigR66Value;
-	CHAR lanGain = GET_LNA_GAIN(pAd);
-
-	if (pAd->LatchRfRegs.Channel <= 14)
-		R66 = 0x04 + 2 * GET_LNA_GAIN(pAd);
-
-	if (OrigR66Value != R66)
-		bbp_set_agc(pAd, R66, RX_CHAIN_ALL);
-	
-	return R66;
-}
-#endif // CONFIG_STA_SUPPORT //
 
 static VOID RT6352_ChipBBPAdjust(
 	IN RTMP_ADAPTER			*pAd)
@@ -4756,28 +4721,6 @@ VOID RT6352_AsicAdjustTxPower(
 	CONFIGURATION_OF_TX_POWER_CONTROL_OVER_MAC CfgOfTxPwrCtrlOverMAC = {0};	
 
 
-#ifdef CONFIG_STA_SUPPORT
-	if (RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_IDLE_RADIO_OFF))
-		return;
-
-	if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_DOZE) || 
-#ifdef RTMP_MAC_PCI
-		(pAd->bPCIclkOff == TRUE) || RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_IDLE_RADIO_OFF) ||
-#endif /* RTMP_MAC_PCI */
-		RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_BSS_SCAN_IN_PROGRESS))
-		return;
-
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		if(INFRA_ON(pAd))
-		{
-			Rssi = RTMPMaxRssi(pAd, 
-						   pAd->StaCfg.RssiSample.AvgRssi0, 
-						   pAd->StaCfg.RssiSample.AvgRssi1, 
-						   pAd->StaCfg.RssiSample.AvgRssi2);
-		}
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	/* Get Tx rate offset table which from EEPROM 0xDEh ~ 0xEFh */
 	RTMP_CHIP_ASIC_TX_POWER_OFFSET_GET(pAd, (PULONG)&CfgOfTxPwrCtrlOverMAC);
@@ -4940,9 +4883,8 @@ static VOID RT6352_AsicMeasureFalseCCA(
 static VOID RT6352_AsicMitigateMicrowave(
 	IN PRTMP_ADAPTER pAd)
 {
-	UINT8 RegValue;
-
-	DBGPRINT(RT_DEBUG_OFF, ("Detect Microwave...\n"));
+	UINT8	RegValue, RFValue;
+	printk("Detect Microwave...\n");
 
 	/* set middle gain */
 	RTMP_BBP_IO_READ8_BY_REG_ID(pAd, BBP_R65, &RegValue);
@@ -5565,14 +5507,8 @@ VOID RT6352_ReCalibration(
 void RT6352_UpdateRssiForChannelModel(RTMP_ADAPTER * pAd)
 {
 	INT32 rx0_rssi, rx1_rssi;
+	UINT32 bbp_valuse = 0;
 	
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		rx0_rssi = (CHAR)(pAd->StaCfg.RssiSample.LastRssi0);
-		rx1_rssi = (CHAR)(pAd->StaCfg.RssiSample.LastRssi1);
-	}
-#endif /* CONFIG_STA_SUPPORT */
 #ifdef CONFIG_AP_SUPPORT
 	IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 	{
@@ -5607,8 +5543,8 @@ static VOID RT6352_AsicDynamicVgaGainControl(
 		(pAd->bCalibrationDone)
 		)
 	{
-		UCHAR BbpReg = 0;
-        UCHAR VgaGainLowerBound = 0x10;
+		UCHAR BbpReg = 0, bbp_196 = 0;
+                UCHAR VgaGainLowerBound = 0x10;
 		
 
 		if (((pAd->chipCap.avg_rssi_all <= -76) && (pAd->CommonCfg.BBPCurrentBW == BW_80))
@@ -5826,7 +5762,7 @@ VOID thermal_pro_2nd_cond(
 #endif /* THERMAL_PROTECT_SUPPORT */
 
 #ifdef ED_MONITOR
-VOID RT6352_set_ed_cca(RTMP_ADAPTER *pAd, BOOLEAN enable)
+INT RT6352_set_ed_cca(RTMP_ADAPTER *pAd, BOOLEAN enable)
 {
 	UINT32 mac_val;
 	UCHAR bbp_val;
@@ -5878,6 +5814,8 @@ VOID RT6352_set_ed_cca(RTMP_ADAPTER *pAd, BOOLEAN enable)
 		mac_val &= (~((1<<20) | (1<<7)));
 		RTMP_IO_WRITE32(pAd, TXOP_CTRL_CFG, mac_val);
 	}
+	
+	return 0;
 }
 #endif /* ED_MONITOR */
 
@@ -5931,7 +5869,7 @@ VOID RT6352_Init(
 	pChipCap->MaxNumOfBbpId = 255;
 	pChipCap->bbpRegTbSize = 0;
 	pChipCap->FlgIsVcoReCalMode = VCO_CAL_MODE_3;
-	pChipCap->SnrFormula = SNR_FORMULA2;
+	pChipCap->SnrFormula = SNR_FORMULA3;
 	pChipCap->RfReg17WtMethod = RF_REG_WT_METHOD_NONE;
 	pChipOps->AsicGetTxPowerOffset = AsicGetTxPowerOffset;
 	pChipOps->AsicExtraPowerOverMAC = RT6352_AsicExtraPowerOverMAC;
@@ -5986,9 +5924,6 @@ VOID RT6352_Init(
 	pChipOps->DisableAPMIMOPS = DisableAPMIMOPSv2;
 #endif /* GREENAP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	pChipOps->ChipAGCAdjust = RT6352_ChipAGCAdjust;
-#endif /* CONFIG_STA_SUPPORT */
 	pChipOps->ChipBBPAdjust = RT6352_ChipBBPAdjust;
 	pChipOps->AsicAntennaDefaultReset = RT6352_AsicAntennaDefaultReset;
 	pChipOps->ChipSwitchChannel = RT6352_ChipSwitchChannel;

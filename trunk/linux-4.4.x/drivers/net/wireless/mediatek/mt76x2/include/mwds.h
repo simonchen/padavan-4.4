@@ -18,15 +18,15 @@
  ***************************************************************************
 
 
-    Module Name:
-	mwds.h
- 
-    Abstract:
-    This is MWDS feature used to process those 4-addr of connected APClient or STA.
-    
-    Revision History:
-    Who          When          What
-    ---------    ----------    ----------------------------------------------
+ Module Name:
+ mwds.h
+
+Abstract:
+This is MWDS feature used to process those 4-addr of connected APClient or STA.
+
+Revision History:
+Who          When          What
+---------    ----------    ----------------------------------------------
  */
 #ifdef MWDS
 #include "rtmp_def.h"
@@ -39,113 +39,150 @@ enum MWDS_ENTRY {
 
 #define IS_ENTRY_MWDS(_x)			((_x)->MWDSEntry != MWDS_ENTRY_NONE)
 #define IS_MWDS_OPMODE_APCLI(_x)	((_x)->MWDSEntry == MWDS_ENTRY_AP)
-#define IS_MWDS_OPMODE_AP(_x)	 	((_x)->MWDSEntry == MWDS_ENTRY_CLIENT)
+#define IS_MWDS_OPMODE_AP(_x)		((_x)->MWDSEntry == MWDS_ENTRY_CLIENT)
 #define SET_MWDS_OPMODE_NONE(_x)	((_x)->MWDSEntry = MWDS_ENTRY_NONE)
-#define SET_MWDS_OPMODE_APCLI(_x)	((_x)->MWDSEntry = MWDS_ENTRY_AP) 	   /* We operate as MWDS APCLI*/
+#define SET_MWDS_OPMODE_APCLI(_x)	((_x)->MWDSEntry = MWDS_ENTRY_AP)	/* We operate as MWDS APCLI*/
 #define SET_MWDS_OPMODE_AP(_x)		((_x)->MWDSEntry = MWDS_ENTRY_CLIENT)  /* We operate as MWDS AP*/
+#define MWDS_SUPPORT(B0)            ((B0)&0x80)
 
-typedef struct _MWDS_CONNECT_ENTRY {
+struct _MWDS_CONNECT_ENTRY {
 	DL_LIST List;
 	UCHAR Valid;
 	UCHAR wcid;
-} MWDS_CONNECT_ENTRY, *PMWDS_CONNECT_ENTRY;
+};
 
 VOID MWDSConnEntryListInit(
-	IN PRTMP_ADAPTER pAd);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex);
 
 VOID MWDSConnEntryListClear(
-	IN PRTMP_ADAPTER pAd);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex);
 
 BOOLEAN MWDSConnEntryLookupByWCID(
-	IN PRTMP_ADAPTER pAd,
-	IN UCHAR wcid);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex,
+		IN UCHAR wcid);
 
 BOOLEAN MWDSConnEntryLookupByAddr(
-	IN PRTMP_ADAPTER pAd,
-	IN PUCHAR pMac);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex,
+		IN PUCHAR pMac);
 
 VOID MWDSConnEntryUpdate(
-	IN PRTMP_ADAPTER pAd,
-	IN UCHAR wcid);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex,
+		IN UCHAR wcid);
 
 VOID MWDSConnEntryDelete(
-	IN PRTMP_ADAPTER pAd,
-	IN UCHAR wcid);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex,
+		IN UCHAR wcid);
 
 INT MWDSGetConnEntryCount(
-	IN PRTMP_ADAPTER pAd);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex);
 
 BOOLEAN ISMWDSValid(
-    IN PRTMP_ADAPTER pAd);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex);
 
 VOID MWDSProxyEntryDelete(
-	IN PRTMP_ADAPTER pAd,
-	IN PUCHAR pMac);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex,
+		IN PUCHAR pMac);
 
 BOOLEAN MWDSProxyLookup(
-	IN PRTMP_ADAPTER pAd,
-	IN PUCHAR pMac,
-	IN BOOLEAN bUpdateAliveTime,
-	OUT UCHAR *pWcid);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex,
+		IN PUCHAR pMac,
+		IN BOOLEAN bUpdateAliveTime,
+		OUT UCHAR *pWcid);
 
 VOID MWDSProxyTabUpdate(
-	IN PRTMP_ADAPTER pAd,
-	IN UCHAR wcid,
-	IN PUCHAR pMac);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex,
+		IN UCHAR wcid,
+		IN PUCHAR pMac,
+		IN UINT32 ARPSenderIP);
 
 VOID MWDSProxyTabMaintain(
-	IN PRTMP_ADAPTER pAd);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex);
 
 void MWDSSendClonePacket(
-	IN PRTMP_ADAPTER pAd,
-	IN PNDIS_PACKET pPacket,
-	IN PUCHAR pExcludeMac);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex,
+		IN PNDIS_PACKET pPacket,
+		IN PUCHAR pExcludeMac);
 
-BOOLEAN MWDSARPLookupUpdate(
-    IN PRTMP_ADAPTER pAd,
-    IN PUCHAR pData);
+VOID MWDSAPPeerEnable(
+		IN PRTMP_ADAPTER pAd,
+		IN MAC_TABLE_ENTRY * pEntry,
+		IN BOOLEAN bWTBLUpdate);
 
+VOID MWDSAPPeerDisable(
+		IN PRTMP_ADAPTER pAd,
+		IN MAC_TABLE_ENTRY * pEntry);
+
+#ifdef APCLI_SUPPORT
+VOID MWDSAPCliPeerEnable(
+		IN PRTMP_ADAPTER pAd,
+		IN PAPCLI_STRUCT pApCliEntry,
+		IN MAC_TABLE_ENTRY * pEntry,
+		IN BOOLEAN bWTBLUpdate);
+
+VOID MWDSAPCliPeerDisable(
+		IN PRTMP_ADAPTER pAd,
+		IN PAPCLI_STRUCT pApCliEntry,
+		IN MAC_TABLE_ENTRY * pEntry);
+#endif /* APCLI_SUPPORT */
 INT MWDSEnable(
-	IN PRTMP_ADAPTER pAd,
-	IN UCHAR ifIndex,
-	IN BOOLEAN isAP);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex,
+		IN BOOLEAN isAP,
+		IN BOOLEAN isDevOpen);
 
 INT MWDSDisable(
-	IN PRTMP_ADAPTER pAd,
-	IN UCHAR ifIndex,
-	IN BOOLEAN isAP);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex,
+		IN BOOLEAN isAP,
+		IN BOOLEAN isDevClose);
 
 INT MWDSAPUP(
-	IN PRTMP_ADAPTER pAd);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex);
 
 INT MWDSAPDown(
-	IN PRTMP_ADAPTER pAd);
+		IN PRTMP_ADAPTER pAd,
+		IN UCHAR ifIndex);
 
 
 INT Set_Ap_MWDS_Proc(
-	IN  PRTMP_ADAPTER pAd, 
-	IN  PSTRING arg);
+		IN  PRTMP_ADAPTER pAd,
+		IN  PSTRING arg);
 
 INT Set_ApCli_MWDS_Proc(
-	IN  PRTMP_ADAPTER pAd, 
-	IN  PSTRING arg);
+		IN  PRTMP_ADAPTER pAd,
+		IN  PSTRING arg);
 
 INT Set_Ap_MWDS_Show_Proc(
-	IN  PRTMP_ADAPTER pAd, 
-	IN  PSTRING arg);
+		IN  PRTMP_ADAPTER pAd,
+		IN  PSTRING arg);
 
 INT Set_ApCli_MWDS_Show_Proc(
-	IN  PRTMP_ADAPTER pAd, 
-	IN  PSTRING arg);
+		IN  PRTMP_ADAPTER pAd,
+		IN  PSTRING arg);
 
 INT Set_APProxy_Status_Show_Proc(
-	IN  PRTMP_ADAPTER pAd, 
-	IN  PSTRING arg);
+		IN  PRTMP_ADAPTER pAd,
+		IN  PSTRING arg);
 
 VOID rtmp_read_MWDS_from_file(
-	IN  PRTMP_ADAPTER pAd,
-	PSTRING tmpbuf,
-	PSTRING buffer);
+		IN  PRTMP_ADAPTER pAd,
+		PSTRING tmpbuf,
+		PSTRING buffer);
 
 #endif /* MWDS */
 #endif /* __MWDS_H__*/
+

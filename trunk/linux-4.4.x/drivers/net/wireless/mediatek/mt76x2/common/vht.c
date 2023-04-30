@@ -27,46 +27,6 @@
 
 #include "rt_config.h"
 
-/* some buggy BCM clients can not work with 80MHz */
-#define BAD_VHT80_WORKAROUND
-
-#ifdef BAD_VHT80_WORKAROUND
-static const UCHAR BAD_VHT80_OUI[][3] = {
-	{0x3C, 0xFA, 0x43},	// Huawei P9
-	{0x7C, 0x11, 0xCB},	// Huawei Honor 8
-
-	/* iPhone 6*/
-	{0x74, 0x1B, 0xB2},
-	{0x84, 0x89, 0xAD},
-	{0xD8, 0x1D, 0x72},
-	{0x60, 0xF8, 0x1D},
-	{0x60, 0xA3, 0x7D},
-	{0x88, 0x66, 0xA5},
-	{0x50, 0xA6, 0x7F},
-	{0x6C, 0x72, 0xE7},
-	{0x2C, 0x61, 0xF6},
-	{0x90, 0x8D, 0x6C},
-	{0x90, 0x4F, 0xDA},
-
-	/* MACBOOK */
-	{0xAC, 0xBC, 0x32},
-	{0xB8, 0xE8, 0x56},
-	{0x08, 0x6D, 0x41},
-	{0x18, 0x65, 0x90},
-	{0xA8, 0x66, 0x7F},
-	{0x98, 0x01, 0xA7},
-
-	/* HUAWEI */
-	{0xF0, 0x43, 0x47},
-	{0xA8, 0xC8, 0x3A},
-	{0x10, 0xB1, 0xF8},
-	{0x5C, 0xC3, 0x07},
-	{0x0C, 0x8F, 0xFF},
-
-	/* ONEPLUS */
-	{0x94, 0x0E, 0x6B},
-};
-#endif /* BAD_VHT80_WORKAROUND */
 
 struct vht_ch_layout{
 	UCHAR ch_low_bnd;
@@ -86,7 +46,7 @@ static struct vht_ch_layout vht_ch_80M[]={
 
 
 
-#ifdef DBG
+
 VOID dump_vht_cap(RTMP_ADAPTER *pAd, VHT_CAP_IE *vht_ie)
 {
 	VHT_CAP_INFO *vht_cap = &vht_ie->vht_cap;
@@ -141,7 +101,7 @@ VOID dump_vht_op(RTMP_ADAPTER *pAd, VHT_OP_IE *vht_ie)
 	DBGPRINT(RT_DEBUG_OFF, ("\tRxMCS Map_1SS=%d\n", vht_mcs->mcs_ss1));
 	DBGPRINT(RT_DEBUG_OFF, ("\tRxMCS Map_2SS=%d\n", vht_mcs->mcs_ss2));
 }
-#endif
+
 
 #ifdef VHT_TXBF_SUPPORT
 VOID trigger_vht_ndpa(RTMP_ADAPTER *pAd, MAC_TABLE_ENTRY *entry)
@@ -280,27 +240,6 @@ UCHAR vht_cent_ch_freq(RTMP_ADAPTER *pAd, UCHAR prim_ch)
 		return prim_ch;
 	}
 
-#ifdef RT_CFG80211_SUPPORT
-#else
-	/* 
-	sanity check , if this channel has no BW80 capability, use first channel in channel list 
-	ex: when CH144 is not availble , group CH 132~140 won't have BW80 cap , shouldn't be used.
-	*/
-	for ( ch_idx = 0; ch_idx <  pAd->ChannelListNum; ch_idx++)
-	{
-		if ((pAd->ChannelList[ch_idx].Channel == prim_ch) && (pAd->ChannelList[ch_idx].Flags & CHANNEL_80M_CAP))
-			ch_support_bw_80 = TRUE;
-	}
-			
-	if(ch_support_bw_80 == FALSE)
-	{
-		pAd->CommonCfg.Channel = FirstChannel(pAd);
-		DBGPRINT(RT_DEBUG_OFF, ("vht_cent_ch_freq: channel(%d) don't have BW80 capability, use first channel in channel list=%d \n"
-		, prim_ch, pAd->CommonCfg.Channel));
-		prim_ch = FirstChannel(pAd);
-	}
-#endif /* RT_CFG80211_SUPPORT */
-
 	/* choose cent_freq by prim_ch */
 	
 	while (vht_ch_80M[idx].ch_up_bnd != 0)
@@ -320,75 +259,18 @@ UCHAR vht_cent_ch_freq(RTMP_ADAPTER *pAd, UCHAR prim_ch)
 
 INT vht_mode_adjust(RTMP_ADAPTER *pAd, MAC_TABLE_ENTRY *pEntry, VHT_CAP_IE *cap, VHT_OP_IE *op)
 {
-	struct wifi_dev *wdev;
-	INT vht_bw = VHT_BW_80;
-
 	pEntry->MaxHTPhyMode.field.MODE = MODE_VHT;
 	pAd->CommonCfg.AddHTInfo.AddHtInfo2.NonGfPresent = 1;
 	pAd->MacTab.fAnyStationNonGF = TRUE;
 
-	wdev = pEntry->wdev;
-	if (wdev)
-		vht_bw = wdev->DesiredHtPhyInfo.vht_bw;
-
-	DBGPRINT(RT_DEBUG_TRACE, ("%s: DesiredHtPhyInfo->vht_bw=%d, ch_width=%d\n", __FUNCTION__,
-		vht_bw, cap->vht_cap.ch_width));
-
-	if (pEntry->MaxHTPhyMode.field.BW == BW_40)
+	if (op->vht_op_info.ch_width >= 1 && pEntry->MaxHTPhyMode.field.BW == BW_40 &&
+		(pEntry->wdev->DesiredHtPhyInfo.vht_bw == VHT_BW_80) )
 	{
-		if (vht_bw == VHT_BW_80)
-		{
-			if (cap->vht_cap.ch_width == 0)
-			{
-				if (op != NULL)
-				{
-					if (op->vht_op_info.ch_width != 0)
-					{
-						pEntry->MaxHTPhyMode.field.BW = BW_80;
-					}
-				}
-				else
-				{
-					/* can not know peer capability, use it's maximum capability */
-					pEntry->MaxHTPhyMode.field.BW = BW_80;
-#ifdef BAD_VHT80_WORKAROUND
-					/* skip DB region */
-					if ((pAd->CommonCfg.CountryRegionForABand & 0x7f) != 7)
-					{
-						INT i;
-
-						/* some buggy BCM clients can not work with 80MHz */
-						for (i = 0; i < sizeof(BAD_VHT80_OUI) / 3; i++)
-						{
-							if (NdisEqualMemory(pEntry->Addr, &BAD_VHT80_OUI[i][0], 3))
-							{
-								pEntry->MaxHTPhyMode.field.BW = BW_40;
-								printk("%s: drop buggy OUI: %02X-%02X-%02X to VHT40!\n",
-									"mt7612",
-									BAD_VHT80_OUI[i][0],
-									BAD_VHT80_OUI[i][1],
-									BAD_VHT80_OUI[i][2]);
-								break;
-							}
-						}
-					}
-#endif /* BAD_VHT80_WORKAROUND */
-				}
-			}
-			else
-			{
-				pEntry->MaxHTPhyMode.field.BW = BW_80;
-			}
-		}
+		pEntry->MaxHTPhyMode.field.BW= BW_80;
+		pEntry->MaxHTPhyMode.field.ShortGI = (cap->vht_cap.sgi_80M);
+		pEntry->MaxHTPhyMode.field.STBC = (cap->vht_cap.rx_stbc > 1 ? 1 : 0);
 	}
-
-	pEntry->MaxHTPhyMode.field.STBC = (pAd->CommonCfg.vht_stbc && cap->vht_cap.rx_stbc > 1) ? 1 : 0;
-
-	if (pEntry->MaxHTPhyMode.field.BW == BW_80)
-	{
-		pEntry->MaxHTPhyMode.field.ShortGI = (pAd->CommonCfg.vht_sgi_80 && cap->vht_cap.sgi_80M) ? 1 : 0;
-	}
-
+				
 	return TRUE;
 }
 
@@ -587,7 +469,7 @@ INT build_vht_cap_ie(RTMP_ADAPTER *pAd, UCHAR *buf)
 	else
 		vht_cap_ie.vht_cap.rx_ldpc = 0;
 
-	vht_cap_ie.vht_cap.sgi_80M = pAd->CommonCfg.vht_sgi_80;
+	vht_cap_ie.vht_cap.sgi_80M = pAd->CommonCfg.vht_sgi_80 && (pAd->CommonCfg.BBPCurrentBW == BW_80);
 	vht_cap_ie.vht_cap.htc_vht_cap = 1;
 	vht_cap_ie.vht_cap.max_ampdu_exp = 3; // TODO: Ask Jerry about the hardware limitation, currently set as 64K
 
@@ -715,6 +597,39 @@ INT build_vht_cap_ie(RTMP_ADAPTER *pAd, UCHAR *buf)
 	return sizeof(VHT_CAP_IE);
 }
 
+INT build_vht_op_mode_ies(RTMP_ADAPTER *pAd, UCHAR *buf)
+{
+	INT len = 0;
+	EID_STRUCT eid_hdr;
+	OPERATING_MODE operating_mode_ie;   
+    
+	NdisZeroMemory((UCHAR *)&operating_mode_ie,  sizeof(OPERATING_MODE));
+    
+	eid_hdr.Eid = IE_OPERATING_MODE_NOTIFY;
+	eid_hdr.Len = sizeof(OPERATING_MODE);
+	NdisMoveMemory(buf, (UCHAR *)&eid_hdr, 2);
+	len = 2;
+
+	operating_mode_ie.rx_nss_type = 0;
+	operating_mode_ie.rx_nss = (pAd->CommonCfg.RxStream - 1);
+
+	if (pAd->CommonCfg.vht_bw == VHT_BW_2040)
+		operating_mode_ie.ch_width = 1;
+	else if (pAd->CommonCfg.vht_bw == VHT_BW_80)
+		operating_mode_ie.ch_width = 2;
+	else if ((pAd->CommonCfg.vht_bw == VHT_BW_160) ||
+		(pAd->CommonCfg.vht_bw == VHT_BW_8080))
+		operating_mode_ie.ch_width = 3;
+	else
+		operating_mode_ie.ch_width = 0;
+
+	buf += len;
+	NdisMoveMemory(buf, (UCHAR *)&operating_mode_ie, sizeof(OPERATING_MODE));
+	len += eid_hdr.Len;
+    
+	return len;
+    
+}
 
 INT build_vht_ies(RTMP_ADAPTER *pAd, UCHAR *buf, UCHAR frm)
 {

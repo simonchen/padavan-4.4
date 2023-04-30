@@ -363,9 +363,6 @@ INT Set_HotSpot_OnOff(
 	NdisZeroMemory(Buf, sizeof(*Event));
 		
 	Event = (HSCTRL_EVENT_DATA *)Buf;
-#ifdef CONFIG_STA_SUPPORT
-	Event->ControlIndex = 0;
-#endif /*CONFIG_STA_SUPPORT */
 #ifdef CONFIG_AP_SUPPORT
 	Event->ControlIndex = APIndex;
 #endif /* CONFIG_STA_SUPPORT */
@@ -401,9 +398,6 @@ enum HSCTRL_STATE HSCtrlCurrentState(
 	pHSCtrl = &pAd->ApCfg.MBSSID[Event->ControlIndex].HotSpotCtrl;
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	pHSCtrl = &pAd->StaCfg.HotSpotCtrl;
-#endif /* CONFIG_STA_SUPPORT */
 
 	return pHSCtrl->HSCtrlState;
 }
@@ -424,9 +418,6 @@ VOID HSCtrlSetCurrentState(
 	pHSCtrl = &pAd->ApCfg.MBSSID[Event->ControlIndex].HotSpotCtrl;
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	pHSCtrl = &pAd->StaCfg.HotSpotCtrl;
-#endif /* CONFIG_STA_SUPPORT */	
 
 	pHSCtrl->HSCtrlState = State;
 }
@@ -443,11 +434,6 @@ static VOID HSCtrlOn(
 
 	printk("%s\n", __FUNCTION__);
 
-#ifdef CONFIG_STA_SUPPORT
-	NetDev = pAd->net_dev;
-	pHSCtrl = &pAd->StaCfg.HotSpotCtrl;
-	pGASCtrl = &pAd->StaCfg.GASCtrl;
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_AP_SUPPORT
 	NetDev = pAd->ApCfg.MBSSID[Event->ControlIndex].wdev.if_dev;
@@ -493,12 +479,6 @@ static VOID HSCtrlInit(
 	UCHAR APIndex;
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	pHSCtrl = &pAd->StaCfg.HotSpotCtrl;
-	NdisZeroMemory(pHSCtrl, sizeof(*pHSCtrl));
-	pHSCtrl->HotSpotEnable = 0;
-	pHSCtrl->HSCtrlState = HSCTRL_IDLE;
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_AP_SUPPORT
 	for (APIndex = 0; APIndex < MAX_MBSSID_NUM(pAd); APIndex++)
@@ -520,12 +500,6 @@ VOID HSCtrlExit(
 	UCHAR APIndex;
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	pHSCtrl = &pAd->StaCfg.HotSpotCtrl;
-	
-	/* Remove all IE */
-	HSCtrlRemoveAllIE(pHSCtrl);
-#endif /* CONFIG_STA_SUPPORT */
 	
 #ifdef CONFIG_AP_SUPPORT
 	for (APIndex = 0; APIndex < MAX_MBSSID_NUM(pAd); APIndex++)
@@ -548,10 +522,6 @@ VOID HSCtrlHalt(
 	UCHAR APIndex;
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	pHSCtrl = &pAd->StaCfg.HotSpotCtrl;
-	pHSCtrl->HotSpotEnable = 0;
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_AP_SUPPORT
 	for (APIndex = 0; APIndex < MAX_MBSSID_NUM(pAd); APIndex++)
@@ -673,9 +643,6 @@ BOOLEAN HotSpotEnable(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	pHSCtrl = &pAd->StaCfg.HotSpotCtrl;
-#endif /* CONFIG_STA_SUPPORT */
 
 	return pHSCtrl->HotSpotEnable;
 }

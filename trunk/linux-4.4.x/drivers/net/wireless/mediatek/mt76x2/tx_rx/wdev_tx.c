@@ -27,6 +27,11 @@
 
 #include "rt_config.h"
 
+#ifdef MWDS
+#define IS_MULTICAST_MAC_ADDR(Addr)			((((Addr[0]) & 0x01) == 0x01) && ((Addr[0]) != 0xff))
+#define IS_BROADCAST_MAC_ADDR(Addr)			((((Addr[0]) & 0xff) == 0xff))
+#endif
+
 INT rtmp_wdev_idx_unreg(RTMP_ADAPTER *pAd, struct wifi_dev *wdev)
 {
 	INT idx;
@@ -34,7 +39,11 @@ INT rtmp_wdev_idx_unreg(RTMP_ADAPTER *pAd, struct wifi_dev *wdev)
 
 	if (!wdev)
 		return -1;
-
+#ifdef WH_EZ_SETUP
+		if((wdev->wdev_type == WDEV_TYPE_AP)
+			|| (wdev->wdev_type == WDEV_TYPE_STA))
+			ez_exit(wdev);
+#endif /* WH_EZ_SETUP */
 	RTMP_INT_LOCK(&pAd->irq_lock, flags);
 	for (idx = 0; idx < WDEV_NUM_MAX; idx++) {
 		if (pAd->wdev_list[idx] == wdev) {
@@ -225,6 +234,9 @@ VOID wdev_tx_pkts(NDIS_HANDLE dev_hnd, PPNDIS_PACKET pkt_list, UINT pkt_cnt, str
 	BOOLEAN allowToSend;
 	UCHAR wcid = MCAST_WCID;
 	UINT Index;
+#ifdef MWDS
+	UCHAR *pSrcBufVA = NULL;
+#endif
 
 
 	
@@ -271,45 +283,44 @@ VOID wdev_tx_pkts(NDIS_HANDLE dev_hnd, PPNDIS_PACKET pkt_list, UINT pkt_cnt, str
 				WIFI HNAT need to learn packets going to which interface from skb cb setting.
 				@20150325
 			*/
-#if defined (CONFIG_RA_HW_NAT) || defined (CONFIG_RA_HW_NAT_MODULE)
 #if !defined(CONFIG_RA_NAT_NONE)
 			if (ra_sw_nat_hook_tx != NULL)
 			{
-				ra_sw_nat_hook_tx(pPacket, 0);
+				unsigned long flags;
+		
+				RTMP_INT_LOCK(&pAd->page_lock, flags);
+				ra_sw_nat_hook_tx(pPacket);
+				RTMP_INT_UNLOCK(&pAd->page_lock, flags);
 			}
-#endif
 #endif
 
 #ifdef CONFIG_AP_SUPPORT
-			IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
-			{
-#ifdef DELAYED_TCP_ACK
-				if(!delay_tcp_ack(pAd, wcid, pPacket))
-#endif /* DELAYED_TCP_ACK */
-#ifdef REDUCE_TCP_ACK_SUPPORT
-				if (ReduceTcpAck(pAd, pPacket) == FALSE)
-#endif /* REDUCE_TCP_ACK_SUPPORT */
-				{
-					BOOLEAN bResult = APSendPacket(pAd, pPacket);
+		IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
+		{
 #ifdef MWDS
-					if((wcid == MCAST_WCID) && (bResult == NDIS_STATUS_SUCCESS))
-						MWDSSendClonePacket(pAd, pPacket, NULL);
-#endif /* MWDS */
+			if (wdev->wdev_type == WDEV_TYPE_AP) {
+				pSrcBufVA = GET_OS_PKT_DATAPTR(pPacket);
+				if (pSrcBufVA && 
+						IS_BROADCAST_MAC_ADDR(pSrcBufVA)) {
+					MWDSSendClonePacket(pAd, wdev->func_idx, pPacket, NULL);
+				} else if (pSrcBufVA && 
+					IS_MULTICAST_MAC_ADDR(pSrcBufVA) 
+					) {
+					MWDSSendClonePacket(pAd, wdev->func_idx, pPacket, NULL);
+				} else {
+					DBGPRINT(RT_DEBUG_INFO, 
+						("This packet is a uc or IGMP is on, no need MWDS CLONE\n"));
 				}
 			}
+#endif /* MWDS */
+		
+#ifdef DELAYED_TCP_ACK
+			if(!delay_tcp_ack(pAd, wcid, pPacket))
+#endif /* DELAYED_TCP_ACK */
+				APSendPacket(pAd, pPacket);
+		}		
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-			IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-			{
-#ifdef RT_CFG80211_P2P_SUPPORT
-				if (RTMP_GET_PACKET_OPMODE(pPacket))
-					APSendPacket(pAd, pPacket);
-				else
-#endif /* RT_CFG80211_P2P_SUPPORT */
-				STASendPacket(pAd, pPacket);
-			}
-#endif /* CONFIG_STA_SUPPORT */
 		} else {
 			RELEASE_NDIS_PACKET(pAd, pPacket, NDIS_STATUS_FAILURE);
 		}

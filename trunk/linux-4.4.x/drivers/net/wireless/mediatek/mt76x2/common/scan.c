@@ -29,16 +29,19 @@
 #ifdef SCAN_SUPPORT
 static INT scan_ch_restore(RTMP_ADAPTER *pAd, UCHAR OpMode)
 {
-#ifdef CONFIG_STA_SUPPORT
-	USHORT Status;
-#endif /* CONFIG_STA_SUPPORT */
 	INT bw, ch;
 #ifdef APCLI_SUPPORT
 #ifdef APCLI_CERT_SUPPORT
 	UCHAR  ScanType = pAd->MlmeAux.ScanType;
 #endif /*APCLI_CERT_SUPPORT*/
 #endif /*APCLI_SUPPORT*/
-		
+
+#ifdef WH_EZ_SETUP
+	if (IS_ADPTR_EZ_SETUP_ENABLED(pAd) && (pAd->ApCfg.ScanReqwdev != NULL)
+		&& ez_handle_scan_channel_restore(pAd->ApCfg.ScanReqwdev)) {
+
+	}
+#endif /* WH_EZ_SETUP */
 #ifdef DOT11_VHT_AC
 	if (WMODE_CAP(pAd->CommonCfg.PhyMode, WMODE_AC) &&
 		(pAd->CommonCfg.Channel > 14) &&
@@ -81,71 +84,6 @@ static INT scan_ch_restore(RTMP_ADAPTER *pAd, UCHAR OpMode)
 	DBGPRINT(RT_DEBUG_TRACE, ("SYNC - End of SCAN, restore to %dMHz channel %d, Total BSS[%02d]\n",
 				bw, ch, pAd->ScanTab.BssNr));
 		
-#ifdef CONFIG_STA_SUPPORT
-	if (OpMode == OPMODE_STA)
-	{
-		/*
-		If all peer Ad-hoc clients leave, driver would do LinkDown and LinkUp.
-		In LinkUp, CommonCfg.Ssid would copy SSID from MlmeAux. 
-		To prevent SSID is zero or wrong in Beacon, need to recover MlmeAux.SSID here.
-		*/
-		if (ADHOC_ON(pAd))
-		{
-			NdisZeroMemory(pAd->MlmeAux.Ssid, MAX_LEN_OF_SSID);
-			pAd->MlmeAux.SsidLen = pAd->CommonCfg.SsidLen;
-			NdisMoveMemory(pAd->MlmeAux.Ssid, pAd->CommonCfg.Ssid, pAd->CommonCfg.SsidLen);
-		}
-
-		/*
-		To prevent data lost.
-		Send an NULL data with turned PSM bit on to current associated AP before SCAN progress.
-		Now, we need to send an NULL data with turned PSM bit off to AP, when scan progress done 
-		*/
-		if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED) && (INFRA_ON(pAd)))
-		{
-			RTMPSendNullFrame(pAd, 
-								pAd->CommonCfg.TxRate, 
-								(OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_WMM_INUSED) ? TRUE:FALSE),
-								pAd->CommonCfg.bAPSDForcePowerSave ? PWR_SAVE : pAd->StaCfg.Psm);
-			DBGPRINT(RT_DEBUG_TRACE, ("%s -- Send null frame\n", __FUNCTION__));
-		}
-
-#ifdef RT_CFG80211_P2P_CONCURRENT_DEVICE                               
-        if (pAd->ApCfg.ApCliTab[MAIN_MBSSID].Valid && RTMP_CFG80211_VIF_P2P_CLI_ON(pAd))
-        {
-                DBGPRINT(RT_DEBUG_TRACE, ("CFG80211_NULL: PWR_ACTIVE SCAN_END\n"));
-                RT_CFG80211_P2P_CLI_SEND_NULL_FRAME(pAd, PWR_ACTIVE);
-        }
-#endif /* RT_CFG80211_P2P_CONCURRENT_DEVICE */
-		
-		/* keep the latest scan channel, could be 0 for scan complete, or other channel*/
-		pAd->StaCfg.LastScanChannel = pAd->MlmeAux.Channel;
-
-		pAd->StaCfg.ScanChannelCnt = 0;
-
-		/* Suspend scanning and Resume TxData for Fast Scanning*/
-		if ((pAd->MlmeAux.Channel != 0) &&
-		(pAd->StaCfg.bImprovedScan))	/* it is scan pending*/
-		{
-			pAd->Mlme.SyncMachine.CurrState = SCAN_PENDING;
-			Status = MLME_SUCCESS;
-			DBGPRINT(RT_DEBUG_WARN, ("bFastRoamingScan ~~~ Get back to send data ~~~\n"));
-
-			RTMPResumeMsduTransmission(pAd);
-		}
-		else
-		{
-			pAd->StaCfg.BssNr = pAd->ScanTab.BssNr;
-			pAd->StaCfg.bImprovedScan = FALSE;
-
-			pAd->Mlme.SyncMachine.CurrState = SYNC_IDLE;
-			Status = MLME_SUCCESS;
-			MlmeEnqueue(pAd, MLME_CNTL_STATE_MACHINE, MT2_SCAN_CONF, 2, &Status, 0);
-			RTMP_MLME_HANDLER(pAd);
-		}
-
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_AP_SUPPORT
 	if (OpMode == OPMODE_AP)
@@ -229,45 +167,22 @@ static INT scan_ch_restore(RTMP_ADAPTER *pAd, UCHAR OpMode)
 #ifdef CUSTOMER_DCC_FEATURE
 	pAd->ChannelStats.LastReadTime = 0;
 #endif
-#ifdef CONFIG_AP_SUPPORT
-#ifdef SMART_MESH
-	if(OpMode == OPMODE_AP)
-	{
-#ifdef AP_PARTIAL_SCAN_SUPPORT
-	if ((pAd->ApCfg.bPartialScanning == FALSE) && (pAd->ApCfg.LastPartialScanChannel == 0))
-#endif /* AP_PARTIAL_SCAN_SUPPORT */
-		Set_Check_RadarChannelAPExist(pAd);
-	}
-#endif /* SMART_MESH */
-#endif /* CONFIG_AP_SUPPORT */
-
 	return TRUE;
 }
 
 
 
-static INT scan_active(RTMP_ADAPTER *pAd, UCHAR OpMode, UCHAR ScanType, INT IfType)
+static INT scan_active(RTMP_ADAPTER *pAd, UCHAR OpMode, UCHAR ScanType)
 {
 	UCHAR *frm_buf = NULL;
 	HEADER_802_11 Hdr80211;
 	ULONG FrameLen = 0;
 	UCHAR SsidLen = 0;
-#ifdef CONFIG_STA_SUPPORT
-	USHORT Status;
-#endif /* CONFIG_STA_SUPPORT */
 
 
 	if (MlmeAllocateMemory(pAd, &frm_buf) != NDIS_STATUS_SUCCESS)
 	{
 		DBGPRINT(RT_DEBUG_TRACE, ("SYNC - ScanNextChannel() allocate memory fail\n"));
-#ifdef CONFIG_STA_SUPPORT
-		if (OpMode == OPMODE_STA)
-		{
-			pAd->Mlme.SyncMachine.CurrState = SYNC_IDLE;
-			Status = MLME_FAIL_NO_RESOURCE;
-			MlmeEnqueue(pAd, MLME_CNTL_STATE_MACHINE, MT2_SCAN_CONF, 2, &Status, 0);
-		}
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_AP_SUPPORT
 		if (OpMode == OPMODE_AP)
@@ -303,31 +218,18 @@ static INT scan_active(RTMP_ADAPTER *pAd, UCHAR OpMode, UCHAR ScanType, INT IfTy
 		{
 #ifdef APCLI_SUPPORT
 #ifdef WSC_INCLUDED
-			if ((ScanType == SCAN_WSC_ACTIVE) || (IfType == INT_APCLI))
-            {
+					if (ScanType == SCAN_WSC_ACTIVE) 
 						MgtMacHeaderInitExt(pAd, &Hdr80211, SUBTYPE_PROBE_REQ, 0, BROADCAST_ADDR, 
 										pAd->ApCfg.ApCliTab[0].wdev.if_addr,
 										BROADCAST_ADDR);	
-            }
 					else
 #endif /* WSC_INCLUDED */						
 #endif /* APCLI_SUPPORT */		
-			{
 			MgtMacHeaderInitExt(pAd, &Hdr80211, SUBTYPE_PROBE_REQ, 0, BROADCAST_ADDR,
 								pAd->ApCfg.MBSSID[0].wdev.bssid,
 								BROADCAST_ADDR);
-			}
 		}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-		/*IF_DEV_CONFIG_OPMODE_ON_STA(pAd) */
-		if (OpMode == OPMODE_STA)
-		{
-			MgtMacHeaderInit(pAd, &Hdr80211, SUBTYPE_PROBE_REQ, 0, BROADCAST_ADDR, 
-								pAd->CurrentAddress,
-								BROADCAST_ADDR);
-		}
-#endif /* CONFIG_STA_SUPPORT */
 
 		MakeOutgoingFrame(frm_buf,               &FrameLen,
 						  sizeof(HEADER_802_11),    &Hdr80211,
@@ -461,13 +363,6 @@ static INT scan_active(RTMP_ADAPTER *pAd, UCHAR OpMode, UCHAR ScanType, INT IfTy
 				}
 #endif /* WSC_V2_SUPPORT */
 
-#ifdef WSC_AP_SUPPORT
-#ifdef SMART_MESH_HIDDEN_WPS
-                if(pAd->ApCfg.ApCliTab[0].SmartMeshCfg.bSupportHiddenWPS)
-                    bHasWscIe = FALSE;
-#endif /* SMART_MESH_HIDDEN_WPS */
-#endif /* WSC_AP_SUPPORT */
-
 				if (bHasWscIe)
 				{
 					UCHAR		*pWscBuf = NULL, WscIeLen = 0;
@@ -499,33 +394,6 @@ static INT scan_active(RTMP_ADAPTER *pAd, UCHAR OpMode, UCHAR ScanType, INT IfTy
 		FrameLen += build_vht_ies(pAd, (UCHAR *)(frm_buf + FrameLen), SUBTYPE_PROBE_REQ);
 	}
 #endif /* DOT11_VHT_AC */
-
-#ifdef SMART_MESH
-	if ((OpMode == OPMODE_AP))
-	{
-		if ((IfType == INT_APCLI)
-#ifdef APCLI_SUPPORT
-#ifdef WSC_INCLUDED
-            || ((ScanType == SCAN_WSC_ACTIVE) && (OpMode == OPMODE_AP))
-#endif /* WSC_INCLUDED */			
-#endif /* APCLI_SUPPORT */
-            )
-		{
-			SMART_MESH_INSERT_IE(pAd->ApCfg.ApCliTab[0].SmartMeshCfg,
-							frm_buf,
-							FrameLen,
-							SM_IE_PROBE_REQ);
-		}
-		else
-		{
-			SMART_MESH_INSERT_IE(pAd->ApCfg.MBSSID[MAIN_MBSSID].SmartMeshCfg,
-							frm_buf,
-							FrameLen,
-							SM_IE_PROBE_REQ);
-		}
-	}
-#endif /* SMART_MESH */
-
 
 #ifdef WSC_STA_SUPPORT
 	if (OpMode == OPMODE_STA)
@@ -570,67 +438,45 @@ static INT scan_active(RTMP_ADAPTER *pAd, UCHAR OpMode, UCHAR ScanType, INT IfTy
 
 #endif /* WSC_STA_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef WPA_SUPPLICANT_SUPPORT
-	if ((OpMode == OPMODE_STA) &&
-		(pAd->StaCfg.wpa_supplicant_info.WpaSupplicantUP != WPA_SUPPLICANT_DISABLE) &&
-		(pAd->StaCfg.wpa_supplicant_info.WpsProbeReqIeLen != 0))
-	{
-		ULONG 		WpsTmpLen = 0;
-		
-		MakeOutgoingFrame(frm_buf + FrameLen,              &WpsTmpLen,
-						pAd->StaCfg.wpa_supplicant_info.WpsProbeReqIeLen,
-						pAd->StaCfg.wpa_supplicant_info.pWpsProbeReqIe,
-						END_OF_ARGS);
-
-		FrameLen += WpsTmpLen;
-	}
-#endif /* WPA_SUPPLICANT_SUPPORT */
-#ifdef RT_CFG80211_SUPPORT
-	if ((OpMode == OPMODE_STA) &&
-		(pAd->StaCfg.wpa_supplicant_info.WpaSupplicantUP != WPA_SUPPLICANT_DISABLE) &&
-		CFG80211DRV_OpsScanRunning(pAd))
-	{
-		ULONG 		ExtraIeTmpLen = 0;
-		
-		MakeOutgoingFrame(frm_buf + FrameLen,              &ExtraIeTmpLen,
-						pAd->cfg80211_ctrl.ExtraIeLen,	pAd->cfg80211_ctrl.pExtraIe,
-						END_OF_ARGS);
-
-		FrameLen += ExtraIeTmpLen;	
-	}
-#endif /* RT_CFG80211_SUPPORT */
-#endif /*CONFIG_STA_SUPPORT*/
 
 
 	MiniportMMRequest(pAd, 0, frm_buf, FrameLen);
 
-#ifdef CONFIG_STA_SUPPORT
-	if (OpMode == OPMODE_STA)
-	{
-		/*
-			To prevent data lost.
-			Send an NULL data with turned PSM bit on to current associated AP when SCAN in the channel where
-			associated AP located.
-		*/
-		if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED) && 
-			(INFRA_ON(pAd)) &&
-			(pAd->CommonCfg.Channel == pAd->MlmeAux.Channel))
-		{
-			RTMPSendNullFrame(pAd, 
-						  pAd->CommonCfg.TxRate, 
-						  (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_WMM_INUSED) ? TRUE:FALSE),
-						  PWR_SAVE);
-			DBGPRINT(RT_DEBUG_TRACE, ("ScanNextChannel():Send PWA NullData frame to notify the associated AP!\n"));
-		}
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	MlmeFreeMemory(pAd, frm_buf);
 
 	return TRUE;
 }
 
+#ifdef WH_EZ_SETUP
+#ifdef APCLI_SUPPORT
+static void FireExtraProbeReq(RTMP_ADAPTER *pAd, UCHAR OpMode,
+	UCHAR ScanType,
+	struct wifi_dev *wdev,
+	UCHAR *desSsid, UCHAR desSsidLen)
+{
+	UCHAR backSsid[MAX_LEN_OF_SSID];
+	UCHAR backSsidLen = 0;
+
+	NdisZeroMemory(backSsid, MAX_LEN_OF_SSID);
+
+	//1. backup the original MlmeAux
+	backSsidLen = pAd->ScanCtrl.SsidLen;
+	NdisCopyMemory(backSsid, pAd->ScanCtrl.Ssid, backSsidLen);
+	
+	//2. fill the desried ssid into SM
+	pAd->ScanCtrl.SsidLen = desSsidLen;
+	NdisCopyMemory(pAd->ScanCtrl.Ssid, desSsid, desSsidLen);
+
+	//3. scan action
+	scan_active(pAd, OpMode, ScanType);
+
+	//4. restore to ScanCtrl
+	pAd->ScanCtrl.SsidLen  = backSsidLen;
+	NdisCopyMemory(pAd->ScanCtrl.Ssid, backSsid, backSsidLen);
+}
+#endif /* APCLI_SUPPORT */
+#endif
 
 /*
 	==========================================================================
@@ -638,18 +484,16 @@ static INT scan_active(RTMP_ADAPTER *pAd, UCHAR OpMode, UCHAR ScanType, INT IfTy
 		Scan next channel
 	==========================================================================
  */
-VOID ScanNextChannel(RTMP_ADAPTER *pAd, UCHAR OpMode, INT IfType)
+VOID ScanNextChannel(RTMP_ADAPTER *pAd, UCHAR OpMode)
 {
 	UCHAR ScanType = pAd->MlmeAux.ScanType;
 	UINT ScanTimeIn5gChannel = SHORT_CHANNEL_TIME;
 	BOOLEAN ScanPending = FALSE;
 	RALINK_TIMER_STRUCT *sc_timer = NULL;
 	UINT stay_time = 0;
-#ifdef CONFIG_AP_SUPPORT
-#ifdef SMART_MESH
-	BOOLEAN bRadarChannelAPExist = FALSE;
-#endif /* SMART_MESH */
-#endif /* CONFIG_AP_SUPPORT */
+#ifdef WH_EZ_SETUP
+	MAC_TABLE_ENTRY *pMacEntry;
+#endif
 
 #ifdef RALINK_ATE
 	/* Nothing to do in ATE mode. */
@@ -658,49 +502,76 @@ VOID ScanNextChannel(RTMP_ADAPTER *pAd, UCHAR OpMode, INT IfType)
 #endif /* RALINK_ATE */
 
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		if (MONITOR_ON(pAd))
-			return;
-	}
-
-	ScanPending = ((pAd->StaCfg.bImprovedScan) && (pAd->StaCfg.ScanChannelCnt>=7));
-#endif /* CONFIG_STA_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-#ifdef RT_CFG80211_SUPPORT
-	/* Since the Channel List is from Upper layer */
-	if (CFG80211DRV_OpsScanRunning(pAd))
-		pAd->MlmeAux.Channel = CFG80211DRV_OpsScanGetNextChannel(pAd);
-#endif /* RT_CFG80211_SUPPORT */
-#endif /* CONFIG_STA_SUPPORT */
 	if ((pAd->MlmeAux.Channel == 0) || ScanPending) 
 	{
 		scan_ch_restore(pAd, OpMode);
+#ifdef WH_EZ_SETUP
+#ifdef CONFIG_AP_SUPPORT
+#ifdef APCLI_SUPPORT
+		if (IS_ADPTR_EZ_SETUP_ENABLED(pAd)) {
+			pMacEntry = MacTableLookup(pAd, pAd->ApCfg.ApCliTab[BSS0].wdev.bssid);
+			if(pMacEntry && pAd->ApCfg.ApCliTab[BSS0].Valid)
+				ApCliRTMPSendNullFrame(pAd,pMacEntry->CurrTxRate, FALSE,
+					pMacEntry, PWR_ACTIVE);
+			if ((pAd->ApCfg.ScanReqwdev != NULL) &&
+				pAd->ApCfg.ScanReqwdev->ez_driver_params.ez_scan == TRUE) {
+				ez_handle_scan_channel_restore(pAd->ApCfg.ScanReqwdev);
+				pAd->ApCfg.ScanReqwdev->ez_driver_params.ez_scan = FALSE;
+				EZ_DEBUG(DBG_CAT_PROTO, DBG_SUBCAT_ALL, EZ_DBG_LVL_ERROR,
+					("Start Join For  wdev-> type = %d wdev = %d\n", 
+					pAd->ApCfg.ScanReqwdev->wdev_type,
+					pAd->ApCfg.ScanReqwdev->wdev_idx));
+				ApCliIfUp(pAd);
+				pAd->ApCfg.ScanReqwdev = NULL;
+			}
+#ifdef MOBILE_APP_SUPPORT
+			else if (IS_EZ_SETUP_ENABLED(&pAd->ApCfg.ApCliTab[BSS0].wdev)) {
+				int i=0;
+				unsigned char bssid[6] = {0};
+
+				for (i = 0; i < pAd->ScanTab.BssNr; i++) {
+					BSS_ENTRY *bss_entry = NULL;
+					PAPCLI_STRUCT apcli_entry = &pAd->ApCfg.ApCliTab[BSS0];
+
+					bss_entry = &pAd->ScanTab.BssEntry[i];
+					if (bss_entry->support_easy_setup == TRUE)
+						continue;
+					if (SSID_EQUAL(apcli_entry->CfgSsid, apcli_entry->CfgSsidLen,
+						bss_entry->Ssid, bss_entry->SsidLen)) {
+						COPY_MAC_ADDR(bssid, bss_entry->Bssid);
+					}
+				}
+				RtmpOSWrielessEventSend(pAd->net_dev, RT_WLAN_EVENT_CUSTOM,
+					OID_WH_EZ_MAN_TRIBAND_SCAN_COMPLETE_EVENT,
+					NULL, bssid, MAC_ADDR_LEN);
+			}
+		}
+#endif			
+#endif	//APCLI_SUPPORT
+#endif	//CONFIG_AP_SUPPORT
+#endif	// WH_EZ_SETUP
+
 	} 
 	else 
 	{
-#ifdef CONFIG_STA_SUPPORT
-		if (OpMode == OPMODE_STA)
-		{
-			/* BBP and RF are not accessible in PS mode, we has to wake them up first*/
-			if (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_DOZE))
-				AsicForceWakeup(pAd, TRUE);
-
-			/* leave PSM during scanning. otherwise we may lost ProbeRsp & BEACON*/
-			if (pAd->StaCfg.Psm == PWR_SAVE)
-				RTMP_SET_PSM_BIT(pAd, PWR_ACTIVE);
-		}
-#endif /* CONFIG_STA_SUPPORT */
 #ifdef CONFIG_AP_SUPPORT
 		if (OpMode == OPMODE_AP) {
 			pAd->Mlme.ApSyncMachine.CurrState = AP_SCAN_LISTEN;
 			}
 #endif /* CONFIG_AP_SUPPORT */
-
-		AsicSwitchChannel(pAd, pAd->MlmeAux.Channel, TRUE);
-		AsicLockChannel(pAd, pAd->MlmeAux.Channel);
-
+#ifdef WH_EZ_SETUP
+		if ((pAd->ApCfg.ScanReqwdev != NULL) &&
+			IS_EZ_SETUP_ENABLED(pAd->ApCfg.ScanReqwdev) &&
+			pAd->ApCfg.ScanReqwdev->ez_driver_params.scan_one_channel) {
+			EZ_DEBUG(DBG_CAT_AP, DBG_SUBCAT_ALL, EZ_DBG_LVL_TRACE,
+				("AP SYNC %s() - Only scan ch.%d and keep original channel setting.\n",
+				__func__, pAd->ScanCtrl.Channel));
+		} else
+#endif /* WH_EZ_SETUP */
+		{
+			AsicSwitchChannel(pAd, pAd->MlmeAux.Channel, TRUE);
+			AsicLockChannel(pAd, pAd->MlmeAux.Channel);
+		}
 		{
 			BOOLEAN bScanPassive = FALSE;
 			if (pAd->MlmeAux.Channel > 14)
@@ -714,39 +585,22 @@ VOID ScanNextChannel(RTMP_ADAPTER *pAd, UCHAR OpMode, INT IfType)
 				bScanPassive = TRUE;
 #endif /* CARRIER_DETECTION_SUPPORT */ 
 
-#ifdef CONFIG_AP_SUPPORT
-#ifdef SMART_MESH
-			if(OpMode == OPMODE_AP && IsRadarChannelAPExist(pAd,pAd->MlmeAux.Channel))
-			{
-				bRadarChannelAPExist = TRUE;
-				bScanPassive = FALSE;
-			}
-#endif /* SMART_MESH */
-#endif /* CONFIG_AP_SUPPORT */
-
 			if (bScanPassive)
 			{
 				ScanType = SCAN_PASSIVE;
 				ScanTimeIn5gChannel = MIN_CHANNEL_TIME;
 			}
 		}
-#ifdef CONFIG_AP_SUPPORT
-#ifdef SMART_MESH
-		if(!bRadarChannelAPExist)
-#endif /* SMART_MESH */
-#endif /* CONFIG_AP_SUPPORT */
-		{
+
 		/* Check if channel if passive scan under current regulatory domain */
-			if ((CHAN_PropertyCheck(pAd, pAd->MlmeAux.Channel, CHANNEL_PASSIVE_SCAN) == TRUE))
+		if (CHAN_PropertyCheck(pAd, pAd->MlmeAux.Channel, CHANNEL_PASSIVE_SCAN) == TRUE)
 			ScanType = SCAN_PASSIVE;
-		}
 
 
 		if (OpMode == OPMODE_AP)
 			sc_timer = &pAd->MlmeAux.APScanTimer;
 		else
 			sc_timer = &pAd->MlmeAux.ScanTimer;
-        pAd->MlmeAux.ScanInfType = IfType;
 			
 		/* We need to shorten active scan time in order for WZC connect issue */
 		/* Chnage the channel scan time for CISCO stuff based on its IAPP announcement */
@@ -754,9 +608,6 @@ VOID ScanNextChannel(RTMP_ADAPTER *pAd, UCHAR OpMode, INT IfType)
 			stay_time = FAST_ACTIVE_SCAN_TIME;
 		else /* must be SCAN_PASSIVE or SCAN_ACTIVE*/
 		{
-#ifdef CONFIG_STA_SUPPORT
-			pAd->StaCfg.ScanChannelCnt++;
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_AP_SUPPORT
 			if ((OpMode == OPMODE_AP) && (pAd->ApCfg.bAutoChannelAtBootup))
@@ -799,16 +650,38 @@ VOID ScanNextChannel(RTMP_ADAPTER *pAd, UCHAR OpMode, INT IfType)
 				stay_time = MAX_CHANNEL_TIME;
 		}
 				
-#ifdef SMART_MESH
-		if (pAd->ApCfg.ScanTime != 0)
-			stay_time = pAd->ApCfg.ScanTime;
-#endif /* SMART_MESH */				
 		RTMPSetTimer(sc_timer, stay_time);
 			
 		if (SCAN_MODE_ACT(ScanType))
 		{
-			if (scan_active(pAd, OpMode, ScanType, IfType) == FALSE)
+			if (scan_active(pAd, OpMode, ScanType) == FALSE) {
+#ifdef WH_EZ_SETUP
+				if((IS_EZ_SETUP_ENABLED(&pAd->ApCfg.ApCliTab[BSS0].wdev))
+					&& (pAd->Mlme.ApSyncMachine.CurrState == AP_SCAN_LISTEN)) 
+					pAd->Mlme.ApSyncMachine.CurrState = AP_SYNC_IDLE;
+#endif
+
 				return;
+			}
+#ifdef APCLI_SUPPORT
+#ifdef WH_EZ_SETUP
+			{
+				PAPCLI_STRUCT pApCliEntry = NULL;
+				UINT index = 0;
+
+				if (IS_ADPTR_EZ_SETUP_ENABLED(pAd)) {
+					for(index = 0; index < MAX_APCLI_NUM; index++)
+					{
+						pApCliEntry = &pAd->ApCfg.ApCliTab[index];
+						if(pApCliEntry->CfgHideSsidLen > 0){
+							FireExtraProbeReq(pAd,	OpMode, ScanType, &pApCliEntry->wdev,
+								pApCliEntry->CfgHideSsid, pApCliEntry->CfgHideSsidLen);
+						}
+					}
+				}
+			}
+#endif
+#endif
 
 #ifdef CONFIG_AP_SUPPORT
 #ifdef APCLI_SUPPORT
@@ -816,7 +689,7 @@ VOID ScanNextChannel(RTMP_ADAPTER *pAd, UCHAR OpMode, INT IfType)
 			if (pAd->ApCfg.bPartialScanning == TRUE)
 			{
 				/* Enhance Connectivity & for Hidden Ssid Scanning*/
-				CHAR backSsid[MAX_LEN_OF_SSID];
+				CHAR desiredSsid[MAX_LEN_OF_SSID], backSsid[MAX_LEN_OF_SSID];
 				UCHAR desiredSsidLen, backSsidLen;
 
 				desiredSsidLen= pAd->ApCfg.ApCliTab[0].CfgSsidLen;
@@ -833,7 +706,7 @@ VOID ScanNextChannel(RTMP_ADAPTER *pAd, UCHAR OpMode, INT IfType)
 					NdisCopyMemory(pAd->MlmeAux.Ssid, pAd->ApCfg.ApCliTab[0].CfgSsid, desiredSsidLen);
 
 					/* 3. scan action */
-					scan_active(pAd, OpMode, ScanType, IfType);
+					scan_active(pAd, OpMode, ScanType);
 			
 					/* 4. restore to MlmeAux */
 					pAd->MlmeAux.SsidLen = backSsidLen;
@@ -847,10 +720,6 @@ VOID ScanNextChannel(RTMP_ADAPTER *pAd, UCHAR OpMode, INT IfType)
 
 		/* For SCAN_CISCO_PASSIVE, do nothing and silently wait for beacon or other probe reponse*/
 		
-#ifdef CONFIG_STA_SUPPORT
-		if (OpMode == OPMODE_STA)
-			pAd->Mlme.SyncMachine.CurrState = SCAN_LISTEN;
-#endif /* CONFIG_STA_SUPPORT */
 	}
 }
 
@@ -859,13 +728,6 @@ BOOLEAN ScanRunning(RTMP_ADAPTER *pAd)
 {
 	BOOLEAN	rv = FALSE;
 
-#ifdef CONFIG_STA_SUPPORT
-		IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		{
-			if ((pAd->Mlme.SyncMachine.CurrState == SCAN_LISTEN) || (pAd->Mlme.SyncMachine.CurrState == SCAN_PENDING))
-				rv = TRUE;
-		}
-#endif /* CONFIG_STA_SUPPORT */
 #ifdef CONFIG_AP_SUPPORT
 #ifdef AP_SCAN_SUPPORT
 		IF_DEV_CONFIG_OPMODE_ON_AP(pAd)

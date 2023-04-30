@@ -73,10 +73,6 @@ UINT GenerateWpsPinCode(
 		NdisMoveMemory(&macAddr[0], pAd->ApCfg.MBSSID[apidx].wdev.if_addr, MAC_ADDR_LEN);
 	}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		NdisMoveMemory(&macAddr[0], pAd->CurrentAddress, MAC_ADDR_LEN);
-#endif /* CONFIG_STA_SUPPORT */
 
 	iPin = macAddr[3] * 256 * 256 + macAddr[4] * 256 + macAddr[5];
 
@@ -225,12 +221,12 @@ UCHAR *wmode_2_str(UCHAR wmode)
 
 RT_802_11_PHY_MODE wmode_2_cfgmode(UCHAR wmode)
 {
-	INT i, mode_cnt = sizeof(CFG_WMODE_MAP) / sizeof(UCHAR);
+	INT i, mode_cnt = sizeof(CFG_WMODE_MAP) / (sizeof(UCHAR) * 2);
 
-	for (i = 1; i < mode_cnt; i+=2)
-	{	
-		if (CFG_WMODE_MAP[i] == wmode)
-			return CFG_WMODE_MAP[i - 1];
+	for (i = 0; i < mode_cnt; i++)
+	{
+		if (CFG_WMODE_MAP[i*2+1] == wmode)
+			return CFG_WMODE_MAP[i*2];
 	}
 
 	DBGPRINT(RT_DEBUG_ERROR, ("%s(): Cannot get cfgmode by wmode(%x)\n", 
@@ -250,7 +246,7 @@ UCHAR cfgmode_2_wmode(UCHAR cfg_mode)
 }
 
 
-BOOLEAN wmode_valid(RTMP_ADAPTER *pAd, enum WIFI_MODE wmode)
+static BOOLEAN wmode_valid(RTMP_ADAPTER *pAd, enum WIFI_MODE wmode)
 {
 	if ((WMODE_CAP_5G(wmode) && (!PHY_CAP_5G(pAd->chipCap.phy_caps))) ||
 		(WMODE_CAP_2G(wmode) && (!PHY_CAP_2G(pAd->chipCap.phy_caps))) ||
@@ -259,6 +255,31 @@ BOOLEAN wmode_valid(RTMP_ADAPTER *pAd, enum WIFI_MODE wmode)
 		return FALSE;
 	else
 		return TRUE;
+}
+
+
+static BOOLEAN wmode_valid_and_correct(RTMP_ADAPTER *pAd, UCHAR* wmode)
+{
+	BOOLEAN ret = TRUE;
+	UCHAR mode = *wmode;
+
+	if (WMODE_CAP_5G(*wmode) && (!PHY_CAP_5G(pAd->chipCap.phy_caps)))
+	{
+		*wmode = *wmode & ~(WMODE_A | WMODE_AN | WMODE_AC);
+	}
+	else if (WMODE_CAP_2G(*wmode) && (!PHY_CAP_2G(pAd->chipCap.phy_caps)))
+	{
+		*wmode = *wmode & ~(WMODE_B | WMODE_G | WMODE_GN);
+	}
+	else if (WMODE_CAP_N(*wmode) && RTMP_TEST_MORE_FLAG(pAd, fRTMP_ADAPTER_DISABLE_DOT_11N))
+	{
+		*wmode = *wmode & ~(WMODE_GN | WMODE_AN);
+	}
+
+	if ( *wmode == 0 )
+		ret = FALSE;
+
+	return ret;
 }
 
 
@@ -301,9 +322,7 @@ INT RT_CfgSetWirelessMode(RTMP_ADAPTER *pAd, PSTRING arg)
 {
 	LONG cfg_mode;
 	UCHAR wmode, *mode_str;
-#ifdef MT76x2
 	RTMP_CHIP_CAP *pChipCap = &pAd->chipCap;
-#endif /* MT76x2 */
 
 	cfg_mode = simple_strtol(arg, 0, 10);
 
@@ -318,12 +337,10 @@ INT RT_CfgSetWirelessMode(RTMP_ADAPTER *pAd, PSTRING arg)
 	}
 
 #ifdef MT76x2
-#ifdef DOT11_VHT_AC
 	if (pChipCap->ac_off_mode && WMODE_CAP_AC(wmode)) {
 		DBGPRINT(RT_DEBUG_ERROR, ("it doesn't support VHT AC!\n"));
 		wmode &= ~(WMODE_AC);
 	}
-#endif /* DOT11_VHT_AC */
 #endif /* MT76x2 */
 
 	if (wmode_band_equal(pAd->CommonCfg.PhyMode, wmode) == TRUE)
@@ -390,9 +407,7 @@ INT RT_CfgSetMbssWirelessMode(RTMP_ADAPTER *pAd, PSTRING arg)
 {
 	INT cfg_mode;
 	UCHAR wmode;
-#ifdef MT76x2
 	RTMP_CHIP_CAP *pChipCap = &pAd->chipCap;
-#endif /* MT76x2 */
 
 	cfg_mode = simple_strtol(arg, 0, 10);
 
@@ -413,12 +428,10 @@ INT RT_CfgSetMbssWirelessMode(RTMP_ADAPTER *pAd, PSTRING arg)
 
 
 #ifdef MT76x2
-#ifdef DOT11_VHT_AC
 	if (pChipCap->ac_off_mode && WMODE_CAP_AC(wmode)) {
 		DBGPRINT(RT_DEBUG_ERROR, ("it doesn't support VHT AC!\n"));
 		wmode &= ~(WMODE_AC);
 	}
-#endif /* DOT11_VHT_AC */
 #endif /* MT76x2 */
 
 	if (pAd->ApCfg.BssidNum > 1)
@@ -623,7 +636,6 @@ INT	RT_CfgSetFixedTxPhyMode(PSTRING arg)
 			case FIXED_TXMODE_HT:
 			case FIXED_TXMODE_VHT:
 				fix_tx_mode = value;
-				break;
 			default:
 				fix_tx_mode = FIXED_TXMODE_HT;
 		}
@@ -687,6 +699,7 @@ INT	RT_CfgSetAutoFallBack(
 	IN 	PRTMP_ADAPTER 	pAd,
 	IN	PSTRING			arg)
 {
+	TX_RTY_CFG_STRUC tx_rty_cfg;
 	UCHAR AutoFallBack = (UCHAR)simple_strtol(arg, 0, 10);
 
 	if (AutoFallBack)
@@ -803,15 +816,6 @@ INT RTMP_COM_IoctlHandle(
 					wdev = &pAd->ApCfg.MBSSID[MAIN_MBSSID].wdev;
 				}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-				if (pAd->OpMode == OPMODE_STA) {
-					pAd->StaCfg.wdev.if_dev = pData;
-					pAd->StaCfg.wdev.func_dev = (void *)&pAd->StaCfg;
-					pAd->StaCfg.wdev.sys_handle = (void *)pAd;
-					RTMP_OS_NETDEV_SET_WDEV(pData, &pAd->StaCfg.wdev);
-					wdev = &pAd->StaCfg.wdev;
-				}
-#endif /* CONFIG_STA_SUPPORT */
 				if (wdev) {
 					if (rtmp_wdev_idx_reg(pAd, wdev) < 0) {
 						DBGPRINT(RT_DEBUG_ERROR, ("Assign wdev idx for %s failed, free net device!\n",
@@ -872,129 +876,6 @@ INT RTMP_COM_IoctlHandle(
 			RTMP_CLEAR_PSFLAG(pAd, fRTMP_PS_MCU_SLEEP);
 			break;
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef CONFIG_PM
-#ifdef USB_SUPPORT_SELECTIVE_SUSPEND
-                case CMD_RTPRIV_IOCTL_USB_DEV_GET:
-                /* get USB DEV */
-                {
-                        VOID **ppUsb_Dev = (VOID **)pData;
-                        *ppUsb_Dev = (VOID *)(pObj->pUsb_Dev);
-                }
-                        break;
-
-                case CMD_RTPRIV_IOCTL_USB_INTF_GET:
-                /* get USB INTF */
-                {
-                        VOID **ppINTF = (VOID **)pData;
-                        *ppINTF = (VOID *)(pObj->intf);
-                }
-                        break;
-
-		case CMD_RTPRIV_IOCTL_ADAPTER_SUSPEND_SET:
-		/* set driver state to fRTMP_ADAPTER_SUSPEND */
-			RTMP_SET_FLAG(pAd,fRTMP_ADAPTER_SUSPEND);
-			break;
-
-		case CMD_RTPRIV_IOCTL_ADAPTER_SUSPEND_CLEAR:
-		/* clear driver state to fRTMP_ADAPTER_SUSPEND */
-			RTMP_CLEAR_FLAG(pAd,fRTMP_ADAPTER_SUSPEND);
-			RTMP_CLEAR_FLAG(pAd, fRTMP_ADAPTER_MCU_SEND_IN_BAND_CMD);
-			RTMP_CLEAR_PSFLAG(pAd, fRTMP_PS_MCU_SLEEP);
-			break;
-
-		case CMD_RTPRIV_IOCTL_ADAPTER_SEND_DISSASSOCIATE:
-		/* clear driver state to fRTMP_ADAPTER_SUSPEND */
-			if (INFRA_ON(pAd) &&
-			(!RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_NIC_NOT_EXIST)))
-			{
-				MLME_DISASSOC_REQ_STRUCT	DisReq;
-				MLME_QUEUE_ELEM *MsgElem;
-				os_alloc_mem(NULL, (UCHAR **)&MsgElem, sizeof(MLME_QUEUE_ELEM));
-				if (MsgElem)
-				{
-					COPY_MAC_ADDR(DisReq.Addr, pAd->CommonCfg.Bssid);
-					DisReq.Reason =  REASON_DEAUTH_STA_LEAVING;
-					MsgElem->Machine = ASSOC_STATE_MACHINE;
-					MsgElem->MsgType = MT2_MLME_DISASSOC_REQ;
-					MsgElem->MsgLen = sizeof(MLME_DISASSOC_REQ_STRUCT);
-					NdisMoveMemory(MsgElem->Msg, &DisReq, sizeof(MLME_DISASSOC_REQ_STRUCT));
-					/* Prevent to connect AP again in STAMlmePeriodicExec*/
-					pAd->MlmeAux.AutoReconnectSsidLen= 32;
-					NdisZeroMemory(pAd->MlmeAux.AutoReconnectSsid, pAd->MlmeAux.AutoReconnectSsidLen);
-					pAd->Mlme.CntlMachine.CurrState = CNTL_WAIT_OID_DISASSOC;
-					MlmeDisassocReqAction(pAd, MsgElem);
-					os_free_mem(NULL, MsgElem);
-				}
-				/*				RtmpusecDelay(1000);*/
-				RtmpOSWrielessEventSend(pAd->net_dev, RT_WLAN_EVENT_CGIWAP, -1, NULL, NULL, 0);
-			}
-			break;
-			
-		case CMD_RTPRIV_IOCTL_ADAPTER_SUSPEND_TEST:
-		/* test driver state to fRTMP_ADAPTER_SUSPEND */
-			*(UCHAR *)pData = RTMP_TEST_FLAG(pAd,fRTMP_ADAPTER_SUSPEND);
-			break;
-
-		case CMD_RTPRIV_IOCTL_ADAPTER_IDLE_RADIO_OFF_TEST:
-		/* test driver state to fRTMP_ADAPTER_IDLE_RADIO_OFF */
-			*(UCHAR *)pData = RTMP_TEST_FLAG(pAd,fRTMP_ADAPTER_IDLE_RADIO_OFF);
-			break;
-
-		case CMD_RTPRIV_IOCTL_ADAPTER_RT28XX_USB_ASICRADIO_OFF:
-			ASIC_RADIO_OFF(pAd, SUSPEND_RADIO_OFF);
-			break;
-
-		case CMD_RTPRIV_IOCTL_ADAPTER_RT28XX_USB_ASICRADIO_ON:
-			ASIC_RADIO_ON(pAd, RESUME_RADIO_ON);
-			break;
-
-#endif /* USB_SUPPORT_SELECTIVE_SUSPEND */
-
-#if (defined(WOW_SUPPORT) && defined(RTMP_MAC_USB)) || defined(NEW_WOW_SUPPORT)
-		case CMD_RTPRIV_IOCTL_ADAPTER_RT28XX_WOW_STATUS:
-			*(UCHAR *)pData = (UCHAR)pAd->WOW_Cfg.bEnable;
-			break;
-
-		case CMD_RTPRIV_IOCTL_ADAPTER_RT28XX_WOW_ENABLE:
-			ASIC_WOW_ENABLE(pAd);
-			break;
-
-		case CMD_RTPRIV_IOCTL_ADAPTER_RT28XX_WOW_DISABLE:
-			ASIC_WOW_DISABLE(pAd);
-			break;
-#endif /* (defined(WOW_SUPPORT) && defined(RTMP_MAC_USB)) || defined(NEW_WOW_SUPPORT) */
-#endif /* CONFIG_PM */	
-
-		case CMD_RTPRIV_IOCTL_AP_BSSID_GET:
-			if (pAd->StaCfg.wdev.PortSecured == WPA_802_1X_PORT_NOT_SECURED)
-				NdisCopyMemory(pData, pAd->MlmeAux.Bssid, 6);
-			else
-				return NDIS_STATUS_FAILURE;
-			break;
-
-		case CMD_RTPRIV_IOCTL_ADAPTER_SUSPEND_SET:
-		/* set driver state to fRTMP_ADAPTER_SUSPEND */
-			RTMP_SET_FLAG(pAd,fRTMP_ADAPTER_SUSPEND);
-			break;
-
-		case CMD_RTPRIV_IOCTL_ADAPTER_SUSPEND_CLEAR:
-		/* clear driver state to fRTMP_ADAPTER_SUSPEND */
-			RTMP_CLEAR_FLAG(pAd,fRTMP_ADAPTER_SUSPEND);
-			break;
-
-		case CMD_RTPRIV_IOCTL_ADAPTER_RT28XX_USB_ASICRADIO_OFF:
-		/* RT28xxUsbAsicRadioOff */
-			//RT28xxUsbAsicRadioOff(pAd);
-			ASIC_RADIO_OFF(pAd, SUSPEND_RADIO_OFF);
-			break;
-
-		case CMD_RTPRIV_IOCTL_ADAPTER_RT28XX_USB_ASICRADIO_ON:
-		/* RT28xxUsbAsicRadioOn */
-			//RT28xxUsbAsicRadioOn(pAd);
-			ASIC_RADIO_ON(pAd, RESUME_RADIO_ON);
-			break;
-#endif /* CONFIG_STA_SUPPORT */
 
 		case CMD_RTPRIV_IOCTL_SANITY_CHECK:
 		/* sanity check before IOCTL */
@@ -1143,22 +1024,11 @@ INT RTMP_COM_IoctlHandle(
 
 			if (VIRTUAL_IF_NUM(pAd) == 0)
 			{
-#ifdef DBG
-                ULONG start, end, diff_ms;
-                /* Get the current time for calculating startup time */
-                NdisGetSystemUpTime(&start);
-#endif /* DBG */	
 				if (pInfConf->rt28xx_open(pAd->net_dev) != 0)
 				{
 					DBGPRINT(RT_DEBUG_TRACE, ("rt28xx_open return fail!\n"));
 					return NDIS_STATUS_FAILURE;
 				}
-#ifdef DBG				
-                /* Get the current time for calculating startup time */
-                NdisGetSystemUpTime(&end); diff_ms = (end-start)*1000/OS_HZ;
-                DBGPRINT(RT_DEBUG_OFF, ("WiFi Interface Up Time (%s): %lu.%03lus\n",
-                        RTMP_OS_NETDEV_GET_DEVNAME(pAd->net_dev),diff_ms/1000,diff_ms%1000));
-#endif /* DBG */
 			}
 			else
 			{
@@ -1167,6 +1037,10 @@ INT RTMP_COM_IoctlHandle(
 				extern VOID  APUpdateAllBeaconFrame(IN PRTMP_ADAPTER pAd);
 				APMakeAllBssBeacon(pAd);
 				APUpdateAllBeaconFrame(pAd);
+				
+				if (pAd->Dot11_H.RDMode == RD_NORMAL_MODE)
+					AsicEnableBssSync(pAd);
+
 #endif /* CONFIG_AP_SUPPORT */
 			}
 			VIRTUAL_IF_INC(pAd);
@@ -1180,20 +1054,7 @@ INT RTMP_COM_IoctlHandle(
 
 			VIRTUAL_IF_DEC(pAd);
 			if (VIRTUAL_IF_NUM(pAd) == 0)
-            {
-#ifdef DBG
-                ULONG start, end, diff_ms;
-                /* Get the current time for calculating startup time */
-                NdisGetSystemUpTime(&start);
-#endif /* DBG */	            
 				pInfConf->rt28xx_close(pAd->net_dev);
-#ifdef DBG				
-                /* Get the current time for calculating startup time */
-                NdisGetSystemUpTime(&end); diff_ms = (end-start)*1000/OS_HZ;
-                DBGPRINT(RT_DEBUG_OFF, ("WiFi Interface Down Time (%s): %lu.%03lus\n",
-                        RTMP_OS_NETDEV_GET_DEVNAME(pAd->net_dev),diff_ms/1000,diff_ms%1000));
-#endif /* DBG */
-            }
 		}
 			break;
 
@@ -1210,47 +1071,8 @@ INT RTMP_COM_IoctlHandle(
 		case CMD_RTPRIV_IOCTL_INF_STATS_GET:
 			/* get statistics */
 			{			
-				RT_CMD_STATS64 *pStats = (RT_CMD_STATS64 *)pData;
-#ifdef CONFIG_AP_SUPPORT
-				if(pAd->OpMode == OPMODE_AP)
-				{
-					INT index;
-					MULTISSID_STRUCT *pMBSSID;
-					
-					for(index = 0; index < MAX_MBSSID_NUM(pAd); index++)
-					{
-						if (pAd->ApCfg.MBSSID[index].wdev.if_dev == (PNET_DEV)(pStats->pNetDev))
-						{
-							break;
-						}
-					}
-						
-					if(index >= MAX_MBSSID_NUM(pAd))
-					{
-						//reset counters
-						NdisZeroMemory(pStats, sizeof(RT_CMD_STATS64));
-						   
-						DBGPRINT(RT_DEBUG_ERROR, ("CMD_RTPRIV_IOCTL_INF_STATS_GET: can not find mbss I/F\n"));
-						return NDIS_STATUS_FAILURE;
-					}
-					
-					pMBSSID = &pAd->ApCfg.MBSSID[index];
-					
-					pStats->rx_bytes = pMBSSID->ReceivedByteCount.QuadPart;
-					pStats->tx_bytes = pMBSSID->TransmittedByteCount.QuadPart;
-					pStats->rx_packets = pMBSSID->RxCount;
-					pStats->tx_packets = pMBSSID->TxCount;
-					pStats->rx_errors = pMBSSID->RxErrorCount;
-					pStats->tx_errors = 0;
-					pStats->multicast = pMBSSID->mcPktsRx; /* multicast packets received */
-					pStats->collisions = 0;
-					pStats->rx_over_errors = 0;
-					pStats->rx_crc_errors = 0;
-					pStats->rx_frame_errors = 0;
-					pStats->rx_fifo_errors = 0;
-				}
-#endif
-#ifdef CONFIG_STA_SUPPORT
+				RT_CMD_STATS *pStats = (RT_CMD_STATS *)pData;
+				pStats->pStats = pAd->stats;
 				if(pAd->OpMode == OPMODE_STA)
 				{
 					pStats->rx_packets = pAd->WlanCounters.ReceivedFragmentCount.QuadPart;
@@ -1263,8 +1085,53 @@ INT RTMP_COM_IoctlHandle(
 					pStats->collisions = 0;  /* Collision packets*/
 					pStats->rx_over_errors = pAd->Counters8023.RxNoBuffer;                   /* receiver ring buff overflow*/
 					pStats->rx_crc_errors = 0;/*pAd->WlanCounters.FCSErrorCount;      recved pkt with crc error*/
-					pStats->rx_frame_errors = 0;          /* recv'd frame alignment error*/
+					pStats->rx_frame_errors = 0; /* recv'd frame alignment error*/
 					pStats->rx_fifo_errors = pAd->Counters8023.RxNoBuffer;                   /* recv'r fifo overrun*/
+				}
+#ifdef CONFIG_AP_SUPPORT
+				else if(pAd->OpMode == OPMODE_AP)
+				{
+					INT index;
+					for(index = 0; index < MAX_MBSSID_NUM(pAd); index++)
+					{
+						if (pAd->ApCfg.MBSSID[index].wdev.if_dev == (PNET_DEV)(pStats->pNetDev))
+						{
+							break;
+						}
+					}
+						
+					if(index >= MAX_MBSSID_NUM(pAd))
+					{
+						//reset counters
+						pStats->rx_packets = 0;
+						pStats->tx_packets = 0;
+						pStats->rx_bytes = 0;
+						pStats->tx_bytes = 0;
+						pStats->rx_errors = 0;
+						pStats->tx_errors = 0;
+						pStats->multicast = 0;   /* multicast packets received*/
+						pStats->collisions = 0;  /* Collision packets*/
+						pStats->rx_over_errors = 0; /* receiver ring buff overflow*/
+						pStats->rx_crc_errors = 0; /* recved pkt with crc error*/
+						pStats->rx_frame_errors = 0; /* recv'd frame alignment error*/
+						pStats->rx_fifo_errors = 0; /* recv'r fifo overrun*/
+						   
+						DBGPRINT(RT_DEBUG_ERROR, ("CMD_RTPRIV_IOCTL_INF_STATS_GET: can not find mbss I/F\n"));
+						return NDIS_STATUS_FAILURE;
+					}
+					
+					pStats->rx_packets = pAd->ApCfg.MBSSID[index].RxCount;
+					pStats->tx_packets = pAd->ApCfg.MBSSID[index].TxCount;
+					pStats->rx_bytes = pAd->ApCfg.MBSSID[index].ReceivedByteCount;
+					pStats->tx_bytes = pAd->ApCfg.MBSSID[index].TransmittedByteCount;
+					pStats->rx_errors = pAd->ApCfg.MBSSID[index].RxErrorCount;
+					pStats->tx_errors = pAd->ApCfg.MBSSID[index].TxErrorCount;
+					pStats->multicast = pAd->ApCfg.MBSSID[index].mcPktsRx; /* multicast packets received */
+					pStats->collisions = 0;  /* Collision packets*/
+					pStats->rx_over_errors = 0;                   /* receiver ring buff overflow*/
+					pStats->rx_crc_errors = 0;/* recved pkt with crc error*/
+					pStats->rx_frame_errors = 0;          /* recv'd frame alignment error*/
+					pStats->rx_fifo_errors = 0;                   /* recv'r fifo overrun*/
 				}
 #endif
 			}
@@ -1284,12 +1151,6 @@ INT RTMP_COM_IoctlHandle(
 			pStats->noise = 0;
 			pStats->pStats = pAd->iw_stats;
 			
-#ifdef CONFIG_STA_SUPPORT
-			if (pAd->OpMode == OPMODE_STA)
-			{
-				CurOpMode = OPMODE_STA;
-			}
-#endif /* CONFIG_STA_SUPPORT */
 
 			/*check if the interface is down*/
 			if(!RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_INTERRUPT_IN_USE))
@@ -1318,10 +1179,6 @@ INT RTMP_COM_IoctlHandle(
 			}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-			if (CurOpMode == OPMODE_STA)
-				pStats->qual = ((pAd->Mlme.ChannelQuality * 12)/10 + 10);
-#endif /* CONFIG_STA_SUPPORT */
 #ifdef CONFIG_AP_SUPPORT
 			if (CurOpMode == OPMODE_AP)
 			{
@@ -1335,15 +1192,6 @@ INT RTMP_COM_IoctlHandle(
 			if (pStats->qual > 100)
 				pStats->qual = 100;
 
-#ifdef CONFIG_STA_SUPPORT
-			if (CurOpMode == OPMODE_STA)
-			{
-				pStats->level =
-					RTMPMaxRssi(pAd, pAd->StaCfg.RssiSample.AvgRssi0,
-									pAd->StaCfg.RssiSample.AvgRssi1,
-									pAd->StaCfg.RssiSample.AvgRssi2);
-			}
-#endif /* CONFIG_STA_SUPPORT */
 #ifdef CONFIG_AP_SUPPORT
 			if (CurOpMode == OPMODE_AP)
 			{
@@ -1362,13 +1210,6 @@ INT RTMP_COM_IoctlHandle(
 										RTMPMinSnr(pAd, pAd->ApCfg.RssiSample.AvgSnr0,
 										pAd->ApCfg.RssiSample.AvgSnr1);
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-			pStats->noise = RTMPMaxRssi(pAd, pAd->StaCfg.RssiSample.AvgRssi0,
-										pAd->StaCfg.RssiSample.AvgRssi1,
-										pAd->StaCfg.RssiSample.AvgRssi2) - 
-										RTMPMinSnr(pAd, pAd->StaCfg.RssiSample.AvgSnr0, 
-										pAd->StaCfg.RssiSample.AvgSnr1);
-#endif /* CONFIG_STA_SUPPORT */
 		}
 			break;
 
@@ -1410,18 +1251,6 @@ INT RTMP_COM_IoctlHandle(
 			break;
 #endif /* WDS_SUPPORT */
 
-#ifdef APCLI_SUPPORT
-		case CMD_RTPRIV_IOCTL_APCLI_STATS_GET:
-			if (Data == INT_APCLI)
-			{
-				if (ApCli_StatsGet(pAd, pData) != TRUE)
-					return NDIS_STATUS_FAILURE;
-			}
-			else
-				return NDIS_STATUS_FAILURE;
-			break;
-#endif /* APCLI_SUPPORT */
-
 #ifdef RALINK_ATE
 #ifdef RALINK_QA
 		case CMD_RTPRIV_IOCTL_ATE:
@@ -1456,7 +1285,7 @@ INT RTMP_COM_IoctlHandle(
 		{
 			RT_CMD_IOCTL_RATE *pRate = (RT_CMD_IOCTL_RATE *)pData;
 			HTTRANSMIT_SETTING HtPhyMode;
-			UINT8 BW = 0, GI = 0;
+			UINT8 BW = 0, GI = 0, MCS = 0;
 
 #ifdef APCLI_SUPPORT
 			if (pRate->priv_flags == INT_APCLI)
@@ -1537,7 +1366,9 @@ INT Set_SiteSurvey_Proc(
 	IN	PSTRING			arg)
 {
 	NDIS_802_11_SSID Ssid;
-	POS_COOKIE pObj = (POS_COOKIE) pAd->OS_Cookie;
+	POS_COOKIE pObj;
+
+	pObj = (POS_COOKIE) pAd->OS_Cookie;
 
 	//check if the interface is down
 	if (!RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_INTERRUPT_IN_USE))
@@ -1546,16 +1377,6 @@ INT Set_SiteSurvey_Proc(
 		return -ENETDOWN;   
 	}
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		if (MONITOR_ON(pAd))
-    	{
-        	DBGPRINT(RT_DEBUG_TRACE, ("!!! Driver is in Monitor Mode now !!!\n"));
-        	return -EINVAL;
-    	}
-	}
-#endif // CONFIG_STA_SUPPORT //
 
     NdisZeroMemory(&Ssid, sizeof(NDIS_802_11_SSID));
 
@@ -1576,68 +1397,11 @@ INT Set_SiteSurvey_Proc(
 			RTMP_IO_WRITE32(pAd, CH_TIME_CFG, mac_val);
 		}
 #endif
-
-#ifdef AIRPLAY_SUPPORT 
-		if(arg[0] == '0' && (arg[1] == 'x' || arg[1] == 'X'))
-		{
-				int ii,jj;
-				CHAR temp[MAX_LEN_OF_SSID*2+1];
-
-				NdisZeroMemory(Ssid.Ssid, MAX_LEN_OF_SSID);
-				for(ii=2; ii<strlen(arg); ii++)
-				{
-						if(arg[ii] >= '0' && arg[ii] <= '9')
-								temp[ii-2] = arg[ii] - '0';
-						else if(arg[ii] >= 'A' && arg[ii] <= 'F')
-								temp[ii-2] = arg[ii] - 'A' + 10;
-						else if(arg[ii] >= 'a' && arg[ii] <= 'f')
-								temp[ii-2] = arg[ii] - 'a' + 10;
-				}
-
-				temp[strlen(arg)-2]= '\0';
-				DBGPRINT(RT_DEBUG_TRACE,("%s=>arg:",__FUNCTION__));
-				for(ii=0; ii<strlen(arg)-2; ii++)
-						DBGPRINT(RT_DEBUG_TRACE,("%x",temp[ii]));
-				DBGPRINT(RT_DEBUG_TRACE,("\n"));
-
-				jj=0;
-				for(ii=0; ii<strlen(arg)-2; ii+=2)
-				{
-						if (jj > MAX_LEN_OF_SSID)
-						{
-								DBGPRINT(RT_DEBUG_TRACE, ("%s=> unicode SSID len error.",__FUNCTION__));
-								NdisZeroMemory(&Ssid, sizeof(NDIS_802_11_SSID));
-								goto ret;
-						}
-
-						Ssid.Ssid[jj++] = (UCHAR)(temp[ii]*16+temp[ii+1]);
-				}
-				Ssid.Ssid[jj] = '\0';
-				Ssid.SsidLength = jj;
-
-ret:
-
-				DBGPRINT(RT_DEBUG_TRACE, ("%s=>SSID:",__FUNCTION__));
-				for(ii=0; ii<jj; ii++)
-						DBGPRINT(RT_DEBUG_TRACE,("%x",(UCHAR)Ssid.Ssid[ii]));
-				DBGPRINT(RT_DEBUG_TRACE,("\n"));
-		}
-#endif /* AIRPLAY_SUPPORT */
-
 #ifndef APCLI_CONNECTION_TRIAL
-#ifdef APCLI_SUPPORT
-		if (pObj->ioctl_if_type == INT_APCLI)
-		{
-			ApCliSiteSurvey(pAd, pObj->ioctl_if, &Ssid, SCAN_ACTIVE, FALSE);
-		}
+		if (Ssid.SsidLength == 0)
+			ApSiteSurvey(pAd, &Ssid, SCAN_PASSIVE, FALSE);
 		else
-#endif /* APCLI_SUPPORT */
-		{
-			if (Ssid.SsidLength == 0)
-				ApSiteSurvey(pAd, &Ssid, SCAN_PASSIVE, FALSE);
-			else
-				ApSiteSurvey(pAd, &Ssid, SCAN_ACTIVE, FALSE);
-		}
+			ApSiteSurvey(pAd, &Ssid, SCAN_ACTIVE, FALSE);
 #else
 		/*for shorter scan time. use active scan and send probe req.*/
 		DBGPRINT(RT_DEBUG_TRACE, ("!!! Fast Scan for connection trial !!!\n"));
@@ -1649,21 +1413,6 @@ ret:
 #endif /* AP_SCAN_SUPPORT */
 #endif // CONFIG_AP_SUPPORT //
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		Ssid.SsidLength = 0; 
-		if ((arg != NULL) &&
-			(strlen(arg) <= MAX_LEN_OF_SSID))
-		{
-			RTMPMoveMemory(Ssid.Ssid, arg, strlen(arg));
-			Ssid.SsidLength = strlen(arg);
-		}
-
-		pAd->StaCfg.bSkipAutoScanConn = TRUE;
-		StaSiteSurvey(pAd, &Ssid, SCAN_ACTIVE);
-	}
-#endif // CONFIG_STA_SUPPORT //
 
 	DBGPRINT(RT_DEBUG_TRACE, ("Set_SiteSurvey_Proc\n"));
 
@@ -1908,7 +1657,7 @@ INT set_fw_debug(RTMP_ADAPTER *ad, PSTRING arg)
 }
 #endif /* CONFIG_ANDES_SUPPORT */
 
-#ifdef CUSTOMER_DCC_FEATURE
+#if defined(CUSTOMER_DCC_FEATURE) || defined(BAND_STEERING)
 VOID EnableRadioChstats(
 		IN	PRTMP_ADAPTER	pAd,
 		IN	UINT32		mac_val)
@@ -1920,7 +1669,8 @@ VOID EnableRadioChstats(
 	RTMP_IO_READ32(pAd, CCA_BUSY_TIME, &mac_val);
 	RTMP_IO_READ32(pAd, RX_STA_CNT1, &mac_val);
 }
-
+#endif
+#ifdef CUSTOMER_DCC_FEATURE
 INT Set_ApEnableRadioChStats(
 		IN	PRTMP_ADAPTER	pAd, 
 		IN	PSTRING 	arg)
@@ -2383,9 +2133,6 @@ INT edcca_tx_stop_start(RTMP_ADAPTER *pAd, BOOLEAN stop)
 	UINT32 macCfg, macCfg_2, macStatus,MacValue;	
 	UINT32 MTxCycle;
 	ULONG stTime, mt_time, mr_time;
-#ifdef CONFIG_STA_SUPPORT	
-	static BOOLEAN orig_auto_reconnect_setting;
-#endif /* CONFIG_STA_SUPPORT */
 
 	/* Disable MAC Tx and wait MAC Tx/Rx status in idle state or direcyl enable tx */
 	NdisGetSystemUpTime(&stTime);
@@ -2400,12 +2147,9 @@ INT edcca_tx_stop_start(RTMP_ADAPTER *pAd, BOOLEAN stop)
 		
 		/* Disable PA. */
 		RTMP_IO_READ32(pAd, TX_PIN_CFG, &MacValue);
+		DBGPRINT(RT_DEBUG_OFF, ("%sTX_PIN_CFG=0x%x!\n", __func__, MacValue));
 		RTMP_IO_WRITE32(pAd, TX_PIN_CFG, (MacValue & 0xfffff0f0));
 		
-#ifdef CONFIG_STA_SUPPORT
-		orig_auto_reconnect_setting = pAd->StaCfg.bAutoReconnect;
-		pAd->StaCfg.bAutoReconnect = FALSE;
-#endif /* CONFIG_STA_SUPPORT */
 	}else
 	{
 		macCfg |= 0x04;
@@ -2416,9 +2160,6 @@ INT edcca_tx_stop_start(RTMP_ADAPTER *pAd, BOOLEAN stop)
 		RTMP_IO_READ32(pAd, TX_PIN_CFG, &MacValue);
 		RTMP_IO_WRITE32(pAd, TX_PIN_CFG, (MacValue | 0x00050f0f));
 
-#ifdef CONFIG_STA_SUPPORT
-		pAd->StaCfg.bAutoReconnect = orig_auto_reconnect_setting;
-#endif /* CONFIG_STA_SUPPORT */
 
 	}
 	RTMP_IO_WRITE32(pAd, MAC_SYS_CTRL, macCfg);
@@ -2480,10 +2221,8 @@ INT ed_state_judge(RTMP_ADAPTER *pAd)
 			DBGPRINT(RT_DEBUG_TRACE,("\n\n@@@@@@ %s : reset ed_timer to 20 mins !!\n\n",__FUNCTION__));			
 		}
 	}
-
-	return TRUE;
+		
 }
-
 VOID ed_testing_timeout(
 	IN PVOID SystemSpecific1, 
 	IN PVOID FunctionContext, 
@@ -2491,7 +2230,7 @@ VOID ed_testing_timeout(
 	IN PVOID SystemSpecific3) 
 {
 	PRTMP_ADAPTER	pAd = (PRTMP_ADAPTER)FunctionContext;
-	DBGPRINT(RT_DEBUG_OFF, ("%s : reset pAd->ed_current_state: %d\n", __FUNCTION__, pAd->ed_current_state));
+	printk("%s : reset pAd->ed_current_state: %d\n");
 	pAd->ed_current_state = ED_OFF_AND_LEARNING;
 }
 #endif /* ED_SMART */
@@ -2506,8 +2245,16 @@ INT ed_status_read(RTMP_ADAPTER *pAd)
 	INT percent;
 	RX_STA_CNT1_STRUC RxStaCnt1;
 	UINT32 ch_idle_stat=0, ch_busy_stat=0, ed_2nd_stat=0, ed_stat=0;
+	UINT32 false_cca_cnt = 0;
+	UINT32 cca_percent = 0;
+
+	if (RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_IDLE_RADIO_OFF) ||
+		RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_RADIO_OFF) ||
+		RTMP_TEST_FLAG(pAd, fRTMP_ADAPTER_BSS_SCAN_IN_PROGRESS))
+		return TRUE;
 	
 	RTMP_IO_READ32(pAd, CH_IDLE_STA, &ch_idle_stat);
+	RTMP_IO_READ32(pAd, CH_BUSY_STA, &ch_busy_stat);
 	RTMP_IO_READ32(pAd, 0x1140, &ed_stat);
 	RTMP_IO_READ32(pAd, RX_STA_CNT1, &RxStaCnt1.word);
 
@@ -2518,14 +2265,25 @@ INT ed_status_read(RTMP_ADAPTER *pAd)
 	pAd->ed_2nd_stat[pAd->ed_stat_lidx] = ed_2nd_stat;
 	pAd->ed_stat[pAd->ed_stat_lidx] = ed_stat;
 
-	pAd->false_cca_stat[pAd->ed_stat_lidx] += RxStaCnt1.field.FalseCca;
+	/*pAd->false_cca_stat[pAd->ed_stat_lidx] += RxStaCnt1.field.FalseCca;*/
 	pAd->RalinkCounters.OneSecFalseCCACnt += RxStaCnt1.field.FalseCca;
-			
-	
+
 	NdisGetSystemUpTime(&pAd->chk_time[pAd->ed_stat_lidx]);
-		
+
 	if ((pAd->ed_threshold > 0) && (period_us > 0) && (pAd->ed_block_tx_threshold > 0)) {
 		percent = (pAd->ed_stat[pAd->ed_stat_lidx] * 100 ) / period_us;
+		if (pAd->RalinkCounters.OneSecFalseCCACnt < pAd->false_cca_stat[pAd->ed_stat_lidx])
+			false_cca_cnt = pAd->RalinkCounters.OneSecFalseCCACnt;
+		else
+			false_cca_cnt = pAd->RalinkCounters.OneSecFalseCCACnt -
+							pAd->false_cca_stat[pAd->ed_stat_lidx];
+		if (pAd->ed_stat[pAd->ed_stat_lidx] >= ch_busy_stat) {
+			cca_percent = (pAd->ed_stat[pAd->ed_stat_lidx] - ch_busy_stat + false_cca_cnt * 20)
+				* 100 / period_us;
+			} else
+				cca_percent = 0;
+			if (cca_percent > 100)
+				cca_percent = 100;
 		if (percent > 100)
 			percent = 100;
 
@@ -2539,10 +2297,20 @@ INT ed_status_read(RTMP_ADAPTER *pAd)
 		}
 
 		
-		if (percent > pAd->ed_threshold) 
+		if (percent > pAd->ed_threshold && cca_percent > pAd->ed_threshold)
 		{
 			pAd->ed_trigger_cnt++;
 			pAd->ed_silent_cnt = 0;
+			DBGPRINT(RT_DEBUG_TRACE, ("%s(): false cca %d time %d\n",
+				__func__, pAd->false_cca_stat[pAd->ed_stat_lidx],
+				pAd->false_cca_stat[pAd->ed_stat_lidx] * 20));
+			DBGPRINT(RT_DEBUG_TRACE, ("%s(): ed cca %d\n",
+				__func__, ed_stat));
+			DBGPRINT(RT_DEBUG_TRACE, ("%s(): ch busy %d\n",
+				__func__, ch_busy_stat));
+			DBGPRINT(RT_DEBUG_TRACE, ("%s period %d, ed_th %d, percent %d deduct_percent %d, blk cnt %d\n",
+				__func__, pAd->ed_chk_period, pAd->ed_threshold,
+				percent, cca_percent, pAd->ed_block_tx_threshold));
 		}
 		else
 		{
@@ -2569,6 +2337,7 @@ INT ed_status_read(RTMP_ADAPTER *pAd)
 	if (pAd->ed_stat_sidx == pAd->ed_stat_lidx) {
 		INC_RING_INDEX(pAd->ed_stat_sidx, ED_STAT_CNT);
 	}	
+	pAd->false_cca_stat[pAd->ed_stat_lidx] = pAd->RalinkCounters.OneSecFalseCCACnt;
 	RTMP_IRQ_UNLOCK(&pAd->irq_lock, irqflag);
 
 		if(pAd->ed_chk == EDCCA_ON 
@@ -2579,15 +2348,15 @@ INT ed_status_read(RTMP_ADAPTER *pAd)
 	
 		{
 			if (pAd->ed_trigger_cnt > pAd->ed_block_tx_threshold) {
-				if (pAd->ed_tx_stoped == FALSE) {
-					pAd->ed_tx_stoped = TRUE;
+				if (pAd->ed_tx_stopped == FALSE) {
+					pAd->ed_tx_stopped = TRUE;
 				edcca_tx_stop_start(pAd, TRUE); 			
 			}
 		}
 
 		if (pAd->ed_silent_cnt > pAd->ed_block_tx_threshold) {
-			if (pAd->ed_tx_stoped == TRUE) {
-				pAd->ed_tx_stoped = FALSE;
+			if (pAd->ed_tx_stopped == TRUE) {
+				pAd->ed_tx_stopped = FALSE;
 				edcca_tx_stop_start(pAd, FALSE);				
 			}
 		}
@@ -2600,7 +2369,7 @@ INT ed_status_read(RTMP_ADAPTER *pAd)
 INT ed_monitor_exit(RTMP_ADAPTER *pAd)
 {
 	ULONG irqflag;
-	BOOLEAN old_ed_tx_stoped, old_ed_chk;
+	BOOLEAN old_ed_tx_stopped, old_ed_chk;
 	BOOLEAN cancelled;
 		
 	RTMP_IRQ_LOCK(&pAd->irq_lock, irqflag);
@@ -2624,26 +2393,23 @@ INT ed_monitor_exit(RTMP_ADAPTER *pAd)
 	//ignore fisrt time's incorrect false cca 
 	pAd->ed_false_cca_cnt = 0;
 
-	old_ed_tx_stoped = pAd->ed_tx_stoped;
+	old_ed_tx_stopped = pAd->ed_tx_stopped;
 	old_ed_chk = pAd->ed_chk;
 
-	pAd->ed_tx_stoped = FALSE;
+	pAd->ed_tx_stopped = FALSE;
 	//also clear top level flags
-	pAd->ed_chk = FALSE;
+	pAd->ed_chk = TRUE;
+	pAd->ed_timer_inited = FALSE;
 	DBGPRINT(RT_DEBUG_OFF, ("@@@ %s : <===\n", __FUNCTION__));
 	RTMP_IRQ_UNLOCK(&pAd->irq_lock, irqflag);
 
 
-	if (old_ed_tx_stoped)
-	{
+	if (old_ed_tx_stopped)
 		edcca_tx_stop_start(pAd, FALSE);
-	}
 
 	if (old_ed_chk)
-	{
-		RTMP_CHIP_ASIC_SET_EDCCA(pAd,FALSE);
-	}
-	
+		RTMP_CHIP_ASIC_SET_EDCCA(pAd, FALSE);
+
 	return TRUE;
 }
 
@@ -2656,6 +2422,10 @@ INT ed_monitor_init(RTMP_ADAPTER *pAd)
 
 	RTMP_IRQ_LOCK(&pAd->irq_lock, irqflag);
 	DBGPRINT(RT_DEBUG_OFF, ("@@@ %s : ===>\n", __FUNCTION__));
+	if (pAd->ed_timer_inited) {
+		RTMP_IRQ_UNLOCK(&pAd->irq_lock, irqflag);
+		return TRUE;
+	}
 	NdisZeroMemory(&pAd->ed_stat[0], sizeof(pAd->ed_stat));
 	NdisZeroMemory(&pAd->ch_idle_stat[0], sizeof(pAd->ch_idle_stat));
 	NdisZeroMemory(&pAd->ch_busy_stat[0], sizeof(pAd->ch_busy_stat));
@@ -2671,28 +2441,29 @@ INT ed_monitor_init(RTMP_ADAPTER *pAd)
 	// ignore fisrt time's incorrect false cca
 	pAd->ed_false_cca_cnt = 0;
 	
-	pAd->ed_tx_stoped = FALSE;
+	pAd->ed_tx_stopped = FALSE;
 	//also set  top level flags
 	if(pAd->ed_chk == 0)	//turn on if disabled , otherwise decide by profile
 		pAd->ed_chk = 1; 
+	RTMP_IRQ_UNLOCK(&pAd->irq_lock, irqflag);
 
 	RTMP_IO_READ32(pAd, TX_LINK_CFG, &TxLinkCfg.word);
 	TxLinkCfg.field.TxRDGEn = 0;
 	TxLinkCfg.field.TxCFAckEn = 0;
 	RTMP_IO_WRITE32(pAd, TX_LINK_CFG, TxLinkCfg.word);
+	RTMP_IRQ_LOCK(&pAd->irq_lock, irqflag);
+	pAd->CommonCfg.bRdg = FALSE;
 
 #ifdef ED_SMART
 	RTMPInitTimer(pAd, &(pAd->ed_timer), GET_TIMER_FUNCTION(ed_testing_timeout), pAd, FALSE);
 #endif /* ED_SMART */
 
 
-	
+	pAd->ed_timer_inited = TRUE;
 	DBGPRINT(RT_DEBUG_OFF, ("@@@ %s : <===\n", __FUNCTION__));
 	RTMP_IRQ_UNLOCK(&pAd->irq_lock, irqflag);
 
 	RTMP_CHIP_ASIC_SET_EDCCA(pAd,TRUE);
-
-	return TRUE;
 }
 
 INT set_ed_block_tx_thresh(RTMP_ADAPTER *pAd, PSTRING arg)
@@ -2733,6 +2504,17 @@ INT set_ed_learn_threshold(RTMP_ADAPTER *pAd, PSTRING arg)
 	return TRUE;
 }
 
+INT set_ed_period(RTMP_ADAPTER *pAd, PSTRING arg)
+{
+	LONG ed_period;
+
+	if (kstrtol(arg, 0, &ed_period) == 0) {
+		pAd->ed_chk_period = ed_period;
+		DBGPRINT(RT_DEBUG_OFF,
+			("set ed_period = %d\n", pAd->ed_chk_period));
+		}
+	return TRUE;
+}
 
 INT set_ed_false_cca_threshold(RTMP_ADAPTER *pAd, PSTRING arg)
 {
@@ -2809,36 +2591,6 @@ INT set_ed_ap_count_proc(RTMP_ADAPTER *pAd, PSTRING arg)
 #endif /* CONFIG_AP_SUPPORT */
 
 
-#ifdef CONFIG_STA_SUPPORT
-INT set_ed_ap_scaned_count_proc(RTMP_ADAPTER *pAd, PSTRING arg)
-{
-	UINT ed_ap_scaned;
-	
-	ed_ap_scaned = simple_strtol(arg, 0, 10);
-
-	DBGPRINT(RT_DEBUG_OFF, ("%s(): ed_ap_scaned=%d\n",
-				__FUNCTION__, ed_ap_scaned));
-
-	pAd->ed_ap_scaned = ed_ap_scaned;
-
-	return TRUE;
-}
-
-
-INT set_ed_current_ch_ap_proc(RTMP_ADAPTER *pAd, PSTRING arg)
-{
-	UINT ed_current_ch_aps;
-	
-	ed_current_ch_aps = simple_strtol(arg, 0, 10);
-
-	DBGPRINT(RT_DEBUG_OFF, ("%s(): ed_current_ch_aps=%d\n",
-				__FUNCTION__, ed_current_ch_aps));
-
-	pAd->ed_current_ch_aps = ed_current_ch_aps;
-
-	return TRUE;
-}
-#endif /* CONFIG_STA_SUPPORT */
 
 
 
@@ -2898,11 +2650,6 @@ INT show_ed_stat_proc(RTMP_ADAPTER *pAd, PSTRING arg)
 				pAd->ed_chk_period, pAd->ed_threshold, pAd->ed_block_tx_threshold));
 #endif
 
-#ifdef CONFIG_STA_SUPPORT
-	DBGPRINT(RT_DEBUG_OFF, ("Dump ChannelBusy Counts, ed_chk=%u, ed_ap_scaned=%u, ed_current_ch_aps=%u, ed_rssi_threshold=%d, false_cca_threshold=%u, ChkPeriod=%dms, ED_Threshold=%d%%, HitCntForBlockTx=%d\n", 
-				pAd->ed_chk, pAd->ed_ap_scaned, pAd->ed_current_ch_aps, pAd->ed_rssi_threshold, pAd->ed_false_cca_threshold,
-				pAd->ed_chk_period, pAd->ed_threshold, pAd->ed_block_tx_threshold));
-#endif
 
 
 	period_us = pAd->ed_chk_period * 1000;
@@ -3032,17 +2779,26 @@ INT report_ed_count(RTMP_ADAPTER *pAd, PSTRING arg)
 	return TRUE;
 }
 
+INT Set_edfix(IN PRTMP_ADAPTER pAd, IN PSTRING arg)
+{
+	LONG ed_fix;
+
+	if (kstrtol(arg, 0, &ed_fix) == 0) {
+		pAd->ed_fix = (UINT8)ed_fix;
+		DBGPRINT(RT_DEBUG_OFF, ("%s::ed_fix=%d\n", __func__, pAd->ed_fix));
+		}
+	return TRUE;
+}
 #endif /* ED_MONITOR */
 
 INT set_channel_ed_monitor_enable(RTMP_ADAPTER *pAd, PSTRING arg)
 {
-	UCHAR ED_TH = (pAd->CommonCfg.Channel > 14)?0x0e:0x20;
-	/* A band 0x0e , G band 0x20 , 20150331 */
-	UINT32 mac_val = 0;
-	UINT32 bbp_val;
-
 	DBGPRINT(RT_DEBUG_OFF, ("=====> %s \n", __FUNCTION__));
-	
+	UCHAR ED_TH = (pAd->CommonCfg.Channel > 14)?0x0e:0x20;
+    /* A band 0x0e , G band 0x20 , 20150331 */
+    UINT32 mac_val = 0;
+    UINT32 bbp_val;
+    
 	RTMP_IO_READ32(pAd, CH_TIME_CFG, &mac_val);
 	mac_val |= 0x40;
 	RTMP_IO_WRITE32(pAd, CH_TIME_CFG, mac_val);
@@ -3051,13 +2807,9 @@ INT set_channel_ed_monitor_enable(RTMP_ADAPTER *pAd, PSTRING arg)
 	mac_val |= 0x05; // enable channel status check
 	RTMP_IO_WRITE32(pAd, CH_TIME_CFG, mac_val);
 
-#ifdef RLT_BBP
-	if (IS_MT76x0(pAd) || IS_MT76x2(pAd)) {
-		RTMP_BBP_IO_READ32(pAd, AGC1_R2, &bbp_val);
-		bbp_val = (bbp_val & 0xFFFF0000) | (ED_TH << 8) | ED_TH;
-		RTMP_BBP_IO_WRITE32(pAd, AGC1_R2, bbp_val);
-	}
-#endif
+	RTMP_BBP_IO_READ32(pAd, AGC1_R2, &bbp_val);
+	bbp_val = (bbp_val & 0xFFFF0000) | (ED_TH << 8) | ED_TH;
+	RTMP_BBP_IO_WRITE32(pAd, AGC1_R2, bbp_val);
 
 	RTMP_IO_READ32(pAd, TXOP_CTRL_CFG, &mac_val);
 	mac_val &= ~(1 << 20);

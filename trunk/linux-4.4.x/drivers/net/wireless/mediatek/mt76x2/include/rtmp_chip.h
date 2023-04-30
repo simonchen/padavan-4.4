@@ -203,17 +203,17 @@ struct _RSSI_SAMPLE;
 #define IS_MT7662(_pAd)		(((_pAd)->ChipID & 0xffff0000) == 0x76620000)
 #define IS_MT7662E(_pAd)	((((_pAd)->ChipID & 0xffff0000) == 0x76620000) && (IS_PCIE_INF(_pAd)))
 #define IS_MT7662U(_pAd)	((((_pAd)->ChipID & 0xffff0000) == 0x76620000) && (IS_USB_INF(_pAd)))
+#define IS_MT7662T(_pAd) ((((_pAd)->ChipID & 0xffff0f00) == 0x76620100))
 #define IS_MT7632(_pAd)		(((_pAd)->ChipID & 0xffff0000) == 0x76320000)
 #define IS_MT7632E(_pAd)	((((_pAd)->ChipID & 0xffff0000) == 0x76320000) && (IS_PCIE_INF(_pAd)))
 #define IS_MT7632U(_pAd)	((((_pAd)->ChipID & 0xffff0000) == 0x76320000) && (IS_USB_INF(_pAd)))
+#define IS_MT7632T(_pAd) ((((_pAd)->ChipID & 0xffff0f00) == 0x76320100))
 #define IS_MT7612(_pAd)		(((_pAd)->ChipID & 0xffff0000) == 0x76120000)
 #define IS_MT7612E(_pAd)	((((_pAd)->ChipID & 0xffff0000) == 0x76120000) && (IS_PCIE_INF(_pAd)))
 #define IS_MT7612U(_pAd)	((((_pAd)->ChipID & 0xffff0000) == 0x76120000) && (IS_USB_INF(_pAd)))
+#define IS_MT7612T(_pAd) ((((_pAd)->ChipID & 0xffff0f00) == 0x76120100))
 #define IS_MT7602(_pAd)		(((_pAd)->ChipID & 0xffff0000) == 0x76020000)
 #define IS_MT7602E(_pAd)	((((_pAd)->ChipID & 0xffff0000) == 0x76020000) && (IS_PCIE_INF(_pAd)))
-#define IS_MT7662T(_pAd)	((((_pAd)->ChipID & 0xffff0f00) == 0x76620100) && (IS_USB_INF(_pAd)))
-#define IS_MT7632T(_pAd)	((((_pAd)->ChipID & 0xffff0f00) == 0x76320100) && (IS_USB_INF(_pAd)))
-#define IS_MT7612T(_pAd)	((((_pAd)->ChipID & 0xffff0f00) == 0x76120100) && (IS_USB_INF(_pAd)))
 #define IS_MT76x2(_pAd)		(IS_MT7662(_pAd) || IS_MT7632(_pAd) || IS_MT7612(_pAd) || IS_MT7602(_pAd))
 #define IS_MT76x2E(_pAd)	(IS_MT7662E(_pAd) || IS_MT7632E(_pAd) || IS_MT7612E(_pAd) || IS_MT7602E(_pAd))
 #define IS_MT76x2U(_pAd)	(IS_MT7662U(_pAd) || IS_MT7632U(_pAd) || IS_MT7612U(_pAd))
@@ -422,10 +422,6 @@ enum RXWI_FRQ_OFFSET_FIELD {
 #ifdef MT76x2
 /* ITxBF calibration values EEPROM locations 0xC0 to 0xF1 */
 #define EEPROM1_ITXBF_CAL				0xc0
-#define EEPROM1_ITXBF_CAL_TANK          0x180
-#define EEPROM1_ITXBF_CAL_DIVPHASE  	0x18A
-#define EEPROM1_ITXBF_CAL_RESPHASE  	0x190
-#define EEPROM1_ITXBF_CAL_RESPHASE_ERR  0x19E
 #endif
 
 #define EEPROM_TXPOWER_BYRATE 			0xde	/* 20MHZ power. */
@@ -659,10 +655,6 @@ struct _RTMP_CHIP_CAP_ {
 	UCHAR ba_max_cnt;
 
 #ifdef RTMP_MAC_PCI
-#ifdef CONFIG_STA_SUPPORT
-	BOOLEAN HW_PCIE_PS_SUPPORT;
-	BOOLEAN HW_PCIE_PS_L3_ENABLE;
-#endif /* CONFIG_STA_SUPPORT */
 #endif /* RTMP_MAC_PCI */
 
 	enum ASIC_CAP asic_caps;
@@ -700,8 +692,7 @@ struct _RTMP_CHIP_CAP_ {
 	INT32 avg_rssi_all;
 	UCHAR dynamic_chE_mode;
 	BOOLEAN dynamic_chE_trigger;
-	BOOLEAN skip_long_range_dync_vga; 
-	/* for 76x2 runtime turn long_range_dync_vga on/off , default do long_range_dync_vga */
+	BOOLEAN skip_long_range_dync_vga;	/* for 76x2 runtime turn long_range_dync_vga on/off , default do long_range_dync_vga */
 #ifdef CONFIG_AP_SUPPORT
 	INT32 dynamic_lna_trigger_timer;
 	BOOLEAN microwave_enable;
@@ -796,8 +787,6 @@ struct _RTMP_CHIP_CAP_ {
 	UINT8	FlgPMFEncrtptMode;
 #endif /* DOT11W_PMF_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef RT5592EP_SUPPORT
 	UINT32 Priv; /* Flag for RT5592 EP */
@@ -978,18 +967,6 @@ struct _RTMP_CHIP_CAP_ {
 	CHAR tx_pwr_2g_vht_mcs_8_9;
 	CHAR tx_pwr_5g_vht_mcs_8_9;
 
-	CHAR tx_pwr_cck_1_2_compensate;
-	CHAR tx_pwr_cck_5_11_compensate;
-	CHAR tx_pwr_g_band_ofdm_6_9_compensate;
-	CHAR tx_pwr_g_band_ofdm_12_18_compensate;
-	CHAR tx_pwr_a_band_ofdm_6_9_compensate;
-	CHAR tx_pwr_a_band_ofdm_12_18_compensate;
-	CHAR tx_pwr_g_band_ht_mcs_0_1_compensate; /*cover 8_9*/
-	CHAR tx_pwr_g_band_ht_mcs_2_3_compensate; /*cover 10_11*/
-	CHAR tx_pwr_a_band_ht_mcs_0_1_compensate; /*cover 8_9*/	
-	CHAR tx_pwr_a_band_ht_mcs_2_3_compensate; /*cover 10_11*/	
-	CHAR tx_pwr_5g_vht_mcs_8_9_compensate;
-
 	CHAR rf0_2g_rx_high_gain;
 	CHAR rf1_2g_rx_high_gain;
 	CHAR rf0_5g_grp0_rx_high_gain;
@@ -1014,6 +991,10 @@ struct _RTMP_CHIP_CAP_ {
 	UCHAR tssi_off_54m_target_pwr_a_band;
 	UCHAR tssi_off_54m_target_pwr_g_band;
 #endif /* SINGLE_SKU_V2 */
+#endif
+
+#ifdef MWDS	
+	BOOLEAN g_band_256_qam;
 #endif
 
 };
@@ -1093,10 +1074,8 @@ struct _RTMP_CHIP_OP_ {
 	INT32 (*SkuTxPwrAdj)(struct _RTMP_ADAPTER *pAd,struct _TXWI_NMAC *txwi_n);
 #endif /*RLT_MAC*/
 
-#ifdef RLT_MAC
 	INT32 (*TxPwrBoost)(struct _RTMP_ADAPTER *pAd,struct _TXWI_NMAC *txwi_n);
-#endif /*RLT_MAC*/
-
+	
 	/* IQ Calibration */
 	VOID (*ChipIQCalibration)(struct _RTMP_ADAPTER *pAd, UCHAR Channel);
 
@@ -1174,11 +1153,11 @@ struct _RTMP_CHIP_OP_ {
 	int (*RFRandomWrite)(struct _RTMP_ADAPTER *ad, BANK_RF_REG_PAIR *RegPair, UINT32 Num);
 	int (*sc_random_write)(struct _RTMP_ADAPTER *ad, CR_REG *table, u32 num, u32 flags);
 	int (*sc_rf_random_write)(struct _RTMP_ADAPTER *ad, BANK_RF_CR_REG *table, u32 num, u32 flags);
-	int (*Calibration)(struct _RTMP_ADAPTER *pAd, UINT32 CalibrationID, ANDES_CALIBRATION_PARAM *param);
+	void (*Calibration)(struct _RTMP_ADAPTER *pAd, UINT32 CalibrationID, ANDES_CALIBRATION_PARAM *param);
 #endif /* CONFIG_ANDES_SUPPORT */
 	void (*DisableTxRx)(struct _RTMP_ADAPTER *ad, UCHAR Level);
-	BOOLEAN (*AsicRadioOn)(struct _RTMP_ADAPTER *ad, UCHAR Level);
-	BOOLEAN (*AsicRadioOff)(struct _RTMP_ADAPTER *ad, UCHAR Level, USHORT TbttNumToNextWakeUp);
+	void (*AsicRadioOn)(struct _RTMP_ADAPTER *ad, UCHAR Stage);
+	void (*AsicRadioOff)(struct _RTMP_ADAPTER *ad, u8 Stage);
 
 #ifdef MICROWAVE_OVEN_SUPPORT
 	VOID (*AsicMeasureFalseCCA)(IN struct _RTMP_ADAPTER *pAd);
@@ -1521,7 +1500,7 @@ do {	\
 #define ASIC_RADIO_OFF(_pAd, _Stage)	\
 do {	\
 	if (_pAd->chipOps.AsicRadioOff != NULL)	\
-		_pAd->chipOps.AsicRadioOff(_pAd, _Stage, 0);	\
+		_pAd->chipOps.AsicRadioOff(_pAd, _Stage);	\
 } while (0)
 
 #ifdef MICROWAVE_OVEN_SUPPORT
@@ -1618,15 +1597,6 @@ VOID RtmpChipWriteMemory(
 
 VOID RTMPReadChannelPwr(struct _RTMP_ADAPTER *pAd);
 VOID RTMPReadTxPwrPerRate(struct _RTMP_ADAPTER *pAd);
-#ifdef RTMP_TEMPERATURE_COMPENSATION
-BOOLEAN LoadTempCompTableFromEEPROM(
-		IN	struct _RTMP_ADAPTER	*pAd,
-		IN	const USHORT		E2P_OFFSET_START,
-		IN	const USHORT		E2P_OFFSET_END,
-		OUT	PUCHAR			TssiTable,
-		IN	const INT			StartIndex,
-		IN	const UINT32		TABLE_SIZE);
-#endif /* RTMP_TEMPERATURE_COMPENSATION */
 
 
 VOID NetDevNickNameInit(IN struct _RTMP_ADAPTER *pAd);
@@ -1643,6 +1613,7 @@ VOID DisableAPMIMOPSv1(struct _RTMP_ADAPTER *pAd);
 #ifdef RTMP_MAC
 VOID RTxx_default_Init(struct _RTMP_ADAPTER *pAd);
 #endif /* RTMP_MAC */
+
 
 /* global variable */
 extern FREQUENCY_ITEM RtmpFreqItems3020[];

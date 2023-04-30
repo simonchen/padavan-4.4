@@ -334,7 +334,9 @@ int main(int argc ,char *argv[])
 			//strcat(infname, "/mcu/bin/WIFI_RAM_CODE_ALL_tssi_0618.bin");
 			//strcat(infname, "/mcu/bin/mt7662_firmware_e3_v1.4.bin");
 			//strcat(infname, "/mcu/bin/mt7662_firmware_e3_v1.8.bin");
-			strcat(infname, "/mcu/bin/MT7662_E3_v1.9.bin");
+			//strcat(infname, "/mcu/bin/MT7662_E3_v1.9.bin");
+			//strcat(infname, "/mcu/bin/MT7662_E3_v1.9_20160711.bin");
+			strcat(infname, "/mcu/bin/mt7662_firmware_e3_v1.9_formal_20170615.bin");
 			//strcat(infname, "/mcu/bin/mt7662_firmware_e3_v1.7.bin");
 			//strcat(infname, "/mcu/bin/mt7662_firmware_e3_v1.6_20140905.bin");
 			//strcat(infname, "/mcu/bin/mt7662_firmware_e3_v1.6.bin");
@@ -395,6 +397,7 @@ int main(int argc ,char *argv[])
 			//strcat(infname, "/mcu/bin/WIFI_RAM_CODE_ALL_0305_new.bin");
 			//strcat(infname, "/mcu/bin/WIFI_RAM_CODE_ALL_2013_03_03.bin");
 			//strcat(infname, "/mcu/bin/WIFI_RAM_CODE_ALL_20130304_fpga.bin");
+			//printf("firmware infile name:%s\n",infname);
     			strcat(outfname, "/include/mcu/mt7662_firmware.h");
 			strcat(fw_name, "MT7662_FirmwareImage");
 			strcat(in_rom_patch, "/mcu/bin/mt7662_patch_e3_hdr_v0.0.2_P69.bin");
@@ -411,8 +414,9 @@ int main(int argc ,char *argv[])
 			//strcat(in_rom_patch, "/mcu/bin/mt7662_patch_e1_hdr_v0.0.0.3.bin");
 			strcat(out_rom_patch, "/include/mcu/mt7662_rom_patch.h");
 			strcat(rom_patch_name, "mt7662_rom_patch");
-			strcat(ine2pname, "/eeprom/MT7612E_EEPROM_layout_20131121_2G5G_ePAeLNA_TXTC_off.bin");
+			//strcat(ine2pname, "/eeprom/MT7612E_EEPROM_layout_20131121_2G5G_ePAeLNA_TXTC_off.bin");
 			//strcat(ine2pname, "/eeprom/MT7612E3_EEPROM_layout_20131022_2G5G_iPAiLNA_wTSSI_default_slope_offset.bin");
+			strcat(ine2pname, "/eeprom/MT7612E_EEPROM_layout_20131121_5G_iPAiLNA.bin");
 			strcat(oute2pname, "/include/eeprom/mt76x2_e2p.h");
 			strcat(e2p_name, "MT76x2_E2PImage");
 			is_bin2h_fw = 1;
@@ -420,7 +424,10 @@ int main(int argc ,char *argv[])
 			is_bin2h_e2p = 1;
 		} else if ((strncmp(chipset, "mt7662tu", 8) == 0)
 			|| (strncmp(chipset, "mt7632tu", 8) == 0)
-			|| (strncmp(chipset, "mt7612tu", 8) == 0)) {
+			|| (strncmp(chipset, "mt7612tu", 8) == 0)
+			|| (strncmp(chipset, "mt7662te", 8) == 0)
+			|| (strncmp(chipset, "mt7632te", 8) == 0)
+			|| (strncmp(chipset, "mt7612te", 8) == 0)) {
 			strcat(infname, "/mcu/bin/mt7662t_firmware_e1.bin");
 			strcat(outfname, "/include/mcu/mt7662t_firmware.h");
 			strcat(fw_name, "MT7662T_FirmwareImage");
@@ -429,7 +436,6 @@ int main(int argc ,char *argv[])
 			strcat(rom_patch_name, "mt7662t_rom_patch");
 			is_bin2h_fw = 1;
 			is_bin2h_rom_patch = 1;
-
 		} else {
 			printf("unknown chipset = %s\n", chipset);
 		}

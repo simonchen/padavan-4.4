@@ -54,9 +54,6 @@ NDIS_STATUS RtmpInsertPsQueue(
 	{
 		UAPSD_PacketEnqueue(pAd, pMacEntry, pPacket, ac_id);
 
-#if defined(DOT11Z_TDLS_SUPPORT) 
-		TDLS_UAPSDP_TrafficIndSend(pAd, pMacEntry->Addr);
-#endif /* defined(DOT11Z_TDLS_SUPPORT) */
 	}
 	else
 #endif /* UAPSD_SUPPORT */
@@ -114,7 +111,7 @@ VOID RtmpCleanupPsQueue(RTMP_ADAPTER *pAd, QUEUE_HEADER *pQueue)
 	while (pQueue->Head)
 	{
 		DBGPRINT(RT_DEBUG_TRACE,
-					("RtmpCleanupPsQueue %u...\n",pQueue->Number));
+					("RtmpCleanupPsQueue %ld...\n",pQueue->Number));
 
 		pQEntry = RemoveHeadQueue(pQueue);
 		/*pPacket = CONTAINING_RECORD(pEntry, NDIS_PACKET, MiniportReservedEx); */
@@ -150,7 +147,7 @@ VOID RtmpHandleRxPsPoll(RTMP_ADAPTER *pAd, UCHAR *pAddr, USHORT wcid, BOOLEAN is
 	{
 #ifdef DROP_MASK_SUPPORT
 		/* Disable Drop Mask */
-		drop_mask_set_per_client(pAd, pMacEntry, FALSE);
+		set_drop_mask_per_client(pAd, pMacEntry, 2, 0);
 #endif /* DROP_MASK_SUPPORT */
 
 #ifdef PS_ENTRY_MAITENANCE
@@ -335,7 +332,7 @@ BOOLEAN RtmpPsIndicate(RTMP_ADAPTER *pAd, UCHAR *pAddr, UCHAR wcid, UCHAR Psm)
 		{
 #ifdef DROP_MASK_SUPPORT
 			/* Disable Drop Mask */
-			drop_mask_set_per_client(pAd, pEntry, FALSE);
+			set_drop_mask_per_client(pAd, pEntry, 2, 0);
 #endif /* DROP_MASK_SUPPORT */
 
 #ifdef PS_ENTRY_MAITENANCE
@@ -359,126 +356,12 @@ BOOLEAN RtmpPsIndicate(RTMP_ADAPTER *pAd, UCHAR *pAddr, UCHAR wcid, UCHAR Psm)
 #ifdef DROP_MASK_SUPPORT
 		else if ((old_psmode == PWR_ACTIVE) && (Psm == PWR_SAVE)) {
 			/* Enable Drop Mask */
-			drop_mask_set_per_client(pAd, pEntry, TRUE);
+			set_drop_mask_per_client(pAd, pEntry, 2, 1);
 		}
 #endif /* DROP_MASK_SUPPORT */
-#ifdef PS_ENTRY_MAITENANCE
-        else if((old_psmode == PWR_SAVE) && (Psm == PWR_SAVE)){
-            pEntry->continuous_ps_count = 0;
-        }
-#endif /* PS_ENTRY_MAITENANCE */
 
 	return old_psmode;
 }
 
 
-#ifdef CONFIG_STA_SUPPORT
-/*
-========================================================================
-Routine Description:
-    Check if PM of any packet is set.
-
-Arguments:
-	pAd		Pointer to our adapter
-
-Return Value:
-    TRUE	can set
-	FALSE	can not set
-
-Note:
-========================================================================
-*/
-BOOLEAN RtmpPktPmBitCheck(RTMP_ADAPTER *pAd)
-{
-	BOOLEAN FlgCanPmBitSet = TRUE;
-
-#ifdef DOT11Z_TDLS_SUPPORT
-	/* check TDLS condition */
-	if (pAd->StaCfg.TdlsInfo.TdlsFlgIsKeepingActiveCountDown == TRUE)
-		FlgCanPmBitSet = FALSE;
-#endif /* DOT11Z_TDLS_SUPPORT */
-
-	if (FlgCanPmBitSet == TRUE)
-		return (pAd->StaCfg.Psm == PWR_SAVE);
-
-	return FALSE;
-}
-
-
-VOID RtmpPsActiveExtendCheck(RTMP_ADAPTER *pAd)
-{
-	/* count down the TDLS active counter */
-#ifdef DOT11Z_TDLS_SUPPORT
-	if (pAd->StaCfg.TdlsInfo.TdlsPowerSaveActiveCountDown > 0)
-	{
-		pAd->StaCfg.TdlsInfo.TdlsPowerSaveActiveCountDown --;
-
-		if (pAd->StaCfg.TdlsInfo.TdlsPowerSaveActiveCountDown == 0)
-		{
-			/* recover our power save state */
-			TDLS_RECOVER_POWER_SAVE(pAd);
-			DBGPRINT(RT_DEBUG_TRACE, ("TDLS PS> Recover PS mode!\n"));
-		}
-	}
-#endif /* DOT11Z_TDLS_SUPPORT */
-}
-
-
-VOID RtmpPsModeChange(RTMP_ADAPTER *pAd, UINT32 PsMode)
-{
-	if (pAd->StaCfg.BssType == BSS_INFRA)
-	{
-		/* reset ps mode */
-		if (PsMode == Ndis802_11PowerModeMAX_PSP)
-		{
-			// do NOT turn on PSM bit here, wait until MlmeCheckForPsmChange()
-			// to exclude certain situations.
-			//	   MlmeSetPsm(pAd, PWR_SAVE);
-			OPSTATUS_SET_FLAG(pAd, fOP_STATUS_RECEIVE_DTIM);
-			if (pAd->StaCfg.bWindowsACCAMEnable == FALSE)
-				pAd->StaCfg.WindowsPowerMode = Ndis802_11PowerModeMAX_PSP;
-			pAd->StaCfg.WindowsBatteryPowerMode = Ndis802_11PowerModeMAX_PSP;
-			pAd->StaCfg.DefaultListenCount = 5;
-		}							
-		else if (PsMode == Ndis802_11PowerModeFast_PSP)
-		{
-			// do NOT turn on PSM bit here, wait until MlmeCheckForPsmChange()
-			// to exclude certain situations.
-			OPSTATUS_SET_FLAG(pAd, fOP_STATUS_RECEIVE_DTIM);
-			if (pAd->StaCfg.bWindowsACCAMEnable == FALSE)
-				pAd->StaCfg.WindowsPowerMode = Ndis802_11PowerModeFast_PSP;
-			pAd->StaCfg.WindowsBatteryPowerMode = Ndis802_11PowerModeFast_PSP;
-			pAd->StaCfg.DefaultListenCount = 3;
-		}
-		else if (PsMode == Ndis802_11PowerModeLegacy_PSP)
-		{
-			// do NOT turn on PSM bit here, wait until MlmeCheckForPsmChange()
-			// to exclude certain situations.
-			OPSTATUS_SET_FLAG(pAd, fOP_STATUS_RECEIVE_DTIM);
-			if (pAd->StaCfg.bWindowsACCAMEnable == FALSE)
-				pAd->StaCfg.WindowsPowerMode = Ndis802_11PowerModeLegacy_PSP;
-			pAd->StaCfg.WindowsBatteryPowerMode = Ndis802_11PowerModeLegacy_PSP;
-#if defined(DOT11Z_TDLS_SUPPORT) || defined(CFG_TDLS_SUPPORT)
-			pAd->StaCfg.DefaultListenCount = 1;
-#else
-			pAd->StaCfg.DefaultListenCount = 3;
-#endif // defined(DOT11Z_TDLS_SUPPORT) || defined(CFG_TDLS_SUPPORT) //
-		}
-		else
-		{ //Default Ndis802_11PowerModeCAM
-			// clear PSM bit immediately
-			RTMP_SET_PSM_BIT(pAd, PWR_ACTIVE);
-			OPSTATUS_SET_FLAG(pAd, fOP_STATUS_RECEIVE_DTIM);
-			if (pAd->StaCfg.bWindowsACCAMEnable == FALSE)
-				pAd->StaCfg.WindowsPowerMode = Ndis802_11PowerModeCAM;
-			pAd->StaCfg.WindowsBatteryPowerMode = Ndis802_11PowerModeCAM;
-		}
-
-		/* change ps mode */
-		RTMPSendNullFrame(pAd, pAd->CommonCfg.TxRate, TRUE, FALSE);
-
-		DBGPRINT(RT_DEBUG_TRACE, ("PSMode=%ld\n", pAd->StaCfg.WindowsPowerMode));
-	}
-}
-#endif /* CONFIG_STA_SUPPORT */
 

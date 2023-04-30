@@ -239,16 +239,8 @@ VOID BuildChannelList(RTMP_ADAPTER *pAd)
 				for (j=0; j<16; j++)
 				{
 					if (pChannelList[i] == RadarCh[j])
-					{
 						pAd->ChannelList[index+i].DfsReq = TRUE;
-#ifdef SMART_MESH
-						pAd->ChannelList[index+i].bDfsAPExist = FALSE;
-#endif /* SMART_MESH */
-					}
 				}
-#ifdef SMART_MESH
-						pAd->ChannelList[index+i].FalseCCA = 0;
-#endif /* SMART_MESH */	
 				pAd->ChannelList[index+i].MaxTxPwr = 20;
 			}
 			index += num;
@@ -275,14 +267,27 @@ VOID BuildChannelList(RTMP_ADAPTER *pAd)
 	}
 #endif /* RT_CFG80211_SUPPORT */
 
+	for (i=0;i<pAd->ChannelListNum;i++)
+	{
+		for (j=0;j<MAX_NUM_OF_CHANNELS;j++)
+		{
+			if (pAd->ChannelList[i].Channel == pAd->ChannelList_BackUp[j].Channel)
+			{
+				pAd->ChannelList[i].RemainingTimeForUse = pAd->ChannelList_BackUp[j].RemainingTimeForUse;
+				break;
+			}
+		}
+	}
+
 #ifdef DBG	
 	for (i=0;i<pAd->ChannelListNum;i++)
 	{
-		DBGPRINT_RAW(RT_DEBUG_TRACE,("BuildChannel # %d :: Pwr0 = %d, Pwr1 =%d, Flags = %x\n ", 
+		DBGPRINT_RAW(RT_DEBUG_ERROR,("@@@ BuildChannel # %d :: Pwr0 = %d, Pwr1 =%d, Flags = %x, RemainingTimeForUse=%u\n ", 
 									 pAd->ChannelList[i].Channel, 
 									 pAd->ChannelList[i].Power, 
 									 pAd->ChannelList[i].Power2, 
-									 pAd->ChannelList[i].Flags));
+									 pAd->ChannelList[i].Flags,
+									 pAd->ChannelList[i].RemainingTimeForUse));
 	}
 #endif
 }
@@ -510,17 +515,16 @@ CHAR ConvertToSnr(RTMP_ADAPTER *pAd, UCHAR Snr)
 
 #ifdef CONFIG_AP_SUPPORT
 #ifdef DOT11_N_SUPPORT
-#ifdef DOT11N_DRAFT3
 extern int DetectOverlappingPeriodicRound;
 
 VOID Handle_BSS_Width_Trigger_Events(RTMP_ADAPTER *pAd) 
 {
 	ULONG Now32;
-
-#ifdef DOT11N_DRAFT3
+#ifdef WH_EZ_SETUP
+	struct wifi_dev *wdev = &pAd->ApCfg.MBSSID[BSS0].wdev;
+#endif
 	if (pAd->CommonCfg.bBssCoexEnable == FALSE)
 		return;
-#endif
 
 	if ((pAd->CommonCfg.HtCapability.HtCapInfo.ChannelWidth == BW_40) &&
 		(pAd->CommonCfg.Channel <=14))
@@ -531,10 +535,16 @@ VOID Handle_BSS_Width_Trigger_Events(RTMP_ADAPTER *pAd)
 		pAd->CommonCfg.bRcvBSSWidthTriggerEvents = TRUE;
 		pAd->CommonCfg.AddHTInfo.AddHtInfo.RecomWidth = 0;	
 		pAd->CommonCfg.AddHTInfo.AddHtInfo.ExtChanOffset = 0;
-        DetectOverlappingPeriodicRound = 31;
+		DetectOverlappingPeriodicRound = 31;
+#if (defined(WH_EZ_SETUP) && defined(EZ_NETWORK_MERGE_SUPPORT))
+		if (IS_EZ_SETUP_ENABLED(wdev) && (wdev->wdev_type == WDEV_TYPE_AP)) {
+			EZ_DEBUG(DBG_CAT_MLME, DBG_SUBCAT_ALL, EZ_DBG_LVL_ERROR,
+				("\nHandle_BSS_Width_Trigger_Events: do fallback ****\n"));
+			ez_set_ap_fallback_context(wdev,TRUE,wdev->channel);
+		}
+#endif /* WH_EZ_SETUP */
 	}
 }
-#endif /* DOT11N_DRAFT3 */
 #endif /* DOT11_N_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
 
