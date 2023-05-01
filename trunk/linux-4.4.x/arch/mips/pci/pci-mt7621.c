@@ -264,81 +264,44 @@ static int config_access(unsigned char access_type, struct pci_bus *bus,
 }
 
 
-static int
-read_config_byte(struct pci_bus *bus, unsigned int devfn, int where, u8 * val)
+static int ralink_pci_config_read(struct pci_bus *bus, unsigned int devfn, int where, int size, u32 *val)
 {
-	return config_access(PCI_ACCESS_READ_1, bus, devfn, (unsigned int)where, (u32 *)val);
-}
+	
+	int access_type = PCI_ACCESS_READ_4;
 
-static int
-read_config_word(struct pci_bus *bus, unsigned int devfn, int where, u16 * val)
-{
-	return config_access(PCI_ACCESS_READ_2, bus, devfn, (unsigned int)where, (u32 *)val);
-}
-
-static int
-read_config_dword(struct pci_bus *bus, unsigned int devfn, int where, u32 * val)
-{
-	return config_access(PCI_ACCESS_READ_4, bus, devfn, (unsigned int)where, (u32 *)val);
-}
-
-static int
-write_config_byte(struct pci_bus *bus, unsigned int devfn, int where, u8 val)
-{
-	if (config_access(PCI_ACCESS_WRITE_1, bus, devfn, (unsigned int)where, (u32 *)&val))
-		return -1;
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int
-write_config_word(struct pci_bus *bus, unsigned int devfn, int where, u16 val)
-{
-	if (config_access(PCI_ACCESS_WRITE_2, bus, devfn, where, (u32 *)&val))
-		return -1;
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-static int
-write_config_dword(struct pci_bus *bus, unsigned int devfn, int where, u32 val)
-{
-	if (config_access(PCI_ACCESS_WRITE_4, bus, devfn, where, &val))
-		return -1;
-
-	return PCIBIOS_SUCCESSFUL;
-}
-
-
-static int
-pci_config_read(struct pci_bus *bus, unsigned int devfn, int where, int size, u32 * val)
-{
 	switch (size) {
 	case 1:
-		return read_config_byte(bus, devfn, where, (u8 *) val);
+		access_type = PCI_ACCESS_READ_1;
+		break;
 	case 2:
-		return read_config_word(bus, devfn, where, (u16 *) val);
-	default:
-		return read_config_dword(bus, devfn, where, val);
+		access_type = PCI_ACCESS_READ_2;
+		break;
 	}
+
+	return config_access(access_type, bus, devfn, where, val);
 }
 
-static int
-pci_config_write(struct pci_bus *bus, unsigned int devfn, int where, int size, u32 val)
+static int ralink_pci_config_write(struct pci_bus *bus, unsigned int devfn, int where, int size, u32 val)
 {
+	
+	int access_type = PCI_ACCESS_WRITE_4;
+
 	switch (size) {
 	case 1:
-		return write_config_byte(bus, devfn, where, (u8) val);
+		access_type = PCI_ACCESS_WRITE_1;
+		break;
 	case 2:
-		return write_config_word(bus, devfn, where, (u16) val);
-	default:
-		return write_config_dword(bus, devfn, where, val);
+		access_type = PCI_ACCESS_WRITE_2;
+		break;
 	}
+
+	return config_access(access_type, bus, devfn, where, &val);
 }
+
 
 struct pci_ops mt7621_pci_ops= {
-	.read		=  pci_config_read,
-	.write		= pci_config_write,
+	.read		=  ralink_pci_config_read,
+	.write		= ralink_pci_config_write,
 };
 
 static struct resource mt7621_res_pci_mem1 = {
@@ -362,119 +325,124 @@ static struct pci_controller mt7621_controller = {
 	.io_offset	= 0x00000000UL,
 	.io_map_base	= 0xa0000000,
 };
-
-static void
-read_config(unsigned long bus, unsigned long dev, unsigned long func, unsigned long reg, unsigned long *val)
+int pcibios_plat_dev_init(struct pci_dev *dev)
 {
-	unsigned int address_reg, data_reg, address;
+	u32 __maybe_unused val;
+#ifdef RAPCI_DEBUG
+	int i;
+	struct resource *res;
 
-	address_reg = RALINK_PCI_CONFIG_ADDR;
-        data_reg = RALINK_PCI_CONFIG_DATA_VIRTUAL_REG;
-	address = (((reg & 0xF00)>>8)<<24) | (bus << 16) | (dev << 11) | (func << 8) | (reg & 0xfc) | 0x80000000 ;
-        MV_WRITE(address_reg, address);
-        MV_READ(data_reg, val);
-	return;
-}
+	printk("%s: ** bus: %d, slot: 0x%x\n", __FUNCTION__, dev->bus->number, PCI_SLOT(dev->devfn));
 
-static void
-write_config(unsigned long bus, unsigned long dev, unsigned long func, unsigned long reg, unsigned long val)
-{
-	unsigned int address_reg, data_reg, address;
+	pci_read_config_dword(dev, PCI_BASE_ADDRESS_0, &val);
+	printk(" PCI_BASE_ADDRESS_0: 0x%08X\n", val);
 
-	address_reg = RALINK_PCI_CONFIG_ADDR;
-	data_reg = RALINK_PCI_CONFIG_DATA_VIRTUAL_REG;
-	address = (((reg & 0xF00)>>8)<<24) | (bus << 16) | (dev << 11) | (func << 8) | (reg & 0xfc) | 0x80000000 ;
-	MV_WRITE(address_reg, address);
-	MV_WRITE(data_reg, val);
-	return;
-}
+	pci_read_config_dword(dev, PCI_BASE_ADDRESS_1, &val);
+	printk(" PCI_BASE_ADDRESS_1: 0x%08X\n", val);
 
+	pci_read_config_dword(dev, PCI_IO_BASE, &val);
+	printk(" PCI_IO_BASE: 0x%08X\n", val);
 
-int __init
-pcibios_map_irq(const struct pci_dev *dev, u8 slot, u8 pin)
-{
-	u16 cmd;
-	u32 val;
-	int irq = 0;
+	for (i = 0; i < 2; i++) {
+		res = (struct resource*)&dev->resource[i];
+		printk(" res[%d]->start = %x\n", i, res->start);
+		printk(" res[%d]->end = %x\n", i, res->end);
+	}
+#endif
 
-	if ((dev->bus->number == 0) && (slot == 0)) {
-		write_config(0, 0, 0, PCI_BASE_ADDRESS_0, MEMORY_BASE);
-		read_config(0, 0, 0, PCI_BASE_ADDRESS_0, (unsigned long *)&val);
-		printk("BAR0 at slot 0 = %x\n", val);
-		printk("bus=0x%x, slot = 0x%x\n",dev->bus->number, slot);
-	} else if((dev->bus->number == 0) && (slot == 0x1)) {
-		write_config(0, 1, 0, PCI_BASE_ADDRESS_0, MEMORY_BASE);
-		read_config(0, 1, 0, PCI_BASE_ADDRESS_0, (unsigned long *)&val);
-		printk("BAR0 at slot 1 = %x\n", val);
-		printk("bus=0x%x, slot = 0x%x\n",dev->bus->number, slot);
-	} else if((dev->bus->number == 0) && (slot == 0x2)) {
-		write_config(0, 2, 0, PCI_BASE_ADDRESS_0, MEMORY_BASE);
-		read_config(0, 2, 0, PCI_BASE_ADDRESS_0, (unsigned long *)&val);
-		printk("BAR0 at slot 2 = %x\n", val);
-		printk("bus=0x%x, slot = 0x%x\n",dev->bus->number, slot);
-	} else if ((dev->bus->number == 1) && (slot == 0x0)) {
-		switch (pcie_link_status) {
-		case 2:
-		case 6:
-			irq = RALINK_INT_PCIE1;
-			break;
-		case 4:
-			irq = RALINK_INT_PCIE2;
-			break;
-		default:
-			irq = RALINK_INT_PCIE0;
-		}
-		printk("bus=0x%x, slot = 0x%x, irq=0x%x\n",dev->bus->number, slot, dev->irq);
-	} else if ((dev->bus->number == 2) && (slot == 0x0)) {
-		switch (pcie_link_status) {
-		case 5:
-		case 6:
-			irq = RALINK_INT_PCIE2;
-			break;
-		default:
-			irq = RALINK_INT_PCIE1;
-		}
-		printk("bus=0x%x, slot = 0x%x, irq=0x%x\n",dev->bus->number, slot, dev->irq);
-	} else if ((dev->bus->number == 2) && (slot == 0x1)) {
-		switch (pcie_link_status) {
-		case 5:
-		case 6:
-			irq = RALINK_INT_PCIE2;
-			break;
-		default:
-			irq = RALINK_INT_PCIE1;
-		}
-		printk("bus=0x%x, slot = 0x%x, irq=0x%x\n",dev->bus->number, slot, dev->irq);
-	} else if ((dev->bus->number ==3) && (slot == 0x0)) {
-		irq = RALINK_INT_PCIE2;
-		printk("bus=0x%x, slot = 0x%x, irq=0x%x\n",dev->bus->number, slot, dev->irq);
-	} else if ((dev->bus->number ==3) && (slot == 0x1)) {
-		irq = RALINK_INT_PCIE2;
-		printk("bus=0x%x, slot = 0x%x, irq=0x%x\n",dev->bus->number, slot, dev->irq);
-	} else if ((dev->bus->number ==3) && (slot == 0x2)) {
-		irq = RALINK_INT_PCIE2;
-		printk("bus=0x%x, slot = 0x%x, irq=0x%x\n",dev->bus->number, slot, dev->irq);
-	} else {
-		printk("bus=0x%x, slot = 0x%x\n",dev->bus->number, slot);
-		return 0;
+	/* P2P bridge */
+	if (dev->bus->number == 0) {
+#if defined (CONFIG_RALINK_MT7620) || defined (CONFIG_RALINK_MT7621) || \
+    defined (CONFIG_RALINK_MT7628)
+		/* set N_FTS 0x28 -> 0x50 */
+		val = 0;
+		pci_read_config_dword(dev, 0x70c, &val);
+		val &= ~(0xff<<8);
+		val |=  (0x50<<8);
+		pci_write_config_dword(dev, 0x70c, val);
+#elif defined (CONFIG_RALINK_RT3883)
+		/* fix IO_BASE */
+		if (PCI_SLOT(dev->devfn) == 0x1)
+			pci_write_config_dword(dev, PCI_IO_BASE, 0x00000101);
+#endif
+		/* set CLS */
+		pci_write_config_byte(dev, PCI_CACHE_LINE_SIZE, (L1_CACHE_BYTES >> 2));
 	}
 
-	pci_write_config_byte(dev, PCI_CACHE_LINE_SIZE, 0x14);  //configure cache line size 0x14
-	pci_write_config_byte(dev, PCI_LATENCY_TIMER, 0xFF);  //configure latency timer 0x10
-	pci_read_config_word(dev, PCI_COMMAND, &cmd);
-	cmd = cmd | PCI_COMMAND_MASTER | PCI_COMMAND_IO | PCI_COMMAND_MEMORY;
-	pci_write_config_word(dev, PCI_COMMAND, cmd);
-	pci_write_config_byte(dev, PCI_INTERRUPT_LINE, irq);
-	return irq;
+	return 0;
 }
+
+
+int __init pcibios_map_irq(const struct pci_dev *dev, u8 slot, u8 pin)
+{
+	int pci_irq = 0;
+#if defined (CONFIG_RALINK_MT7621)
+	if ((dev->bus->number == 1) && (slot == 0x0)) {
+		switch (pcie_link_status) {
+		case 0x2:
+		case 0x6:
+			pci_irq = SURFBOARDINT_PCIE1;
+			break;
+		case 0x4:
+			pci_irq = SURFBOARDINT_PCIE2;
+			break;
+		default:
+			pci_irq = SURFBOARDINT_PCIE0;
+		}
+	} else if ((dev->bus->number == 2) && (slot == 0x0)) {
+		switch (pcie_link_status) {
+		case 0x5:
+		case 0x6:
+			pci_irq = SURFBOARDINT_PCIE2;
+			break;
+		default:
+			pci_irq = SURFBOARDINT_PCIE1;
+		}
+	} else if ((dev->bus->number == 2) && (slot == 0x1)) {
+		switch (pcie_link_status) {
+		case 0x5:
+		case 0x6:
+			pci_irq = SURFBOARDINT_PCIE2;
+			break;
+		default:
+			pci_irq = SURFBOARDINT_PCIE1;
+		}
+	} else if ((dev->bus->number == 3) && (slot == 0x0)) {
+		pci_irq = SURFBOARDINT_PCIE2;
+	} else if ((dev->bus->number == 3) && (slot == 0x1)) {
+		pci_irq = SURFBOARDINT_PCIE2;
+	} else if ((dev->bus->number == 3) && (slot == 0x2)) {
+		pci_irq = SURFBOARDINT_PCIE2;
+	}
+#elif defined (CONFIG_RALINK_MT7620) || defined(CONFIG_RALINK_MT7628)
+	if ((dev->bus->number == 1) && (slot == 0x0)) {
+		pci_irq = SURFBOARDINT_PCIE0;
+	}
+#elif defined (CONFIG_RALINK_RT3883)
+	if ((dev->bus->number == 0) && (slot == 0x11)) {
+		pci_irq = SURFBOARDINT_PCI0;
+	} else if ((dev->bus->number == 0) && (slot == 0x12)) {
+		pci_irq = SURFBOARDINT_PCI1;
+	} else if ((dev->bus->number == 1)) {
+		pci_irq = SURFBOARDINT_PCIE0;
+	}
+#endif
+
+#ifdef RAPCI_DEBUG
+	printk("%s: ** bus: %d, slot: 0x%x -> irq: %d\n", __FUNCTION__, dev->bus->number, slot, pci_irq);
+#endif
+
+	return pci_irq;
+}
+
 
 void
 set_pcie_phy(u32 *addr, int start_b, int bits, int val)
 {
 //	printk("0x%p:", addr);
 //	printk(" %x", *addr);
-	*(unsigned int *)(addr) &= ~(((1<<bits) - 1)<<start_b);
-	*(unsigned int *)(addr) |= val << start_b;
+	*(volatile u32 *)(addr) &= ~(((1<<bits) - 1)<<start_b);
+	*(volatile u32 *)(addr) |= val << start_b;
 //	printk(" -> %x\n", *addr);
 }
 
@@ -984,52 +952,7 @@ static int mt7621_pci_probe(struct platform_device *pdev)
 
 }
 
-int pcibios_plat_dev_init(struct pci_dev *dev)
-{
-	u32 __maybe_unused val;
-#ifdef RAPCI_DEBUG
-	int i;
-	struct resource *res;
 
-	printk("%s: ** bus: %d, slot: 0x%x\n", __FUNCTION__, dev->bus->number, PCI_SLOT(dev->devfn));
-
-	pci_read_config_dword(dev, PCI_BASE_ADDRESS_0, &val);
-	printk(" PCI_BASE_ADDRESS_0: 0x%08X\n", val);
-
-	pci_read_config_dword(dev, PCI_BASE_ADDRESS_1, &val);
-	printk(" PCI_BASE_ADDRESS_1: 0x%08X\n", val);
-
-	pci_read_config_dword(dev, PCI_IO_BASE, &val);
-	printk(" PCI_IO_BASE: 0x%08X\n", val);
-
-	for (i = 0; i < 2; i++) {
-		res = (struct resource*)&dev->resource[i];
-		printk(" res[%d]->start = %x\n", i, res->start);
-		printk(" res[%d]->end = %x\n", i, res->end);
-	}
-#endif
-
-	/* P2P bridge */
-	if (dev->bus->number == 0) {
-#if defined (CONFIG_RALINK_MT7620) || defined (CONFIG_RALINK_MT7621) || \
-    defined (CONFIG_RALINK_MT7628)
-		/* set N_FTS 0x28 -> 0x50 */
-		val = 0;
-		pci_read_config_dword(dev, 0x70c, &val);
-		val &= ~(0xff<<8);
-		val |=  (0x50<<8);
-		pci_write_config_dword(dev, 0x70c, val);
-#elif defined (CONFIG_RALINK_RT3883)
-		/* fix IO_BASE */
-		if (PCI_SLOT(dev->devfn) == 0x1)
-			pci_write_config_dword(dev, PCI_IO_BASE, 0x00000101);
-#endif
-		/* set CLS */
-		pci_write_config_byte(dev, PCI_CACHE_LINE_SIZE, (L1_CACHE_BYTES >> 2));
-	}
-
-	return 0;
-}
 
 static const struct of_device_id mt7621_pci_ids[] = {
 	{ .compatible = "mediatek,mt7621-pci" },
