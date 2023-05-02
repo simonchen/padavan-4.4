@@ -7782,7 +7782,74 @@ INT	Set_ITxBfEn_Proc(
 
 #endif /* TXBF_SUPPORT */
 
+INT Set_Auto_BW4080_Proc(RTMP_ADAPTER *pAd, PSTRING arg)
+{
+	pAd->CommonCfg.AutoBW4080 = (UCHAR) simple_strtol(arg, 0, 10);
+	DBGPRINT(RT_DEBUG_OFF, ("CURRENT: Set AutoBW4080 = %d \n", pAd->CommonCfg.AutoBW4080));
 
+	return TRUE;
+}
+
+INT	Set_ETxBfEnCond_ApCliProc(
+	IN	PRTMP_ADAPTER	pAd, 
+	IN	PSTRING			arg)
+{
+	UCHAR i, enableETxBf;
+	MAC_TABLE_ENTRY		*pEntry;
+	UINT8	byteValue;
+
+	enableETxBf = simple_strtol(arg, 0, 10);
+
+	if (enableETxBf > 1)
+		return FALSE;
+
+	pAd->CommonCfg.ETxBfEnCond = enableETxBf && (pAd->Antenna.field.TxPath > 1);
+	pAd->CommonCfg.RegTransmitSetting.field.TxBF = enableETxBf==0? 0: 1;
+
+	setETxBFCap(pAd, &pAd->CommonCfg.HtCapability.TxBFCap);
+#ifdef VHT_TXBF_SUPPORT
+	setVHTETxBFCap(pAd, &pAd->CommonCfg.vht_cap_ie.vht_cap);
+#endif
+	rtmp_asic_set_bf(pAd);
+
+	if (enableETxBf) 
+	{
+		RTMP_IO_WRITE32(pAd,PFMU_R54, 0x150); // Solve the MCS8 and MCS9 TP degradation when PN on
+	}	
+	else
+	{
+		RTMP_IO_WRITE32(pAd,PFMU_R54, 0x100);
+	}
+
+
+	for (i=0; i<MAX_LEN_OF_MAC_TABLE; i++)
+	{
+		pEntry = &pAd->MacTab.Content[i];
+		if (IS_ENTRY_APCLI(pEntry))
+		{
+#ifdef VHT_TXBF_SUPPORT
+			if (WMODE_CAP_AC(pAd->CommonCfg.PhyMode) &&
+				(pAd->CommonCfg.Channel > 14))
+				pEntry->eTxBfEnCond = clientSupportsVHTETxBF(pAd, &pEntry->vht_cap_ie.vht_cap) ? enableETxBf: 0;
+			else
+#endif
+				pEntry->eTxBfEnCond = clientSupportsETxBF(pAd, &pEntry->HTCapability.TxBFCap)? enableETxBf: 0;
+
+            pEntry->eTxBfEnCond = TRUE; // Debug
+			pEntry->bfState = READY_FOR_SNDG0;
+			pEntry->HTPhyMode.field.eTxBF = pEntry->eTxBfEnCond;
+			pEntry->phyETxBf = pEntry->eTxBfEnCond;
+#ifdef MCS_LUT_SUPPORT
+			asic_mcs_lut_update(pAd, pEntry);
+#endif /* MCS_LUT_SUPPORT */
+		}
+
+		DBGPRINT(RT_DEBUG_TRACE, ("Set ETxBfEn=%d, Final ETxBF status =%d!\n",
+					enableETxBf , pEntry->eTxBfEnCond));
+	}
+
+	return TRUE;	
+}
 #ifdef VHT_TXBF_SUPPORT
 /*
 	The VhtNDPA sounding inupt string format should be xx:xx:xx:xx:xx:xx-d,
