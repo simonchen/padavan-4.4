@@ -6918,6 +6918,76 @@ VOID GetMultShiftFactorIndex(
 	return;
 }
 
+void  getRate(HTTRANSMIT_SETTING HTSetting, ULONG* fLastTxRxRate)
+{
+	UINT8					Antenna = 0;
+	UINT8					MCS = HTSetting.field.MCS;
+	
+	int rate_count = sizeof(MCSMappingRateTable)/sizeof(int);
+	int rate_index = 0;
+	int value = 0;
+
+#ifdef DOT11_VHT_AC
+	if (HTSetting.field.MODE >= MODE_VHT)
+	{
+		MCS = HTSetting.field.MCS & 0xf;
+		Antenna = (HTSetting.field.MCS>>4) + 1;
+	   if (HTSetting.field.BW == BW_20) {
+			   rate_index = 112 + ((Antenna - 1) * 10) +
+					   ((UCHAR)HTSetting.field.ShortGI * 160) +
+					   ((UCHAR)MCS);
+	   }
+	   else if (HTSetting.field.BW == BW_40) {
+			   rate_index = 152 + ((Antenna - 1) * 10) +
+					   ((UCHAR)HTSetting.field.ShortGI * 160) +
+					   ((UCHAR)MCS);
+	   }
+	   else if (HTSetting.field.BW == BW_80) {
+			   rate_index = 192 + ((Antenna - 1) * 10) +
+					   ((UCHAR)HTSetting.field.ShortGI * 160) +
+					   ((UCHAR)MCS);
+	   }
+	}
+	else
+#endif /* DOT11_VHT_AC */
+#ifdef DOT11_N_SUPPORT
+	if (HTSetting.field.MODE >= MODE_HTMIX)
+	{
+		MCS = HTSetting.field.MCS;
+		if ((HTSetting.field.MODE == MODE_HTMIX) 
+		|| (HTSetting.field.MODE == MODE_HTGREENFIELD)) {
+			Antenna = (MCS >> 3)+1;
+		}
+		/* map back to 1SS MCS , multiply by antenna numbers later */
+		if(MCS > 7)
+			MCS %= 8;
+		rate_index = 16 + ((UCHAR)HTSetting.field.BW *24) + ((UCHAR)HTSetting.field.ShortGI *48) + ((UCHAR)MCS);
+	}
+	else
+#endif /* DOT11_N_SUPPORT */
+	if (HTSetting.field.MODE == MODE_OFDM)
+		rate_index = (UCHAR)(HTSetting.field.MCS) + 4;
+	else if (HTSetting.field.MODE == MODE_CCK)
+		rate_index = (UCHAR)(HTSetting.field.MCS);
+
+	if (rate_index < 0)
+		rate_index = 0;
+
+	if (rate_index >= rate_count)
+		rate_index = rate_count-1;
+	if(HTSetting.field.MODE != MODE_VHT)
+		value = (MCSMappingRateTable[rate_index] * 5)/10;
+	else
+		value =  MCSMappingRateTable[rate_index];		
+	
+#if defined(DOT11_VHT_AC) || defined(DOT11_N_SUPPORT)
+	if (HTSetting.field.MODE >= MODE_HTMIX && HTSetting.field.MODE < MODE_VHT)
+		value *= Antenna;
+#endif /* DOT11_VHT_AC */
+
+	*fLastTxRxRate=(ULONG)value;
+	return;
+}
 VOID  InitRateMultiplicationAndShiftFactor(
 	IN	PRTMP_ADAPTER	pAd)
 {
