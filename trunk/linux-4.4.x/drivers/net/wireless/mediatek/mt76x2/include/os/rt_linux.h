@@ -801,7 +801,7 @@ void linux_pci_unmap_single(void *handle, ra_dma_addr_t dma_addr, size_t size, i
 #ifndef NET_SKB_PAD
 #define NET_SKB_PAD	32
 #endif
-#define DEV_ALLOC_SKB(_Pkt, _length)		\
+#define DEV_ALLOC_SKB(_pAd,_Pkt, _length)		\
 	do {\
 		_Pkt = alloc_skb(_length + NET_SKB_PAD, GFP_ATOMIC);		\
 		if (_Pkt != NULL) {							\
