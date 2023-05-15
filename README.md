@@ -21,7 +21,7 @@ This project is based on original rt-n56u with latest mtk 4.4.198 kernel, which 
 
 #### Compile notes
 - Be careful: if you run the same workflow twice again , it could directly reload the previous `Makefile` from cache. 
-  so if you made change of `Makefile` , you will have to run a new workfolow!!!
+  so if you made change of `Makefile` , you will have to run a new workflow!!!
 
 <hr />
 
