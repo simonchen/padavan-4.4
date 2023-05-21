@@ -9,8 +9,6 @@
 
 #define MIN_NET_DEVICE_FOR_DLS			0x40
 #define MIN_NET_DEVICE_FOR_TDLS			0x50
-#ifdef CONFIG_STA_SUPPORT
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef RT_CFG80211_P2P_CONCURRENT_DEVICE
 #define MIN_NET_DEVICE_FOR_CFG80211_VIF_P2P_CLI      (MIN_NET_DEVICE_FOR_TDLS + 0x21)
@@ -273,15 +271,6 @@
 
 
 /* [CB_OFF+21 ~ 22]  */
-
-#ifdef DATA_QUEUE_RESERVE
-// tmply use mesh part!
-#define RTMP_SET_PACKET_ICMP(_p, _flg)   (PACKET_CB(_p, 21) = _flg)
-#define RTMP_GET_PACKET_ICMP(_p)         (PACKET_CB(_p, 21))
-#else /* DATA_QUEUE_RESERVE */
-
-
-#endif /* !DATA_QUEUE_RESERVE */
 
 
 /* [CB_OFF + 23]  */

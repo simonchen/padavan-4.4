@@ -53,19 +53,33 @@ typedef struct _RRM_QUIET_CB
 
 typedef struct _RRM_CONFIG
 {
-	BOOLEAN bDot11kRRMEnableSet;
 	BOOLEAN bDot11kRRMEnable;
 	BOOLEAN bDot11kRRMNeighborRepTSFEnable;
 	RRM_QUIET_CB QuietCB;
+	
+	/* FOR AP Measurement Report */
+	UINT8	PeerMeasurementToken;
+	//UINT8	PeerMeasurementType;
+	BOOLEAN bPeerReqLCI;
+	BOOLEAN bPeerReqCIVIC;
+	RRM_EN_CAP_IE rrm_capabilities;
+	RRM_EN_CAP_IE max_rrm_capabilities;
 } RRM_CONFIG, *PRRM_CONFIG;
 
 typedef union _RRM_BCN_REQ_CAP
 {
 	struct
 	{
+#ifdef RT_BIG_ENDIAN
+		UINT8:6;
+		UINT8 ChannelRep:1;
+		UINT8 ReportCondition:1;
+#else
 		UINT8 ReportCondition:1;
 		UINT8 ChannelRep:1;
 		UINT8 :6;
+#endif
+
 	} field;
 	UINT8 word;
 } RRM_BCN_REQ_CAP, *PRRM_BCN_REQ_CAP;
@@ -99,6 +113,85 @@ typedef struct _RRM_MLME_TRANSMIT_REQ_INFO
 	UINT8 TriggerTimeout;
 	UINT8 bDurationMandatory;
 } RRM_MLME_TRANSMIT_REQ_INFO, *PRRM_MLME_TRANSMIT_REQ_INFO;
+
+
+#define BCN_MACHINE_BASE 0
+
+/* BCN states */
+enum BCN_STATE {
+	BCN_IDLE,
+	WAIT_BCN_REQ,
+	WAIT_BCN_REP,
+	MAX_BCN_STATE,
+};
+
+
+/* BCN events */
+enum BCN_EVENT {
+	BCN_REQ,
+	BCN_REQ_RAW,
+	BCN_REP_TIMEOUT,
+	MAX_BCN_MSG,
+};
+
+#define BCN_FUNC_SIZE (MAX_BCN_STATE * MAX_BCN_MSG)
+#define BCN_REP_TIMEOUT_VALUE (2*60*1000)
+
+
+#define NR_MACHINE_BASE 0
+
+/* NR states */
+enum NR_STATE {
+	WAIT_NR_RSP,
+	NR_UNKNOWN,
+	MAX_NR_STATE,
+};
+
+
+/* NR events */
+enum NR_EVENT {
+	NR_RSP,
+	NR_RSP_PARAM,
+	NR_RSP_TIMEOUT,
+	MAX_NR_MSG,
+};
+
+#define NR_FUNC_SIZE (MAX_NR_STATE * MAX_NR_MSG)
+#define NR_RSP_TIMEOUT_VALUE (2*60*1000)
+
+typedef struct GNU_PACKED _BCN_EVENT_DATA {
+	UINT8 ControlIndex;
+	UINT8 MeasureReqToken;
+	UINT8 stamac[MAC_ADDR_LEN];
+	UINT16 DataLen;
+	UCHAR Data[0];
+} BCN_EVENT_DATA, *PBCN_EVENT_DATA;
+
+/*
+*	this struct is used for mlme
+*/
+typedef struct GNU_PACKED _NR_EVENT_DATA {
+	UINT8 ControlIndex;
+	UINT8 MeasureReqToken;
+	UINT8 stamac[MAC_ADDR_LEN];
+	UINT16 DataLen;
+	UCHAR Data[0];
+} NR_EVENT_DATA, *PNR_EVENT_DATA;
+
+typedef struct GNU_PACKED _RRM_FRAME {
+	HEADER_802_11 Hdr;
+	UCHAR Category;
+	union {
+		struct {
+			UCHAR Action;
+			UCHAR DialogToken;
+			UCHAR Variable[0];
+		} GNU_PACKED NR_RSP;
+	} u;
+} RRM_FRAME, *PRRM_FRAME;
+
+DECLARE_TIMER_FUNCTION(WaitPeerBCNRepTimeout);
+DECLARE_TIMER_FUNCTION(WaitNRRspTimeout);
 
 #endif /* DOT11K_RRM_SUPPORT */
 

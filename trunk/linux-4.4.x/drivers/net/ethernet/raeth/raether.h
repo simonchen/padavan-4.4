@@ -373,10 +373,7 @@ u32 mii_mgr_write_cl45(u32 port_num, u32 dev_addr, u32 reg_addr,
 		       u32 write_data);
 
 /* HNAT functions */
-#if defined(CONFIG_RA_NAT_NONE)
-static int (*ra_sw_nat_hook_rx)(struct sk_buff *skb);
-static int (*ra_sw_nat_hook_tx)(struct sk_buff *skb, int gmac_no);
-#else
+#if !defined(CONFIG_RA_NAT_NONE)
 extern int (*ra_sw_nat_hook_rx)(struct sk_buff *skb);
 extern int (*ra_sw_nat_hook_tx)(struct sk_buff *skb, int gmac_no);
 #endif

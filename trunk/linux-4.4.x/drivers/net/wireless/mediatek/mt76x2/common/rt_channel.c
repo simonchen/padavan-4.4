@@ -158,7 +158,6 @@ COUNTRY_REGION_CH_DESC Country_Region_ChDesc_2GHZ[] =
 
 UINT16 const Country_Region_GroupNum_2GHZ = sizeof(Country_Region_ChDesc_2GHZ) / sizeof(COUNTRY_REGION_CH_DESC);
 
-#ifdef DFS_SUPPORT
 CH_DESC Country_Region0_ChDesc_5GHZ[] =
 {
 	{36, 8, CHANNEL_DEFAULT_PROP},
@@ -185,39 +184,12 @@ CH_DESC Country_Region3_ChDesc_5GHZ[] =
 	{149, 4, CHANNEL_DEFAULT_PROP},
 	{}
 };
-#else
-CH_DESC Country_Region0_ChDesc_5GHZ[] =
-{
-	{36, 4, CHANNEL_DEFAULT_PROP},
-	{149, 5, CHANNEL_DEFAULT_PROP},
-	{}
-};
-
-CH_DESC Country_Region1_ChDesc_5GHZ[] =
-{
-	{36, 4, CHANNEL_DEFAULT_PROP},
-	{}
-};
-
-CH_DESC Country_Region2_ChDesc_5GHZ[] =
-{
-	{36, 4, CHANNEL_DEFAULT_PROP},
-	{}
-};
-
-CH_DESC Country_Region3_ChDesc_5GHZ[] =
-{
-	{149, 4, CHANNEL_DEFAULT_PROP},
-	{}
-};
-#endif
 
 CH_DESC Country_Region4_ChDesc_5GHZ[] =
 {
 	{149, 5, CHANNEL_DEFAULT_PROP},
 	{}
 };
-
 CH_DESC Country_Region5_ChDesc_5GHZ[] =
 {
 	{149, 4, CHANNEL_DEFAULT_PROP},
@@ -244,7 +216,6 @@ CH_DESC Country_Region8_ChDesc_5GHZ[] =
 	{}
 };
 
-#ifdef DFS_SUPPORT
 CH_DESC Country_Region9_ChDesc_5GHZ[] =
 {
 	{36, 8 , CHANNEL_DEFAULT_PROP},
@@ -253,13 +224,6 @@ CH_DESC Country_Region9_ChDesc_5GHZ[] =
 	{149, 5, CHANNEL_DEFAULT_PROP},
 	{}
 };
-#else
-CH_DESC Country_Region9_ChDesc_5GHZ[] =
-{
-	{36, 4 , CHANNEL_DEFAULT_PROP},
-	{}
-};
-#endif
 
 CH_DESC Country_Region10_ChDesc_5GHZ[] =
 {
@@ -644,7 +608,9 @@ CH_DESP Country_CL_ChDesp[] =
 CH_DESP Country_CN_ChDesp[] =
 {
 	{ 1,   13, 20, BOTH, FALSE},	/*2402~2482MHz, Ch 1~13,   Max BW: 40 */
-	{ 149,  5, 30, BOTH, FALSE},	/*5735~5835MHz, Ch 149~165, Max BW: 40 */	
+	{ 36,	4, 23, IDOR, FALSE},
+	{ 52,	4, 23, IDOR, TRUE},
+	{ 149,  5, 27, BOTH, FALSE},	/*5735~5835MHz, Ch 149~165, Max BW: 40 */	
 	{ 0},               	    	/* end*/
 };
 /*Colombia*/		
@@ -775,9 +741,9 @@ CH_DESP Country_GE_ChDesp[] =
 CH_DESP Country_DE_ChDesp[] =
 {
 	{ 1,   13, 20, BOTH, FALSE},	/*2400~2483.5MHz, Ch 1~13,   Max BW: 40 */
-	{ 36,   4, 20, IDOR, FALSE},	/*5150~5250MHz, Ch 36~48, Max BW: 40 */
-	{ 52,   4, 20, IDOR, TRUE}, 	/*5250~5350MHz, Ch 52~64, Max BW: 40 */
-	{ 100, 11, 27, BOTH, TRUE}, 	/*5470~5725MHz, Ch 100~140, Max BW: 40 */
+	{ 36,   4, 23, IDOR, FALSE},	/*5150~5250MHz, Ch 36~48, Max BW: 40 */
+	{ 52,   4, 23, IDOR, TRUE}, 	/*5250~5350MHz, Ch 52~64, Max BW: 40 */
+	{ 100, 11, 23, BOTH, TRUE}, 	/*5470~5725MHz, Ch 100~140, Max BW: 40 */
 	{ 0},               	    	/* end*/
 };
 /*Greece*/		
@@ -1230,9 +1196,7 @@ CH_DESP Country_RO_ChDesp[] =
 CH_DESP Country_RU_ChDesp[] =
 {
 	{ 1,   13, 20, BOTH, FALSE},	/*2402~2482MHz, Ch 1~13,   Max BW: 40 */
-	{ 36,   4, 20, BOTH, FALSE},	/*5170~5250MHz, Ch 36~48, Max BW: 40 */
-	{ 52,   4, 20, BOTH, FALSE}, 	/*5250~5330MHz, Ch 52~64, Max BW: 40 */
-	{ 149,  5, 30, BOTH, FALSE},	/*5735~5835MHz, Ch 149~165, Max BW: 40 */		
+	{ 149,  5, 30, BOTH, FALSE},	/*5735~5835MHz, Ch 149~165, Max BW: 20 */		
 	{ 0},               	    	/* end*/
 };
 /*Saint Barth'elemy*/		
@@ -1404,10 +1368,10 @@ CH_DESP Country_GB_ChDesp[] =
 CH_DESP Country_US_ChDesp[] =
 {
 	{ 1,   11, 27, BOTH, FALSE},	/*2402~2472MHz, Ch 1~11,   Max BW: 40 */
-	{ 36,   4, 17, IDOR, FALSE},	/*5170~5250MHz, Ch 36~48, Max BW: 40 */
-	{ 52,   4, 20, BOTH, TRUE}, 	/*5250~5330MHz, Ch 52~64, Max BW: 40 */
-	{ 100,  5, 20, BOTH, TRUE}, 	/*5490~5600MHz, Ch 100~116, Max BW: 40 */
-	{ 132,  4, 20, BOTH, TRUE}, 	/*5650~5710MHz, Ch 132~140, Max BW: 40 */
+	{ 36,   4, 17, BOTH, FALSE},	/*5170~5250MHz, Ch 36~48, Max BW: 40 */
+	{ 52,   4, 24, BOTH, TRUE}, 	/*5250~5330MHz, Ch 52~64, Max BW: 40 */
+	{ 100,  5, 24, BOTH, TRUE}, 	/*5490~5600MHz, Ch 100~116, Max BW: 40 */
+	{ 132,  4, 24, BOTH, TRUE}, 	/*5650~5710MHz, Ch 132~140, Max BW: 40 */
 	{ 149,  5, 30, BOTH, FALSE},	/*5735~5835MHz, Ch 149~165, Max BW: 40 */
 	{ 0},               	    	/* end*/
 };		
@@ -1654,6 +1618,7 @@ static UCHAR FillChList(
 	IN UCHAR regulatoryDomain)
 {
 	INT i, j, l;
+	INT k;
 	UCHAR channel;
 
 	j = Offset;
@@ -1715,9 +1680,6 @@ static UCHAR FillChList(
 			pAd->ChannelList[j].Flags |= CHANNEL_80M_CAP;
 #endif /* DOT11_VHT_AC */	
 #endif /* DOT11_N_SUPPORT */
-#ifdef SMART_MESH
-		pAd->ChannelList[j].bDfsAPExist = FALSE;
-#endif /* SMART_MESH */
 
 #ifdef RT_CFG80211_SUPPORT
 		CFG80211OS_ChanInfoInit(
@@ -1728,6 +1690,21 @@ static UCHAR FillChList(
 					WMODE_CAP_N(pAd->CommonCfg.PhyMode),
 					(pAd->CommonCfg.RegTransmitSetting.field.BW == BW_20));
 #endif /* RT_CFG80211_SUPPORT */
+
+	for (k=0;k<MAX_NUM_OF_CHANNELS;k++)
+	{			
+		if (pAd->ChannelList[j].Channel == pAd->ChannelList_BackUp[k].Channel)	
+		{
+			pAd->ChannelList[j].RemainingTimeForUse = pAd->ChannelList_BackUp[k].RemainingTimeForUse;
+			break;
+		}
+		DBGPRINT_RAW(RT_DEBUG_ERROR,("@@@ FillChList # %d :: Pwr0 = %d, Pwr1 =%d, Flags = %x, RemainingTimeForUse=%u\n ",
+			pAd->ChannelList[i].Channel,
+			pAd->ChannelList[i].Power,
+			pAd->ChannelList[i].Power2, 
+			pAd->ChannelList[i].Flags,
+			pAd->ChannelList[i].RemainingTimeForUse));
+		}
 
 		j++;
 	}
@@ -1842,7 +1819,7 @@ VOID BuildBeaconChList(
 				continue;
 		}
 
-		if ((pChDesp[i].Geography == BOTH) ||
+		if ((pChDesp[i].Geography == BOTH) || (pAd->CommonCfg.Geography == BOTH) ||
 			(pChDesp[i].Geography == pAd->CommonCfg.Geography))
 		{
 			MakeOutgoingFrame(pBuf + *pBufLen,		&TmpLen,
@@ -2004,7 +1981,7 @@ static PCOUNTRY_PROP GetCountryProp(
 
 	return pCountryProp;
 }
-#ifdef ED_MONITOR
+
 BOOLEAN GetEDCCASupport(
 	IN PRTMP_ADAPTER pAd)
 {
@@ -2035,7 +2012,7 @@ BOOLEAN GetEDCCASupport(
 	return ret;
 	
 }
-#endif /* ED_MONITOR */
+
 
 UCHAR GetCountryRegionFromCountryCode(
 	IN PRTMP_ADAPTER pAd)
@@ -2229,7 +2206,7 @@ VOID N_ChannelCheck(RTMP_ADAPTER *pAd)
 			157, EXTCHA_ABOVE, 161, EXTCHA_BELOW,
 			0, 0};
 
-	/* channel is not set yet (e.g. AutoChannelSelect > 0) */
+	/* Ingore this case, Channel as 0 will trigger AutoChannelSelection at bootup */		
 	if (Channel == 0)
 		return;
 
@@ -2304,73 +2281,6 @@ UCHAR N_SetCenCh(RTMP_ADAPTER *pAd, UCHAR prim_ch)
 
 	return pAd->CommonCfg.CentralChannel;
 }
-
-
-#ifdef SMART_MESH_MONITOR
-UCHAR N_GetSecondaryChannel(RTMP_ADAPTER *pAd)
-{
-	INT idx;
-	UCHAR ExtChaDir,SecondaryChannel;
-	UCHAR PrimaryChannel = pAd->CommonCfg.Channel;
-	SecondaryChannel = PrimaryChannel;
-	static const UCHAR wfa_ht_ch_ext[] = {
-			36, EXTCHA_ABOVE, 40, EXTCHA_BELOW,
-			44, EXTCHA_ABOVE, 48, EXTCHA_BELOW,
-			52, EXTCHA_ABOVE, 56, EXTCHA_BELOW,
-			60, EXTCHA_ABOVE, 64, EXTCHA_BELOW,
-			100, EXTCHA_ABOVE, 104, EXTCHA_BELOW,
-			108, EXTCHA_ABOVE, 112, EXTCHA_BELOW,
-			116, EXTCHA_ABOVE, 120, EXTCHA_BELOW,
-			124, EXTCHA_ABOVE, 128, EXTCHA_BELOW,
-			132, EXTCHA_ABOVE, 136, EXTCHA_BELOW,
-			149, EXTCHA_ABOVE, 153, EXTCHA_BELOW, 
-			157, EXTCHA_ABOVE, 161, EXTCHA_BELOW,
-			0, 0};
-
-	if (WMODE_CAP_N(pAd->CommonCfg.PhyMode) &&
-		(pAd->CommonCfg.RegTransmitSetting.field.BW >= BW_40))
-	{
-		if (PrimaryChannel > 14)
-		{
-			idx = 0;
-			while(wfa_ht_ch_ext[idx] != 0) {
-				if (wfa_ht_ch_ext[idx] == PrimaryChannel) {
-					ExtChaDir = wfa_ht_ch_ext[idx + 1];
-					break;
-				}
-				idx += 2;
-			};
-
-			if (wfa_ht_ch_ext[idx] != 0)
-			{
-				if(ExtChaDir == EXTCHA_ABOVE) 
-					SecondaryChannel = wfa_ht_ch_ext[idx+2];
-				else
-					SecondaryChannel = wfa_ht_ch_ext[idx-2];
-			}
-		}
-		else
-		{
-			do
-			{
-				ExtChaDir = pAd->CommonCfg.RegTransmitSetting.field.EXTCHA;
-				SecondaryChannel = GetExtCh(PrimaryChannel, ExtChaDir);
-				if (IsValidChannel(pAd, SecondaryChannel))
-					break;
-
-
-				ExtChaDir = (ExtChaDir == EXTCHA_ABOVE) ? EXTCHA_BELOW : EXTCHA_ABOVE;
-				SecondaryChannel = GetExtCh(PrimaryChannel, ExtChaDir);
-				if (IsValidChannel(pAd, SecondaryChannel))
-					break;
-			} while(FALSE);
-		}
-	}
-
-	return SecondaryChannel;
-}
-#endif /* SMART_MESH_MONITOR */
-
 #endif /* DOT11_N_SUPPORT */
 
 

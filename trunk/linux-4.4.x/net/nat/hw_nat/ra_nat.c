@@ -2109,7 +2109,7 @@ int32_t ppe_setforce_port_info(struct sk_buff *skb, struct foe_entry *entry, int
 	if (IS_IPV4_GRP(entry)) {
 		if (skb->mark > 63)
 			skb->mark = 0;
-		qidx = M2Q_table[skb->mark];
+		qidx = skb->mark;
 #if defined(CONFIG_ARCH_MT7622) 
 		entry->ipv4_hnapt.iblk2.qid1 = ((qidx & 0x30) >> 4);
 #endif
@@ -2134,12 +2134,12 @@ int32_t ppe_setforce_port_info(struct sk_buff *skb, struct foe_entry *entry, int
 	else if (IS_IPV6_GRP(entry)) {
 		if (skb->mark > 63)
 			skb->mark = 0;
+		qidx = skb->mark;
+		entry->ipv6_3t_route.iblk2.qid = (qidx & 0x0f);
 #ifdef CONFIG_PSEUDO_SUPPORT
-		qidx = M2Q_table[skb->mark];
 #if defined(CONFIG_ARCH_MT7622) 
 		entry->ipv6_3t_route.iblk2.qid1 = ((qidx & 0x30) >> 4);
 #endif
-		entry->ipv6_3t_route.iblk2.qid = (qidx & 0x0f);
 		if (lan_wan_separate == 1 && gmac_no == 2) {
 			entry->ipv6_3t_route.iblk2.qid += 8;
 #if defined(CONFIG_HW_SFQ)
@@ -3023,7 +3023,8 @@ int32_t ppe_tx_handler(struct sk_buff *skb, int gmac_no)
 				pr_info("ppe_set_entry_bind\n");
 			/* Set Pseudo Interface info in Foe entry */
 			/* Enter binding state */
-			ppe_set_entry_bind(skb, entry);
+			memset(FOE_INFO_START_ADDR(skb), 0, FOE_INFO_LEN);
+			/*ppe_set_entry_bind(skb, entry);*/
 			return 1;
 		}
 	}
@@ -3103,12 +3104,12 @@ int32_t ppe_tx_handler(struct sk_buff *skb, int gmac_no)
 		if (ppe_parse_result.is_mcast) {
 			foe_mcast_entry_qid(ppe_parse_result.vlan1,
 					    ppe_parse_result.dmac,
-					    M2Q_table[skb->mark]);
+					    skb->mark);
 #ifdef CONFIG_PSEUDO_SUPPORT
 			if (lan_wan_separate == 1 && gmac_no == 2) {
 				foe_mcast_entry_qid(ppe_parse_result.vlan1,
 						    ppe_parse_result.dmac,
-						    M2Q_table[skb->mark] + 8);
+						    skb->mark + 8);
 #if defined(CONFIG_HW_SFQ)
 				if (web_sfq_enable == 1 && (skb->mark == 2))
 					foe_mcast_entry_qid(ppe_parse_result.vlan1,

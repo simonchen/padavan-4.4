@@ -60,6 +60,24 @@
 		__TimeStamp |= (__Value64 << 32);				\
 	}
 #endif
+#ifdef STA_FORCE_ROAM_SUPPORT
+
+
+#define FROAM_SUPP_DEF			FALSE /* TRUE by default?*/
+#define STA_LOW_RSSI			65	/* absolute*/
+#define STA_DETECT_RSSI			55	/* absolute*/
+#define	STALIST_AGEOUT_TIME		5	/* sec*/
+#define	MNTRLIST_AGEOUT_TIME	4	/* sec*/
+#define	MNTR_MIN_PKT_COUNT		5
+#define	MNTR_MIN_TIME			1	/* sec*/
+#define	AVG_RSSI_PKT_COUNT		5
+#define	ACLLIST_AGEOUT_TIME		4	/* sec*/
+#define	ACLLIST_HOLD_TIME		2	/*sec*/
+
+void load_froam_defaults(RTMP_ADAPTER *pAd);
+void froam_notify_sta_disconnect(void *ad_obj, void *pEntry);
+#endif
+
 /* ============================================================= */
 /*      Function Prototypes */
 /* ============================================================= */
@@ -159,6 +177,13 @@ VOID APSyncStateMachineInit(
     IN PRTMP_ADAPTER pAd,
     IN STATE_MACHINE *Sm,
     OUT STATE_MACHINE_FUNC Trans[]);
+VOID EzStateMachineInit(
+	IN RTMP_ADAPTER *pAd,
+	IN STATE_MACHINE *Sm,
+	OUT STATE_MACHINE_FUNC Trans[]);
+
+UCHAR get_regulatory_class(RTMP_ADAPTER *pAd);
+UCHAR get_channel_set_num(UCHAR *ChannelSet);
 
 VOID APScanTimeout(
 	IN PVOID SystemSpecific1,
@@ -287,6 +312,10 @@ VOID APUpdateCapabilityAndErpIe(RTMP_ADAPTER *pAd);
 
 BOOLEAN ApCheckAccessControlList(RTMP_ADAPTER *pAd, UCHAR *addr, UCHAR apidx);
 VOID ApUpdateAccessControlList(RTMP_ADAPTER *pAd, UCHAR apidx);
+BOOLEAN ApCheckFroamAccessControlList(
+	IN PRTMP_ADAPTER pAd,
+	IN PUCHAR        pAddr,
+	IN UCHAR         Apidx);
 
 
 BOOLEAN PeerAssocReqCmmSanity(
@@ -301,7 +330,6 @@ BOOLEAN PeerDisassocReqSanity(
     IN PRTMP_ADAPTER pAd, 
     IN VOID *Msg, 
     IN ULONG MsgLen, 
-    OUT PUCHAR pAddr1, 
     OUT PUCHAR pAddr2, 
     OUT	UINT16	*SeqNum,
     OUT USHORT *Reason);
@@ -342,10 +370,6 @@ BOOLEAN DOT1X_InternalCmdAction(
 
 BOOLEAN DOT1X_EapTriggerAction(RTMP_ADAPTER *pAd, MAC_TABLE_ENTRY *pEntry);
 #endif /* DOT1X_SUPPORT */
-
-#ifdef AIRPLAY_SUPPORT
-#define AIRPLAY_ON(_pAd)          ((_pAd)->bAirplayEnable == 1)
-#endif /* AIRPLAY_SUPPORT */
 
 VOID AP_E2PROM_IOCTL_PostCtrl(RTMP_IOCTL_INPUT_STRUCT *wrq, PSTRING msg);
 

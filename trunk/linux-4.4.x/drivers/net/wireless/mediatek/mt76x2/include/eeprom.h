@@ -28,33 +28,87 @@
 #ifndef __EEPROM_H__
 #define __EEPROM_H__
 
+#if defined (CONFIG_RT2880_FLASH_32M)
+#define DEFAULT_RF_OFFSET                                       0x1FE0000
+#else
+#define DEFAULT_RF_OFFSET                                       0x40000
+#endif
+
 /*************************************************************************
   *
   *     EEPROM Related definitions
   *
   ************************************************************************/
-
-#if (CONFIG_RT_FIRST_CARD == 7602 || CONFIG_RT_FIRST_CARD == 7612 || CONFIG_RT_FIRST_CARD == 7620)
-#if defined (CONFIG_RT_FIRST_IF_RF_OFFSET)
-#define DEFAULT_RF_OFFSET		CONFIG_RT_FIRST_IF_RF_OFFSET
+#if defined(CONFIG_RALINK_RT3050_1T1R)
+#if defined(CONFIG_RALINK_RT3350)
+#define EEPROM_DEFAULT_FILE_PATH                     "/etc_ro/wlan/RT3350_AP_1T1R_V1_0.bin"
 #else
-#define DEFAULT_RF_OFFSET		0x40000
-#endif
-#elif (CONFIG_RT_SECOND_CARD == 7602 || CONFIG_RT_SECOND_CARD == 7612)
-#if defined (CONFIG_RT_SECOND_IF_RF_OFFSET)
-#define DEFAULT_RF_OFFSET		CONFIG_RT_SECOND_IF_RF_OFFSET
-#else
-#define DEFAULT_RF_OFFSET		0x48000
-#endif
-#endif
+#define EEPROM_DEFAULT_FILE_PATH                     "/etc_ro/wlan/RT3050_AP_1T1R_V1_0.bin"
+#endif /* CONFIG_RALINK_RT3350 */
+#endif /* CONFIG_RALINK_RT3050_1T1R */
 
-#if (CONFIG_RT_FIRST_CARD == 7612 || CONFIG_RT_SECOND_CARD == 7612)
-#define EEPROM_DEFAULT_FILE_PATH	"/etc_ro/Wireless/MT7612E_EEPROM.bin"
-#elif (CONFIG_RT_FIRST_CARD == 7602 || CONFIG_RT_SECOND_CARD == 7602)
-#define EEPROM_DEFAULT_FILE_PATH	"/etc_ro/Wireless/MT7602E_EEPROM.bin"
-#elif (CONFIG_RT_FIRST_CARD == 7620)
-#define EEPROM_DEFAULT_FILE_PATH	"/etc_ro/Wireless/MT7620_AP_2T2R-4L_V15.BIN"
-#endif
+#if defined(CONFIG_RALINK_RT3051_1T2R)
+#define EEPROM_DEFAULT_FILE_PATH                     "/etc_ro/wlan/RT3051_AP_1T2R_V1_0.bin"
+#endif /* CONFIG_RALINK_RT3051_1T2R */
+
+#if defined(CONFIG_RALINK_RT3052_2T2R)
+#define EEPROM_DEFAULT_FILE_PATH                     "/etc_ro/wlan/RT3052_AP_2T2R_V1_1.bin"
+#endif /* CONFIG_RALINK_RT3052_2T2R */
+
+#if defined(CONFIG_RALINK_RT3883_3T3R)
+#define EEPROM_DEFAULT_FILE_PATH                     "/etc_ro/wlan/RT3883_AP_3T3R_V0_1.bin"
+#endif /* CONFIG_RALINK_RT3883_3T3R */
+
+#if defined(CONFIG_RALINK_RT3662_2T2R)
+#define EEPROM_DEFAULT_FILE_PATH                     "/etc_ro/wlan/RT3662_AP_2T2R_V0_0.bin"
+#endif /* CONFIG_RALINK_RT3662_2T2R */
+
+#if defined(CONFIG_RALINK_RT3352_2T2R)
+#define EEPROM_DEFAULT_FILE_PATH                     "/etc_ro/wlan/RT3352_AP_2T2R-4L_V12.BIN"
+#endif /* CONFIG_RALINK_RT3352_2T2R */
+
+#if defined(CONFIG_RALINK_RT5350_1T1R)
+#define EEPROM_DEFAULT_FILE_PATH                     "/etc_ro/wlan/RT5350_AP_1T1R_V1_0.bin"
+#endif // CONFIG_RALINK_RT5350_1T1R //
+
+#if defined(CONFIG_RT2860V2_2850)
+#define EEPROM_DEFAULT_FILE_PATH                     "/etc_ro/wlan/RT2880_RT2850_AP_2T3R_V1_6.bin"
+#endif /* CONFIG_RT2860V2_2850 */
+
+#if defined (CONFIG_RALINK_RT6352)  || defined (CONFIG_RALINK_MT7620)
+#if defined(CONFIG_SUPPORT_OPENWRT)
+#define EEPROM_DEFAULT_FILE_PATH                     "/etc/wireless/mt7612e/mt7612e.eeprom.bin"
+#else
+#define EEPROM_DEFAULT_FILE_PATH                     "/etc_ro/wlan/MT7620_AP_2T2R-4L_V15.BIN"
+#endif /* CONFIG_SUPPORT_OPENWRT */
+#endif /* defined (CONFIG_RALINK_RT6352)  || defined (CONFIG_RALINK_MT7620) */
+
+
+#ifndef EEPROM_DEFAULT_FILE_PATH
+/* RFIC 2820 */
+#define EEPROM_DEFAULT_FILE_PATH                     "/etc_ro/wlan/RT2880_RT2820_AP_2T3R_V1_6.bin"
+#endif /* EEPROM_DEFAULT_FILE_PATH */
+
+#ifdef RTMP_FLASH_SUPPORT
+static USHORT EE_FLASH_ID_LIST[]={
+
+#ifdef RT6352
+	0x6352,
+	0x7620,
+#endif /* RT6352 */
+
+
+
+#ifdef MT76x2
+#ifdef RTMP_MAC_PCI
+	0x7662,
+#endif /* RTMP_MAC_PCI */
+#endif /* MT76x0 */
+
+};
+
+#define EE_FLASH_ID_NUM  (sizeof(EE_FLASH_ID_LIST) / sizeof(USHORT))
+#endif /* RTMP_FLASH_SUPPORT */
 
 /* For ioctl check usage */
 #define EEPROM_IS_PROGRAMMED		0x80
@@ -81,9 +135,15 @@
 #define BIN_FILE_PATH				"/tmp/RT30xxEEPROM.bin"
 #endif /* BB_SOC */
 
-#define EEPROM_FILE_DIR			"/etc_ro/Wireless/"
+#if defined(CONFIG_SUPPORT_OPENWRT)
+#define EEPROM_FILE_DIR			"/etc/wireless/"
+#define EEPROM_1ST_FILE_DIR		"/etc/wireless/"
+#define EEPROM_2ND_FILE_DIR		"/etc/wireless/"
+#else
+#define EEPROM_FILE_DIR            "/etc_ro/wlan/"
 #define EEPROM_1ST_FILE_DIR        "/etc_ro/Wireless/iNIC/"
 #define EEPROM_2ND_FILE_DIR        "/etc_ro/Wireless/iNIC/"
+#endif /* CONFIG_SUPPORT_OPENWRT */
 
 #ifdef RT_BIG_ENDIAN
 typedef	union _EEPROM_WORD_STRUC {
@@ -770,8 +830,6 @@ int rtmp_ee_prom_write16(
 NDIS_STATUS rtmp_nv_init(
 	IN struct _RTMP_ADAPTER *pAd);
 
-int rtmp_get_flash_id_num(VOID);
-
 int rtmp_ee_flash_read(
 	IN struct _RTMP_ADAPTER *pAd,
 	IN USHORT 			Offset,
@@ -790,9 +848,6 @@ VOID rtmp_ee_flash_write_all(
 	IN struct _RTMP_ADAPTER *pAd,
 	IN USHORT 			*Data);
 
-INT Set_LoadEepromBufferFromFlash_Proc(
-	IN struct _RTMP_ADAPTER *pAd,
-    IN PSTRING arg);
 #endif /* defined(RTMP_RBUS_SUPPORT) || defined(RTMP_FLASH_SUPPORT) */
 
 
@@ -853,5 +908,4 @@ INT Set_EepromBufferWriteBack_Proc(
 INT RtmpChipOpsEepromHook(struct _RTMP_ADAPTER *pAd, INT infType);
 
 BOOLEAN rtmp_get_default_bin_file_by_chip(struct _RTMP_ADAPTER *pAd, UINT32 ChipVersion, PSTRING *pBinFileName);
-UCHAR RtmpEepromGetDefault(struct _RTMP_ADAPTER *pAd);
 #endif /* __EEPROM_H__ */

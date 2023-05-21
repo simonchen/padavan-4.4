@@ -27,16 +27,30 @@
 #include "mat.h"
 
 #define BTM_MACHINE_BASE 0
-#define WaitPeerBTMRspTimeoutVale 1024
+#define WaitPeerBTMRspTimeoutVale (15*1000)
+#define WaitPeerBTMReqTimeoutVale (30*1000)
+
+#define BTM_ENABLE_OFFSET   (1<<0)
+
+#define	BTM_CANDIDATE_OFFSET (1<<0)
+#define	BTM_ABRIDGED_OFFSET (1<<1)
+#define	BTM_DISASSOC_OFFSET (1<<2)
+#define	BTM_TERMINATION_OFFSET (1<<3)
+#define	BTM_URL_OFFSET (1<<4)
+
 
 /* BTM states */
 enum BTM_STATE {
 	WAIT_BTM_QUERY,
 	WAIT_PEER_BTM_QUERY,
 	WAIT_BTM_REQ,
+	BTM_REQ_IE,
+	BTM_REQ_PARAM,
 	WAIT_BTM_RSP,
 	WAIT_PEER_BTM_REQ,
 	WAIT_PEER_BTM_RSP,
+	BTM_REQ_TIMEOUT,
+	PEER_BTM_RSP_TIMEOUT,
 	BTM_UNKNOWN,
 	MAX_BTM_STATE,
 };
@@ -65,25 +79,6 @@ typedef struct GNU_PACKED _BTM_EVENT_DATA {
 	UCHAR PeerMACAddr[MAC_ADDR_LEN];
 	UINT16 EventType;
 	union {
-#ifdef CONFIG_STA_SUPPORT
-		struct {
-			UCHAR DialogToken;
-			UINT16 BTMQueryLen;
-			UCHAR BTMQuery[0];
-		} GNU_PACKED BTM_QUERY_DATA;
-	
-		struct {
-			UCHAR DialogToken;
-			UINT16 BTMRspLen;
-			UCHAR BTMRsp[0];
-		} GNU_PACKED BTM_RSP_DATA;
-
-		struct {
-			UCHAR DialogToken;
-			UINT16 BTMReqLen;
-			UCHAR BTMReq[0];
-		} GNU_PACKED PEER_BTM_REQ_DATA;
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_AP_SUPPORT
 		struct {
@@ -116,7 +111,9 @@ typedef struct _BTM_PEER_ENTRY {
 	void *Priv;
 #ifdef CONFIG_AP_SUPPORT
 	RALINK_TIMER_STRUCT WaitPeerBTMRspTimer;
+	RALINK_TIMER_STRUCT WaitPeerBTMReqTimer;
 #endif /* CONFIG_AP_SUPPORT */
+	UINT32 WaitPeerBTMRspTime;
 } BTM_PEER_ENTRY, *PBTM_PEER_ENTRY;
 
 typedef struct _PROXY_ARP_IPV4_ENTRY {
@@ -152,6 +149,7 @@ typedef struct _WNM_CTRL {
 	RTMP_OS_SEM WNMNotifyPeerListLock;
 	BOOLEAN ProxyARPEnable;
 	BOOLEAN WNMNotifyEnable;
+	BOOLEAN WNMBTMEnable;
 	RTMP_OS_SEM ProxyARPListLock;
 	RTMP_OS_SEM ProxyARPIPv6ListLock;
 	DL_LIST IPv4ProxyARPList;
@@ -260,6 +258,7 @@ VOID WNMIPv6ProxyARPCheck(
 
 DECLARE_TIMER_FUNCTION(WaitPeerBTMRspTimeout);
 DECLARE_TIMER_FUNCTION(WaitPeerWNMNotifyRspTimeout);
+DECLARE_TIMER_FUNCTION(WaitPeerBTMReqTimeout);
 
 VOID BTMStateMachineInit(
 			IN	PRTMP_ADAPTER pAd, 
@@ -269,6 +268,17 @@ VOID BTMStateMachineInit(
 enum BTM_STATE BTMPeerCurrentState(
 	IN PRTMP_ADAPTER pAd,
 	IN MLME_QUEUE_ELEM *Elem);
+
+#ifndef CONFIG_HOTSPOT_R2
+NDIS_STATUS wnm_handle_command(
+	IN PRTMP_ADAPTER pAd,
+	IN struct wnm_command *pCmd_data);
+
+void WNM_ReadParametersFromFile(
+		IN PRTMP_ADAPTER pAd,
+		char *tmpbuf,
+		char *buffer);
+#endif
 
 VOID ReceiveWNMNotifyRsp(IN PRTMP_ADAPTER pAd,
 						  IN MLME_QUEUE_ELEM *Elem);
@@ -373,6 +383,44 @@ VOID WNMNotifyStateMachineInit(
 
 #endif /* CONFIG_AP_SUPPORT */
 
+
+int send_btm_req_param(
+	IN PRTMP_ADAPTER pAd,
+	IN p_btm_reqinfo_t p_btm_req_data,
+	IN UINT32 btm_req_data_len);
+
+int send_btm_req_ie(
+	IN PRTMP_ADAPTER pAd,
+	IN p_btm_req_ie_data_t p_btm_req_data,
+	IN UINT32 btm_req_data_len);
+
+
+int check_btm_custom_params(
+	IN PRTMP_ADAPTER pAd,
+	IN p_btm_reqinfo_t p_btm_req_data, 
+	IN UINT32 btm_req_data_len);
+
+int compose_btm_req_ie(
+	IN PRTMP_ADAPTER pAd,
+	OUT PUCHAR p_btm_req_ie,
+	OUT PUINT32 p_btm_req_ie_len,
+	IN p_btm_reqinfo_t p_btm_req_data,
+	IN UINT32 btm_req_data_len);
+
+VOID WNM_InsertBSSTerminationSubIE(
+	IN PRTMP_ADAPTER pAd,
+	OUT PUCHAR pFrameBuf,
+	OUT PUINT32 pFrameLen,
+	IN UINT64 TSF,
+	IN UINT16 Duration);
+
+VOID RRM_InsertPreferenceSubIE(
+	IN PRTMP_ADAPTER pAd,
+	OUT PUCHAR pFrameBuf,
+	OUT PUINT32 pFrameLen,
+	IN UINT8 preference);
+
+
 #ifdef DOT11V_WNM_SUPPORT
 #include "rtmp_type.h"
 #include "wnm_cmm.h"
@@ -398,25 +446,6 @@ VOID WNMNotifyStateMachineInit(
 #endif /* CONFIG_AP_SUPPORT */
 
 
-#ifdef CONFIG_STA_SUPPORT
-
-#define IS_BSS_TRANSIT_MANMT_SUPPORT(_P) \
-	((_P)->StaCfg.WnmCfg.bDot11vWNM_BSSEnable == TRUE)
-
-#define IS_WNMDMS_SUPPORT(_P) \
-	((_P)->StaCfg.WnmCfg.bDot11vWNM_DMSEnable == TRUE)
-
-#define IS_WNMFMS_SUPPORT(_P) \
-	((_P)->StaCfg.WnmCfg.bDot11vWNM_FMSEnable == TRUE)
-
-#define IS_WNMSleepMode_SUPPORT(_P) \
-	((_P)->StaCfg.WnmCfg.bDot11vWNM_SleepModeEnable == TRUE)
-
-#define IS_WNMTFS_SUPPORT(_P) \
-	((_P)->StaCfg.WnmCfg.bDot11vWNM_TFSEnable == TRUE)
-
-
-#endif /* CONFIG_STA_SUPPORT */
 
 
 #define WNM_MEM_COPY(__Dst, __Src, __Len)	memcpy(__Dst, __Src, __Len)

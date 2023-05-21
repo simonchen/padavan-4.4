@@ -367,6 +367,7 @@ PMEASURE_REQ_ENTRY MeasureReqLookUp(
 	UINT HashIdx;
 	PMEASURE_REQ_TAB pTab = pAd->CommonCfg.pMeasureReqTab;
 	PMEASURE_REQ_ENTRY pEntry = NULL;
+	PMEASURE_REQ_ENTRY pPrevEntry = NULL;
 
 	if (pTab == NULL)
 	{
@@ -385,6 +386,7 @@ PMEASURE_REQ_ENTRY MeasureReqLookUp(
 			break;
 		else
 		{
+			pPrevEntry = pEntry;
 			pEntry = pEntry->pNext;
 		}
 	}
@@ -590,6 +592,7 @@ static PTPC_REQ_ENTRY TpcReqLookUp(
 	UINT HashIdx;
 	PTPC_REQ_TAB pTab = pAd->CommonCfg.pTpcReqTab;
 	PTPC_REQ_ENTRY pEntry = NULL;
+	PTPC_REQ_ENTRY pPrevEntry = NULL;
 
 	if (pTab == NULL)
 	{
@@ -608,6 +611,7 @@ static PTPC_REQ_ENTRY TpcReqLookUp(
 			break;
 		else
 		{
+			pPrevEntry = pEntry;
 			pEntry = pEntry->pNext;
 		}
 	}
@@ -823,13 +827,21 @@ VOID InsertChannelRepIE(
 	OUT PUCHAR pFrameBuf,
 	OUT PULONG pFrameLen,
 	IN PSTRING pCountry,
-	IN UINT8 RegulatoryClass)
+	IN UINT8 RegulatoryClass,
+	IN UINT8 *ChReptList)
 {
 	ULONG TempLen;
 	UINT8 Len;
 	UINT8 IEId = IE_AP_CHANNEL_REPORT;
 	PUCHAR pChListPtr = NULL;
 	PDOT11_CHANNEL_SET pChannelSet = NULL;
+
+	UINT8 i,j;
+	UCHAR ChannelList[16] ={0};
+	UINT8 NumberOfChannels = 0;
+	UINT8 *pChannelList = NULL;
+	UCHAR channel_set_num = 0;
+	UCHAR ch_list_num = 0;
 
 	Len = 1;
 	if (strncmp(pCountry, "US", 2) == 0)
@@ -859,6 +871,31 @@ VOID InsertChannelRepIE(
 					__FUNCTION__, pCountry));
 		return;
 	}
+
+	channel_set_num = get_channel_set_num(pChannelSet->ChannelList);
+	ch_list_num = get_channel_set_num(ChReptList);
+
+	if (ch_list_num) // assign partial channel list
+	{
+		for (i=0; i <channel_set_num; i++)
+		{
+			for (j=0; j<ch_list_num; j++)
+			{
+				if (ChReptList[j] == pChannelSet->ChannelList[i])
+				{
+					ChannelList[NumberOfChannels++] = pChannelSet->ChannelList[i];
+				}
+			}
+		}
+
+		pChannelList = &ChannelList[0];
+	}
+	else
+	{
+		NumberOfChannels = pChannelSet->NumberOfChannels;
+		pChannelList = pChannelSet->ChannelList;
+	}
+
 
 	/* no match channel set. */
 	if (pChannelSet == NULL)
@@ -1104,6 +1141,9 @@ VOID MakeMeasurementReqFrame(
 	MEASURE_REQ_INFO MeasureReqIE;
 
 	InsertActField(pAd, (pOutBuffer + *pFrameLen), pFrameLen, Category, Action);
+#ifdef RT_BIG_ENDIAN
+	NumOfRepetitions = cpu2le16(NumOfRepetitions);
+#endif
 
 	/* fill Dialog Token*/
 	InsertDialogToken(pAd, (pOutBuffer + *pFrameLen), pFrameLen, MeasureToken);
@@ -2003,10 +2043,6 @@ static VOID PeerChSwAnnAction(
 {
 	CH_SW_ANN_INFO ChSwAnnInfo;
 	PFRAME_802_11 pFr = (PFRAME_802_11)Elem->Msg;
-#ifdef CONFIG_STA_SUPPORT
-	UCHAR index = 0, Channel = 0, NewChannel = 0;
-	ULONG Bssidx = 0;
-#endif /* CONFIG_STA_SUPPORT */
 
 	NdisZeroMemory(&ChSwAnnInfo, sizeof(CH_SW_ANN_INFO));
 	if (! PeerChSwAnnSanity(pAd, Elem->Msg, Elem->MsgLen, &ChSwAnnInfo))
@@ -2025,53 +2061,6 @@ static VOID PeerChSwAnnAction(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	if (pAd->OpMode == OPMODE_STA)
-	{
-		Bssidx = BssTableSearch(&pAd->ScanTab, pFr->Hdr.Addr3, pAd->CommonCfg.Channel);
-		if (Bssidx == BSS_NOT_FOUND)
-		{
-			DBGPRINT(RT_DEBUG_TRACE, ("PeerChSwAnnAction - Bssidx is not found\n"));
-			return;  
-		}
-
-		DBGPRINT(RT_DEBUG_TRACE, ("\n****Bssidx is %d, Channel = %d\n", index, pAd->ScanTab.BssEntry[Bssidx].Channel));
-		hex_dump("SSID",pAd->ScanTab.BssEntry[Bssidx].Bssid ,6);
-
-		Channel = pAd->CommonCfg.Channel;
-		NewChannel = ChSwAnnInfo.Channel;
-
-		if ((pAd->CommonCfg.bIEEE80211H == 1) && (NewChannel != 0) && (Channel != NewChannel))
-		{
-			/* Switching to channel 1 can prevent from rescanning the current channel immediately (by auto reconnection).*/
-			/* In addition, clear the MLME queue and the scan table to discard the RX packets and previous scanning results.*/
-			AsicSwitchChannel(pAd, 1, FALSE);
-			AsicLockChannel(pAd, 1);
-			LinkDown(pAd, FALSE);
-			MlmeQueueInit(pAd, &pAd->Mlme.Queue);
-		    RtmpusecDelay(1000000);		/* use delay to prevent STA do reassoc*/
-					
-			/* channel sanity check*/
-			for (index = 0 ; index < pAd->ChannelListNum; index++)
-			{
-				if (pAd->ChannelList[index].Channel == NewChannel)
-				{
-					pAd->ScanTab.BssEntry[Bssidx].Channel = NewChannel;
-					pAd->CommonCfg.Channel = NewChannel;
-					AsicSwitchChannel(pAd, pAd->CommonCfg.Channel, FALSE);
-					AsicLockChannel(pAd, pAd->CommonCfg.Channel);
-					DBGPRINT(RT_DEBUG_TRACE, ("&&&&&&&&&&&&&&&&PeerChSwAnnAction - STA receive channel switch announcement IE (New Channel =%d)\n", NewChannel));
-					break;
-				}
-			}
-
-			if (index >= pAd->ChannelListNum)
-			{
-				DBGPRINT_ERR(("&&&&&&&&&&&&&&&&&&&&&&&&&&PeerChSwAnnAction(can not find New Channel=%d in ChannelList[%d]\n", pAd->CommonCfg.Channel, pAd->ChannelListNum));
-			}
-		}
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	return;
 }
@@ -2351,6 +2340,8 @@ INT Set_MeasureReq_Proc(
 	UINT8 MeasureCh = 1;
 	UINT64 MeasureStartTime = GetCurrentTimeStamp(pAd);
 	MEASURE_REQ MeasureReq;
+	UINT8 TotalLen;
+
 	HEADER_802_11 ActHdr;
 	PUCHAR pOutBuffer = NULL;
 	NDIS_STATUS NStatus;
@@ -2409,14 +2400,10 @@ INT Set_MeasureReq_Proc(
 	NdisMoveMemory(pOutBuffer, (PCHAR)&ActHdr, sizeof(HEADER_802_11));
 	FrameLen = sizeof(HEADER_802_11);
 
-	/*
-		according to 802.11h-2003.pdf 
-		Page#26
-		Table 19a!XCategory values
-		Spectrum management (CATEGORY_SPECTRUM) ==> 0
-	*/
+	TotalLen = sizeof(MEASURE_REQ_INFO) + sizeof(MEASURE_REQ);
+
 	MakeMeasurementReqFrame(pAd, pOutBuffer, &FrameLen,
-		sizeof(MEASURE_REQ_INFO), CATEGORY_SPECTRUM, SPEC_MRQ,
+		sizeof(MEASURE_REQ_INFO), CATEGORY_RM, RM_BASIC,
 		MeasureReqToken, MeasureReqMode.word,
 		MeasureReqType, 1);
 

@@ -55,10 +55,12 @@ extern VOID* pAdGlobalList[2];
 */
 static struct pci_device_id rt_pci_tbl[] DEVINITDATA =
 {
+	{PCI_DEVICE(NIC_PCI_VENDOR_ID, NIC3091_PCIe_DEVICE_ID)},
 #ifdef RT8592
 	{PCI_DEVICE(NIC_PCI_VENDOR_ID, NIC8592_PCIe_DEVICE_ID)},
 #endif /* RT8592 */
 #ifdef MT76x2
+	{PCI_DEVICE(0x1400, NIC7650_PCIe_DEVICE_ID)},
 	{PCI_DEVICE(0x1400, NIC7662_PCIe_DEVICE_ID)},
 	{PCI_DEVICE(MTK_PCI_VENDOR_ID, NIC7662_PCIe_DEVICE_ID)},
 	{PCI_DEVICE(MTK_PCI_VENDOR_ID, NIC7632_PCIe_DEVICE_ID)},
@@ -124,10 +126,11 @@ static int rt_pci_suspend(struct pci_dev *pci_dev, pm_message_t state)
 
 			/* take down the device */
 			rt28xx_close((PNET_DEV)net_dev);
-
+			
 #ifdef CONFIG_RA_HW_NAT_WIFI_NEW_ARCH
 			RT_MOD_HNAT_DEREG(net_dev);
 #endif
+
 			RT_MOD_DEC_USE_COUNT();
 		}
 	}
@@ -221,11 +224,9 @@ static int rt_pci_resume(struct pci_dev *pci_dev)
 
 			/* increase MODULE use count */
 			RT_MOD_INC_USE_COUNT();
-
 #ifdef CONFIG_RA_HW_NAT_WIFI_NEW_ARCH
 			RT_MOD_HNAT_REG(net_dev);
 #endif
-
 
 /*			RTMP_CLEAR_FLAG(pAd, fRTMP_ADAPTER_HALT_IN_PROGRESS); */
 /*			RTMP_CLEAR_FLAG(pAd, fRTMP_ADAPTER_RADIO_OFF); */
@@ -251,16 +252,11 @@ static int DEVINIT rt_pci_probe(struct pci_dev *pdev, const struct pci_device_id
 {
 	void *pAd = NULL, *handle;
 	struct net_device *net_dev;
-	const char *print_name;
+	char *print_name;
 	unsigned long csr_addr;
 	int rv = 0;
 	RTMP_OS_NETDEV_OP_HOOK netDevHook;
 	unsigned long OpMode;
-#ifdef DBG
-    ULONG start, end, diff_ms;
-    /* Get the current time for calculating startup time */
-    NdisGetSystemUpTime(&start);
-#endif /* DBG */	
 
 	DBGPRINT(RT_DEBUG_TRACE, ("===> %s()\n", __FUNCTION__));
 
@@ -273,7 +269,7 @@ static int DEVINIT rt_pci_probe(struct pci_dev *pdev, const struct pci_device_id
 	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
-	print_name = (char *) pci_name(pdev);
+	print_name = pci_name(pdev);
 #else
 	print_name = pdev->slot_name;
 #endif /* LINUX_VERSION_CODE */
@@ -298,24 +294,6 @@ static int DEVINIT rt_pci_probe(struct pci_dev *pdev, const struct pci_device_id
 					(ULONG)pci_resource_start(pdev, 0), (ULONG)csr_addr, pdev->irq));
 	}
 
-#ifdef RT_SECURE_DMA
-	/* Map secure memory area to our pci_dev, for future dma buffer memory allocations */
-	/* The numbers here will need to be changed to match the platform. Currently 16MBytes
-	 * are allocated at address 256Mbyte
-	 */
-
-	/* Example of code for ST platform */
-
-	DBGPRINT(RT_DEBUG_OFF, ("%s(): RT_SECURE_DMA prepare\n", __FUNCTION__));
-
-	if( ! dma_declare_coherent_memory(&(pdev->dev), 0x10000000UL, 0x10000000UL, 0x01000000UL,
-									  DMA_MEMORY_MAP | DMA_MEMORY_EXCLUSIVE ) )
-	{
-		DBGPRINT(RT_DEBUG_OFF, ("%s(): dma_declare_coherent_memory failed!\n", __FUNCTION__));
-		goto err_out_iounmap;
-	}
-
-#endif
 	/* Set DMA master */
 	pci_set_master(pdev);
 
@@ -366,16 +344,6 @@ static int DEVINIT rt_pci_probe(struct pci_dev *pdev, const struct pci_device_id
 	net_dev->base_addr = csr_addr;		/* Save CSR virtual address and irq to device structure */
 	pci_set_drvdata(pdev, net_dev);	/* Set driver data */
 	
-#ifdef NATIVE_WPA_SUPPLICANT_SUPPORT
-/* for supporting Network Manager */
-	/*
-		Set the sysfs physical device reference for the network logical device
-		if set prior to registration will cause a symlink during initialization.
-	*/
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
-	SET_NETDEV_DEV(net_dev, &(pdev->dev));
-#endif
-#endif /* NATIVE_WPA_SUPPLICANT_SUPPORT */
 
 /*All done, it's time to register the net device to linux kernel. */
 	/* Register this device */
@@ -400,10 +368,6 @@ static int DEVINIT rt_pci_probe(struct pci_dev *pdev, const struct pci_device_id
 	if (rv)
 		goto err_out_free_netdev;
 
-#ifdef CONFIG_STA_SUPPORT
-/*	pAd->StaCfg.OriDevType = net_dev->type; */
-	RTMP_DRIVER_STA_DEV_TYPE_SET(pAd, net_dev->type);
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef PRE_ASSIGN_MAC_ADDR
 {
@@ -417,12 +381,6 @@ static int DEVINIT rt_pci_probe(struct pci_dev *pdev, const struct pci_device_id
 	RtmpOSNetDevAddrSet(OpMode, net_dev, &mac_addr[0], NULL);
 }
 #endif /* PRE_ASSIGN_MAC_ADDR */
-
-#ifdef DBG				
-    /* Get the current time for calculating startup time */
-    NdisGetSystemUpTime(&end); diff_ms = (end-start)*1000/OS_HZ;
-    DBGPRINT(RT_DEBUG_OFF, ("WiFi PCI Startup Time: %lu.%03lus\n",diff_ms/1000,diff_ms%1000));
-#endif /* DBG */
 
 	DBGPRINT(RT_DEBUG_TRACE, ("<=== %s()\n", __FUNCTION__));
 
@@ -495,9 +453,6 @@ static VOID DEVEXIT rt_pci_remove(struct pci_dev *pci_dev)
 		release_mem_region(pci_resource_start(pci_dev, 0), pci_resource_len(pci_dev, 0));
 	}
 
-#ifdef RT_SECURE_DMA
-	dma_release_declared_memory(&(pci_dev->dev));
-#endif
 	/* Free the root net_device */
 	RtmpOSNetDevFree(net_dev);
 }
@@ -516,6 +471,7 @@ static struct pci_driver rt_pci_driver =
 #else
 	remove: __devexit(rt_pci_remove),
 #endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 #ifdef CONFIG_PM
 	suspend:	rt_pci_suspend,
@@ -531,28 +487,29 @@ static struct pci_driver rt_pci_driver =
 int __init rt_pci_init_module(void)
 {
 	DBGPRINT(RT_DEBUG_ERROR, ("register %s\n", RTMP_DRV_NAME));
+/*
+	DBGPRINT(RT_DEBUG_ERROR, ("DriverVersion: 2.7.0.2-Beta-121007\n"
+								"\tBBP:120824\n"
+								"\tRF :120813\n"));
+*/
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,5,0)
 	return pci_register_driver(&rt_pci_driver);
 #else
-	return pci_module_init(&rt_pci_driver);
+    return pci_module_init(&rt_pci_driver);
 #endif
 }
 
 
 void __exit rt_pci_cleanup_module(void)
 {
-	pci_unregister_driver(&rt_pci_driver);
+    pci_unregister_driver(&rt_pci_driver);
 }
 
 #ifndef MULTI_INF_SUPPORT
 module_init(rt_pci_init_module);
 module_exit(rt_pci_cleanup_module);
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef MODULE_VERSION
-MODULE_VERSION(STA_DRIVER_VERSION);
-#endif
-#endif /* CONFIG_STA_SUPPORT */
 
 #endif /* MULTI_INF_SUPPORT */
+

@@ -37,6 +37,10 @@
 #include "ft_cmm.h"
 #endif /* DOT11R_FT_SUPPORT */
 
+#ifdef DOT11K_RRM_SUPPORT
+#include "dot11r_ft.h"
+#endif /* DOT11K_RRM_SUPPORT */
+
 /* maximum supported capability information - */
 /* ESS, IBSS, Privacy, Short Preamble, Spectrum mgmt, Short Slot */
 #define SUPPORTED_CAPABILITY_INFO   0x0533
@@ -49,9 +53,6 @@
 #define MLME_TASK_EXEC_MULTIPLE       10  /*5*/       /* MLME_TASK_EXEC_MULTIPLE * MLME_TASK_EXEC_INTV = 1 sec */
 #define REORDER_EXEC_INTV         	100       /* 0.1 sec */
 
-#ifdef CONFIG_STA_SUPPORT
-#define STAY_10_SECONDS_AWAKE        100/* */
-#endif /* CONFIG_STA_SUPPORT */
 /*#define TBTT_PRELOAD_TIME         384        // usec. LomgPreamble + 24-byte at 1Mbps */
 
 /* The definition of Radar detection duration region */
@@ -111,18 +112,10 @@
 
 #define BSS_NOT_FOUND                    0xFFFFFFFF
 
-#ifdef EAPOL_QUEUE_SUPPORT
-#define MAX_LEN_OF_EAP_QUEUE            (40)
-#endif /* EAPOL_QUEUE_SUPPORT */
 #ifdef CONFIG_AP_SUPPORT
-#ifndef CONFIG_STA_SUPPORT
 #define MAX_LEN_OF_MLME_QUEUE            64 /*20*/ /*10 */
-#endif
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-#define MAX_LEN_OF_MLME_QUEUE            40 /*10 */
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef TXBF_SUPPORT
 #define SOUND_PERIOD_TIME                50 /* 50ms */
@@ -190,7 +183,7 @@ enum SCAN_MODE{
 #define ERP_IS_USE_PROTECTION(x)         (((x) & 0x02) != 0)    /* 802.11g */
 #define ERP_IS_USE_BARKER_PREAMBLE(x)    (((x) & 0x04) != 0)    /* 802.11g */
 
-#define DRS_TX_QUALITY_WORST_BOUND       8/* 3  // just test by gary */
+#define DRS_TX_QUALITY_WORST_BOUND       4
 #define DRS_PENALTY                      8
 
 #define BA_NOTUSE 	2
@@ -809,7 +802,29 @@ typedef	struct _CIPHER_SUITE {
 	USHORT							RsnCapability;	/* RSN capability from beacon */
 	BOOLEAN							bMixMode;		/* Indicate Pair & Group cipher might be different */
 }	CIPHER_SUITE, *PCIPHER_SUITE;
-	
+
+struct _vendor_ie_cap {
+	ULONG ra_cap;
+	ULONG mtk_cap;
+	ULONG brcm_cap;
+	BOOLEAN ldpc;
+	BOOLEAN sgi;
+	BOOLEAN is_rlt;
+	BOOLEAN is_mtk;
+#ifdef MWDS
+	BOOLEAN mtk_cap_found;
+	BOOLEAN support_mwds;
+#endif /* MWDS */
+#ifdef WH_EZ_SETUP
+	UINT ez_capability;
+#ifdef NEW_CONNECTION_ALGO
+	UCHAR open_group_id[OPEN_GROUP_MAX_LEN];
+	UCHAR open_group_id_len;
+	beacon_info_tag_t beacon_info;
+#endif
+	BOOLEAN support_easy_setup;
+#endif /* WH_EZ_SETUP */
+};
 
 /* EDCA configuration from AP's BEACON/ProbeRsp */
 typedef struct {
@@ -892,12 +907,6 @@ typedef struct {
     UCHAR       EdcaUpdateCount;
 } QOS_CAPABILITY_PARM, *PQOS_CAPABILITY_PARM;
 
-#ifdef CONFIG_STA_SUPPORT
-typedef struct {
-    UCHAR       IELen;
-    UCHAR       IE[MAX_CUSTOM_LEN];
-} WPA_IE_;
-#endif /* CONFIG_STA_SUPPORT */
 
 
 typedef struct _BSS_ENTRY{
@@ -914,8 +923,8 @@ typedef struct _BSS_ENTRY{
 	UCHAR SupRateLen;
 	UCHAR ExtRate[MAX_LEN_OF_SUPPORTED_RATES];
 	UCHAR ExtRateLen;
-	UCHAR Erp;
 	HT_CAPABILITY_IE HtCapability;
+	UCHAR Erp;
 	UCHAR HtCapabilityLen;
 	ADD_HT_INFO_IE AddHtInfo;	/* AP might use this additional ht info IE */
 	UCHAR AddHtInfoLen;
@@ -997,48 +1006,38 @@ typedef struct _BSS_ENTRY{
 #endif /* WSC_INCLUDED */
 
 
-#ifdef CONFIG_STA_SUPPORT
-	WPA_IE_ WpaIE;
-	WPA_IE_ RsnIE;
-	WPA_IE_ WpsIE;
-#ifdef WAPI_SUPPORT
-	WPA_IE_ WapiIE;
-#endif /* WAPI_SUPPORT */
 
-#ifdef EXT_BUILD_CHANNEL_LIST
-	UCHAR CountryString[3];
-	BOOLEAN bHasCountryIE;
-#endif /* EXT_BUILD_CHANNEL_LIST */
-#endif /* CONFIG_STA_SUPPORT */
 #if defined(DOT11R_FT_SUPPORT) || defined(DOT11K_RRM_SUPPORT)
 	BOOLEAN	 bHasMDIE;
 	FT_MDIE FT_MDIE;
-#endif /* (DOT11R_FT_SUPPORT) || defined(DOT11K_RRM_SUPPORT) */
+#endif /* DOT11R_FT_SUPPORT */
 
 #ifdef DOT11K_RRM_SUPPORT
 	UINT8 RegulatoryClass;
 	UINT8 CondensedPhyType;
 	UINT8 RSNI;
 #endif /* DOT11K_RRM_SUPPORT */
-
-#ifdef SMART_MESH
-	BOOLEAN		bDfsAP;             /* Determine If specified peer is in DFS channel */
-	BOOLEAN		bSupportSmartMesh; 	/* Determine If own smart mesh capability */
-	BOOLEAN     bHyperFiPeer;       /* Determine If peer is Hyper-Fi device */	
-	UCHAR       VIEFlag;       		/* Store the flag byte inside VIE */	
-	USHORT      BW;	
-#endif /* SMART_MESH */
 #ifdef MWDS
-	BOOLEAN		bSupportMWDS; 		/* Determine If own MWDS capability */
+	BOOLEAN	bSupportMWDS;	/* Determine If own MWDS capability */
 #endif /* MWDS */
-#ifdef WSC_AP_SUPPORT
-#ifdef SMART_MESH_HIDDEN_WPS
-    BOOLEAN		bSupportHiddenWPS; 	/* Determine If own HiddenWPS capability */
-    BOOLEAN		bRunningHiddenWPS; 	/* Determine If HiddenWPS is running now */
-    BOOLEAN		bHiddenWPSRegistrar;/* Determine which role for this bss with HiddenWPS */
-#endif /* SMART_MESH_HIDDEN_WPS */
-#endif /* WSC_AP_SUPPORT */
+#ifdef WH_EZ_SETUP
+	unsigned char support_easy_setup;
+	unsigned int easy_setup_capability;
+	BOOLEAN bConnectAttemptFailed;
+	BOOLEAN non_ez_beacon;
+#ifdef NEW_CONNECTION_ALGO
+	UCHAR open_group_id[OPEN_GROUP_MAX_LEN];
+	UCHAR open_group_id_len;
+	beacon_info_tag_t beacon_info;
+#endif
+#endif /* WH_EZ_SETUP */
+
 } BSS_ENTRY;
+#ifdef WH_EZ_SETUP
+#define IMM_DISCONNECT	(BIT(15))
+	/* If this bit is set in 'Priv' of MLME_QUEUE_ELEM, during disconenct request to MLME,*/
+	/*the request will be processed immediately*/
+#endif
 
 typedef struct {
     UCHAR           BssNr;
@@ -1073,26 +1072,10 @@ typedef struct _MLME_QUEUE_ELEM {
 	ULONG Priv;
 } MLME_QUEUE_ELEM, *PMLME_QUEUE_ELEM;
 
-#ifdef EAPOL_QUEUE_SUPPORT
-typedef struct _EAP_MLME_QUEUE {
-    ULONG             Num;
-    ULONG             Head;
-    ULONG             Tail;
-#ifdef SMART_MESH
-    ULONG             QueueFullCnt;
-#endif /* SMART_MESH */
-    NDIS_SPIN_LOCK   Lock;
-    MLME_QUEUE_ELEM  Entry[MAX_LEN_OF_EAP_QUEUE];
-} EAP_MLME_QUEUE, *PEAP_MLME_QUEUE;
-#endif /* EAPOL_QUEUE_SUPPORT */
-
 typedef struct _MLME_QUEUE {
 	ULONG Num;
 	ULONG Head;
 	ULONG Tail;
-#ifdef SMART_MESH
-    ULONG             QueueFullCnt;
-#endif /* SMART_MESH */
 	NDIS_SPIN_LOCK Lock;
 	MLME_QUEUE_ELEM Entry[MAX_LEN_OF_MLME_QUEUE];
 } MLME_QUEUE, *PMLME_QUEUE;
@@ -1185,7 +1168,7 @@ typedef struct _MLME_AUX {
     ULONG               BssIdx;
     ULONG               RoamIdx;
 	BOOLEAN				CurrReqIsFromNdis;
-	INT					ScanInfType;
+
     RALINK_TIMER_STRUCT BeaconTimer, ScanTimer, APScanTimer;
     RALINK_TIMER_STRUCT AuthTimer;
     RALINK_TIMER_STRUCT AssocTimer, ReassocTimer, DisassocTimer;
@@ -1199,26 +1182,14 @@ typedef struct _MLME_AUX {
 #endif /* APCLI_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef DOT11R_FT_SUPPORT
-	RALINK_TIMER_STRUCT FtOtdActTimer;
-	RALINK_TIMER_STRUCT FtOtaAuthTimer;
-	FT_MDIE_INFO	MdIeInfo;
-	FT_FTIE_INFO	FtIeInfo;
 
-	UINT8			InitialMDIE[5];
-	UINT8			InitialFTIE[256];
-	UINT			InitialFTIE_Len;
-#endif /* DOT11R_FT_SUPPORT */
-#endif /* CONFIG_STA_SUPPORT */
-
-#ifdef SMART_MESH
-	BOOLEAN		bSupportSmartMesh; 	/* Determine If own smart mesh capability */
-	BOOLEAN     bHyperFiPeer;       /* Determine If peer is Hyper-Fi device */
-#endif /* SMART_MESH */
 #ifdef MWDS
-	BOOLEAN		bSupportMWDS; 		/* Determine If own MWDS capability */
+	BOOLEAN	bSupportMWDS;	/* Determine If own MWDS capability */
 #endif /* MWDS */
+#ifdef WH_EZ_SETUP
+	BOOLEAN support_easy_setup;
+	UINT8 attempted_candidate_index; /* with respect to entries in SsidBssTab*/
+#endif /* WH_EZ_SETUP */
 } MLME_AUX, *PMLME_AUX;
 
 typedef struct _MLME_ADDBA_REQ_STRUCT{
@@ -1266,6 +1237,13 @@ typedef struct _MLME_DEAUTH_REQ_STRUCT {
     UCHAR        Addr[MAC_ADDR_LEN];
     USHORT       Reason;
 } MLME_DEAUTH_REQ_STRUCT, *PMLME_DEAUTH_REQ_STRUCT;
+#if (defined(WH_EZ_SETUP) && defined(EZ_NETWORK_MERGE_SUPPORT))
+typedef struct _MLME_BROADCAST_DEAUTH_REQ_STRUCT {
+	UCHAR				Addr[MAC_ADDR_LEN];
+	USHORT				Reason;
+	struct wifi_dev		*wdev;
+} MLME_BROADCAST_DEAUTH_REQ_STRUCT, *PMLME_BROADCAST_DEAUTH_REQ_STRUCT;
+#endif
 
 typedef struct {
     ULONG      BssIdx;
@@ -1290,28 +1268,6 @@ typedef struct _MLME_START_REQ_STRUCT {
     UCHAR       SsidLen;
 } MLME_START_REQ_STRUCT, *PMLME_START_REQ_STRUCT;
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef QOS_DLS_SUPPORT
-/* structure for DLS */
-typedef struct _RT_802_11_DLS {
-	USHORT						TimeOut;		/* Use to time out while slience, unit: second , set by UI */
-	USHORT						CountDownTimer;	/* Use to time out while slience,unit: second , used by driver only */
-	NDIS_802_11_MAC_ADDRESS		MacAddr;		/* set by UI */
-	UCHAR						Status;			/* 0: none , 1: wait STAkey, 2: finish DLS setup , set by driver only */
-	BOOLEAN						Valid;			/* 1: valid , 0: invalid , set by UI, use to setup or tear down DLS link */
-	RALINK_TIMER_STRUCT			Timer;			/* Use to time out while handshake */
-	USHORT						Sequence;
-	USHORT						MacTabMatchWCID;	/* ASIC */
-	BOOLEAN						bHTCap;
-	PVOID						pAd;
-} RT_802_11_DLS, *PRT_802_11_DLS;
-
-typedef struct _MLME_DLS_REQ_STRUCT {
-    PRT_802_11_DLS	pDLS;
-    USHORT			Reason;
-} MLME_DLS_REQ_STRUCT, *PMLME_DLS_REQ_STRUCT;
-#endif /* QOS_DLS_SUPPORT */
-#endif /* CONFIG_STA_SUPPORT */
 
 typedef struct GNU_PACKED _EID_STRUCT{
     UCHAR   Eid;
@@ -1417,6 +1373,9 @@ typedef struct _bcn_ie_list {
 	EDCA_PARM EdcaParm;
 	QBSS_LOAD_PARM QbssLoad;
 	QOS_CAPABILITY_PARM QosCapability;
+#if (defined(MWDS) || defined(WH_EZ_SETUP))
+	struct _vendor_ie_cap vendor_ie;
+#endif
 	ULONG RalinkIe;
 	ULONG MediatekIe;
 	EXT_CAP_INFO_ELEMENT ExtCapInfo;
@@ -1426,11 +1385,6 @@ typedef struct _bcn_ie_list {
 	UCHAR AddHtInfoLen;
 	ADD_HT_INFO_IE AddHtInfo;
 	UCHAR NewExtChannelOffset;
-#ifdef CONFIG_STA_SUPPORT
-#ifdef NATIVE_WPA_SUPPLICANT_SUPPORT
-	UCHAR selReg;
-#endif /* NATIVE_WPA_SUPPLICANT_SUPPORT */
-#endif /* CONFIG_STA_SUPPORT */
 #ifdef DOT11_VHT_AC
 	VHT_CAP_IE vht_cap_ie;
 	VHT_OP_IE vht_op_ie;
@@ -1439,24 +1393,6 @@ typedef struct _bcn_ie_list {
 	OPERATING_MODE operating_mode;
 	UCHAR vht_op_mode_len;
 #endif /* DOT11_VHT_AC */
-#ifdef SMART_MESH
-	UCHAR VIEFlag;       		/* Store the flag byte inside VIE*/	
-	BOOLEAN	bSupportSmartMesh; 	/* Determine If own smart mesh capability */
-#endif /* SMART_MESH */
-#ifdef MWDS
-	BOOLEAN	bSupportMWDS; 		/* Determine If own MWDS capability */
-#endif /* MWDS */
-#ifdef WSC_AP_SUPPORT
-#ifdef SMART_MESH_HIDDEN_WPS
-    BOOLEAN	bSupportHiddenWPS; 	/* Determine If own HiddenWPS capability */
-    BOOLEAN bRunningHiddenWPS;  /* Determine HiddenWPS is running */
-    BOOLEAN	bHiddenWPSRegistrar;/* Determine which role for this bss with HiddenWPS */
-#endif /* SMART_MESH_HIDDEN_WPS */
-#endif /* WSC_AP_SUPPORT */
-#ifdef SMART_MESH_MONITOR
-	UCHAR vendor_ie_len;
-	UCHAR vendor_ie[NTGR_IE_TOTAL_LEN];
-#endif /* SMART_MESH_MONITOR */
 }BCN_IE_LIST;
 
 #define ACTION_QOSMAP_CONFIG	4

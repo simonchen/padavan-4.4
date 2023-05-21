@@ -535,22 +535,6 @@ VOID	RTMPCalculateMICValue(
 	else
 #endif /* IGMP_SNOOP_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-#ifdef ETH_CONVERT_SUPPORT
-	/* If the packet is need to do MATConvert in station mode, the "apidx" used for indicate "pkt->bDonglePkt"; */
-	if ((apidx > 0) && (pAd->OpMode == OPMODE_STA))
-	{	/* For packets which need to do MATConvert, we need to use the pAd->CurrentAddress to calculate the MIC.*/
-		RTMPInitMICEngine(
-			pAd,
-			pKey->Key,
-			pSrc,
-			pAd->CurrentAddress,
-			UserPriority,
-			pKey->TxMic);
-	}
-	else
-#endif /* ETH_CONVERT_SUPPORT */
-#endif /* CONFIG_STA_SUPPORT */
 	{
 		RTMPInitMICEngine(
 			pAd,
@@ -738,8 +722,12 @@ NDIS_STATUS RTMPSoftDecryptTKIP(
 	IN 		UINT16			*DataByteCnt)
 {
 	PHEADER_802_11	pFrame;
+	UINT8			frame_type;
+	UINT8			frame_subtype;
 	UINT8			from_ds;
     UINT8			to_ds;
+	UINT8			a4_exists;
+	UINT8			qc_exists;
 	UCHAR			TA[MAC_ADDR_LEN];
 	UCHAR			DA[MAC_ADDR_LEN];
 	UCHAR			SA[MAC_ADDR_LEN];	
@@ -768,11 +756,19 @@ NDIS_STATUS RTMPSoftDecryptTKIP(
 	}
 
 	/* Indicate type and subtype of Frame Control field */
+	frame_type = (((*pHdr) >> 2) & 0x03);
+	frame_subtype = (((*pHdr) >> 4) & 0x0f);	
 
 	/* Indicate the fromDS and ToDS */
 	from_ds = ((*(pHdr + 1)) & 0x2) >> 1;
 	to_ds = ((*(pHdr + 1)) & 0x1);
 
+	/* decide if the Address 4 exist or QoS exist */
+	a4_exists = (from_ds & to_ds);
+	qc_exists = ((frame_subtype == SUBTYPE_QDATA) || 
+				 (frame_subtype == SUBTYPE_QDATA_CFACK) ||
+				 (frame_subtype == SUBTYPE_QDATA_CFPOLL) ||
+				 (frame_subtype == SUBTYPE_QDATA_CFACK_CFPOLL));
 
 	/* pointer to 802.11 header */
 	pFrame = (PHEADER_802_11)pHdr;
@@ -854,18 +850,6 @@ NDIS_STATUS RTMPSoftDecryptTKIP(
 	if (!NdisEqualMemory(MIC, TrailMIC, LEN_TKIP_MIC))
 	{
 		DBGPRINT(RT_DEBUG_ERROR, ("! TKIP MIC Error !\n"));	 /*MIC error.*/
-#ifdef CONFIG_STA_SUPPORT
-		/*RTMPReportMicError(pAd, &pWpaKey[KeyID]);	 marked by AlbertY @ 20060630 */
-#ifdef WPA_SUPPLICANT_SUPPORT
-        if (pAd->StaCfg.wpa_supplicant_info.WpaSupplicantUP) {
-                WpaSendMicFailureToWpaSupplicant(pAd->net_dev, pFrame->Addr2,
-                                                (pKey->Type == PAIRWISEKEY) ? TRUE : FALSE,
-                                                0 /*key id need be retrived by IV, actually supplicant didn't need it!*/, 
-                                                NULL);
-        } else
-#endif /* WPA_SUPPLICANT_SUPPORT */
-        RTMPReportMicError(pAd, pKey);
-#endif /* CONFIG_STA_SUPPORT */
 		return NDIS_STATUS_MICERROR;		
 	}
 

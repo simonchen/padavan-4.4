@@ -161,6 +161,10 @@ VOID RRM_InsertRRMEnCapIE(
 		0;
 	RrmEnCap.field.AntennaInfoCap = 0;
 
+#ifdef RT_BIG_ENDIAN
+	(*((UINT64 *)&RrmEnCap)) = cpu2le64(*((UINT64 *)&RrmEnCap));
+#endif
+
 	MakeOutgoingFrame(pFrameBuf,					&TempLen,
 						1,							&ElementID,
 						1,							&Len,
@@ -170,6 +174,25 @@ VOID RRM_InsertRRMEnCapIE(
 	*pFrameLen = *pFrameLen + TempLen;
 
 	return;
+}
+
+VOID RRM_InsertNeighborRepIE_New(
+	IN PRTMP_ADAPTER pAd,
+	OUT PUCHAR pFrameBuf,
+	OUT PULONG pFrameLen,
+	IN UINT8 Len,
+	IN RRM_PNEIGHBOR_REP_INFO pNeighborRepInfo)
+{
+	ULONG TempLen;
+	UINT8 IEId = IE_RRM_NEIGHBOR_REP;
+
+	MakeOutgoingFrame(pFrameBuf,						&TempLen,
+						1,								&IEId,
+						1,								&Len,
+						sizeof(RRM_NEIGHBOR_REP_INFO),	pNeighborRepInfo,
+						END_OF_ARGS);
+
+	*pFrameLen = *pFrameLen + TempLen;
 }
 
 VOID RRM_InsertNeighborRepIE(
@@ -311,6 +334,10 @@ VOID RRM_InsertBssAvailableACIE(
 			Len += 2;
 	}
 
+#ifdef RT_BIG_ENDIAN
+	pAcBitMap->word = cpu2le16(pAcBitMap->word);
+#endif
+
 	MakeOutgoingFrame(	pFrameBuf,							&TempLen,
 						1,									&IEId,
 						1,									&Len,
@@ -349,6 +376,28 @@ VOID RRM_InsertRequestIE(
 	*pFrameLen = *pFrameLen + TempLen;
 
 	return;	
+}
+
+VOID RRM_InsertRequestIE_NEW(
+	IN PRTMP_ADAPTER pAd,
+	OUT PUCHAR pFrameBuf,
+	OUT PULONG pFrameLen,
+	IN PUCHAR pRequest,
+	IN UINT8 RequestLen)
+{
+	ULONG TempLen = 0;
+	UINT8 IEId = IE_802_11D_REQUEST;
+	UINT8 Len = 0;
+
+	Len = RequestLen;
+
+	MakeOutgoingFrame(pFrameBuf,		&TempLen,
+						1,				&IEId,
+						1,				&Len,
+						Len,			pRequest,
+						END_OF_ARGS);
+
+	*pFrameLen = *pFrameLen + TempLen;
 }
 
 VOID RRM_InsertTxStreamReqIE(
@@ -430,8 +479,7 @@ VOID RRM_EnqueueBcnReq(
 	*/
 	BcnReq.RegulatoryClass = pMlmeBcnReq->RegulatoryClass;
 	BcnReq.ChNumber = pMlmeBcnReq->MeasureCh;
-	BcnReq.RandomInterval = cpu2le16((UINT16)RandomByte(pAd) << 8
-								| (UINT16)RandomByte(pAd));
+	BcnReq.RandomInterval = 0;
 	BcnReq.MeasureDuration = cpu2le16(pMlmeBcnReq->MeasureDuration);
 	BcnReq.MeasureMode = pMlmeBcnReq->MeasureMode;
 	COPY_MAC_ADDR(BcnReq.Bssid, pMlmeBcnReq->Bssid);
@@ -467,7 +515,8 @@ VOID RRM_EnqueueBcnReq(
 			ULONG FramelenTmp = FrameLen;
 			InsertChannelRepIE(pAd, (pOutBuffer+FrameLen), &FrameLen,
 								(PSTRING)pAd->CommonCfg.CountryCode,
-								pMlmeBcnReq->ChRepRegulatoryClass[idx]);
+								pMlmeBcnReq->ChRepRegulatoryClass[idx],
+								NULL);
 			TotalLen += (FrameLen - FramelenTmp);
 			idx ++;
 		}
@@ -504,7 +553,7 @@ VOID RRM_EnqueueBcnReq(
 		MeasureReqMode.word = 0;
 		MakeMeasurementReqFrame(pAd, pOutBuffer, &tmpLen,
 			TotalLen, CATEGORY_RM, RRM_MEASURE_REQ, MeasureReqToken,
-			MeasureReqMode.word, MeasureReqType, 1);
+			MeasureReqMode.word, MeasureReqType, 0);
 	}
 
 	MeasureReqInsert(pAd, MeasureReqToken);
@@ -517,44 +566,6 @@ VOID RRM_EnqueueBcnReq(
 	return;
 }
 
-#ifdef CONFIG_STA_SUPPORT
-VOID RRM_EnqueueNeighborReq(
-	IN PRTMP_ADAPTER pAd,
-	IN PUINT8 pDA,
-	IN PUINT8 pSsid,
-	IN UINT8 SsidLen)
-{
-	HEADER_802_11 ActHdr;
-	PUCHAR pOutBuffer = NULL;
-	NDIS_STATUS NStatus;
-	ULONG FrameLen;
-	UINT8 DialogToken = RandomByte(pAd);
-
-	NStatus = MlmeAllocateMemory(pAd, (PVOID)&pOutBuffer);  /*Get an unused nonpaged memory */
-	if(NStatus != NDIS_STATUS_SUCCESS)
-	{
-		DBGPRINT(RT_DEBUG_TRACE, ("%s() allocate memory failed \n", __FUNCTION__));
-		return;
-	}
-
-	/* build action frame header. */
-	MgtMacHeaderInit(pAd, &ActHdr, SUBTYPE_ACTION, 0, pDA,
-						pAd->MlmeAux.Bssid);
-
-	NdisMoveMemory(pOutBuffer, (PCHAR)&ActHdr, sizeof(HEADER_802_11));
-	FrameLen = sizeof(HEADER_802_11);
-	
-	/* fill Dialog Token */
-	InsertDialogToken(pAd, (pOutBuffer + FrameLen), &FrameLen, DialogToken);
-
-	MiniportMMRequest(pAd, QID_AC_BE, pOutBuffer, FrameLen);
-
-	if (pOutBuffer)
-		MlmeFreeMemory(pAd, pOutBuffer);
-
-	return;
-}
-#endif /* CONFIG_STA_SUPPORT */
 
 VOID RRM_EnqueueNeighborRep(
 	IN PRTMP_ADAPTER pAd,
@@ -630,84 +641,6 @@ VOID RRM_EnqueueNeighborRep(
 			BssidInfo.field.RRM = (pBssEntry->CapabilityInfo & RRM_CAP_BIT)?1:0;
 			BssidInfo.field.DelayBlockAck = (pBssEntry->CapabilityInfo & (1 << 14))?1:0;
 			BssidInfo.field.ImmediateBA = (pBssEntry->CapabilityInfo & (1 << 15))?1:0;
-
-/* 
-	reference 2012 spec.
-	802.11-2012.pdf
-	page#581 (0 is not euqal to no security )
-	The Security bit, if 1, indicates that the AP identified by this BSSID supports the same security provisioning
-	as used by the STA in its current association. If the bit is 0, it indicates either that the AP does not support
-	the same security provisioning or that the security information is not available at this time.
-*/
-
-			
-			BssidInfo.field.KeyScope = 0; /* "report AP has same authenticator as the AP. */
-/*
-	reference 2012 spec.
-	802.11-2012.pdf
-	page#582 (0 means information is not available  )
-	The Key Scope bit, when set, indicates the AP indicated by this BSSID has the same authenticator as the AP
-	sending the report. If this bit is 0, it indicates a distinct authenticator or the information is not available.
-*/
-
-			BssidInfo.field.SepctrumMng = (pBssEntry->CapabilityInfo & (1 << 8))?1:0;
-			BssidInfo.field.Qos = (pBssEntry->CapabilityInfo & (1 << 9))?1:0;
-			BssidInfo.field.APSD = (pBssEntry->CapabilityInfo & (1 << 11))?1:0;
-			BssidInfo.field.RRM = (pBssEntry->CapabilityInfo & RRM_CAP_BIT)?1:0;
-			BssidInfo.field.DelayBlockAck = (pBssEntry->CapabilityInfo & (1 << 14))?1:0;
-			BssidInfo.field.ImmediateBA = (pBssEntry->CapabilityInfo & (1 << 15))?1:0;
-
-
-			BssidInfo.field.MobilityDomain = (pBssEntry->bHasMDIE )?1:0;
-			BssidInfo.field.HT = (pBssEntry->HtCapabilityLen != 0)?1:0;
-#ifdef DOT11_VHT_AC			
-			BssidInfo.field.VHT = (pBssEntry->vht_cap_len != 0)?1:0;
-#endif /* DOT11_VHT_AC */
-
-			/*
-			reference spec:
-			dot11FrameRprtPhyType OBJECT-TYPE
-			SYNTAX INTEGER {
-			fhss(1),
-			dsss(2),
-			irbaseband(3),
-			ofdm(4),
-			hrdsss(5),
-			erp(6),
-			ht(7),
-			vht(9)
-			}
-
-			*/
-			
-			if (pBssEntry->Channel > 14) // 5G case
-			{
-				if (pBssEntry->HtCapabilityLen != 0) // HT or Higher case
-				{
-#ifdef DOT11_VHT_AC				
-					if (pBssEntry->vht_cap_len != 0)
-						pBssEntry->CondensedPhyType = 9;
-					else
-#endif /* DOT11_VHT_AC */
-						pBssEntry->CondensedPhyType = 7;
-				}
-				else // OFDM case
-				{
-					pBssEntry->CondensedPhyType = 4;
-				}
-			}
-			else // 2.4G case
-			{
-
-				if (pBssEntry->HtCapabilityLen != 0) //HT case
-					pBssEntry->CondensedPhyType = 7;
-				else if (ERP_IS_NON_ERP_PRESENT(pBssEntry->Erp)) //ERP case
-					pBssEntry->CondensedPhyType = 6;
-				else if (pBssEntry->SupRateLen > 4)// OFDM case (1,2,5.5,11 for CCK 4 Rates)
-					pBssEntry->CondensedPhyType = 4;
-
-				/* no CCK's definition in spec. */
-			}
 
 			RRM_InsertNeighborRepIE(pAd, (pOutBuffer + FrameLen), &FrameLen,
 				sizeof(RRM_NEIGHBOR_REP_INFO), pBssEntry->Bssid,

@@ -12,6 +12,8 @@
  */
 #include "raether.h"
 
+#include "mtk_hnat/nf_hnat_mtk.h"
+
 int fe_pdma_wait_dma_idle(void)
 {
 	unsigned int reg_val;
@@ -254,7 +256,10 @@ int fe_fill_tx_desc(struct net_device *dev,
 		}
 	}
 #endif
-
+	
+	if (HNAT_SKB_CB2(skb)->magic == 0x78681415)
+	{txd_info4_tmp.FPORT = 4;}
+	
 	txd_info2_tmp.LS0_bit = 1;
 	txd_info2_tmp.DDONE_bit = 0;
 

@@ -86,19 +86,19 @@ struct smp_trx_layout_t {
 #define PPPOE_RPS_MAP	(SMP_MASK_CPU1|SMP_MASK_CPU2|SMP_MASK_CPU3)
 
 static const struct smp_irq_layout_t mt7621a_irq[] = {
-	{ GIC_IRQ_FE,    SMP_MASK_CPU1 },	/* GMAC  -> CPU:0, VPE:1 */
+	{ GIC_IRQ_FE,    SMP_MASK_CPU2 },	/* GMAC  -> CPU:0, VPE:1 */
 	{ GIC_IRQ_EIP93, SMP_MASK_CPU1 },	/* EIP93 -> CPU:0, VPE:1 */
-	{ GIC_IRQ_PCIE0, SMP_MASK_CPU3 },	/* PCIe0 -> CPU:1, VPE:0 (usually rai0) */
-	{ GIC_IRQ_PCIE1, SMP_MASK_CPU2 },	/* PCIe1 -> CPU:1, VPE:1 (usually ra0) */
+	{ GIC_IRQ_PCIE0, SMP_MASK_CPU2 },	/* PCIe0 -> CPU:1, VPE:0 (usually rai0) */
+	{ GIC_IRQ_PCIE1, SMP_MASK_CPU3 },	/* PCIe1 -> CPU:1, VPE:1 (usually ra0) */
 	{ GIC_IRQ_PCIE2, SMP_MASK_CPU0 },	/* PCIe2 -> CPU:0, VPE:0 (usually ahci) */
 	{ GIC_IRQ_SDXC,  SMP_MASK_CPU2 },	/* SDXC  -> CPU:1, VPE:0 */
 	{ GIC_IRQ_XHCI,  SMP_MASK_CPU3 },	/* xHCI  -> CPU:1, VPE:1 */
 };
 
 static const struct smp_trx_layout_t mt7621a_rps[] = {
-	{ IFNAME_MAC,		SMP_MASK_CPU0 | SMP_MASK_CPU2 },	/* eth2 */
+	{ IFNAME_MAC,	        SMP_MASK_CPU1 },	/* eth2 */
 	{ IFNAME_MAC2,		SMP_MASK_CPU0 | SMP_MASK_CPU2 },	/* eth3 */
-	{ IFNAME_2G_MAIN,	SMP_MASK_CPU0 | SMP_MASK_CPU1 },
+	{ IFNAME_2G_MAIN,	SMP_MASK_CPU0 },
 	{ IFNAME_2G_GUEST,	SMP_MASK_CPU0 | SMP_MASK_CPU1 },
 	{ IFNAME_2G_APCLI,	SMP_MASK_CPU0 | SMP_MASK_CPU1 },
 	{ IFNAME_2G_WDS0,	SMP_MASK_CPU0 | SMP_MASK_CPU1 },
@@ -106,7 +106,7 @@ static const struct smp_trx_layout_t mt7621a_rps[] = {
 	{ IFNAME_2G_WDS2,	SMP_MASK_CPU0 | SMP_MASK_CPU1 },
 	{ IFNAME_2G_WDS3,	SMP_MASK_CPU0 | SMP_MASK_CPU1 },
 #if BOARD_HAS_5G_RADIO
-	{ IFNAME_5G_MAIN,	SMP_MASK_CPU0 | SMP_MASK_CPU1 },
+	{ IFNAME_5G_MAIN,	SMP_MASK_CPU0 },
 	{ IFNAME_5G_GUEST,	SMP_MASK_CPU0 | SMP_MASK_CPU1 },
 	{ IFNAME_5G_APCLI,	SMP_MASK_CPU0 | SMP_MASK_CPU1 },
 	{ IFNAME_5G_WDS0,	SMP_MASK_CPU0 | SMP_MASK_CPU1 },
@@ -174,6 +174,5 @@ set_vpn_balancing(const char *vpn_ifname, int is_server)
 void
 set_pppoe_balancing()
 {
-	rps_queue_set(IFNAME_MAC, PPPOE_RPS_MAP);
 	rps_queue_set(IFNAME_MAC2, PPPOE_RPS_MAP);
 }

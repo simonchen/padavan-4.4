@@ -33,51 +33,69 @@ struct chip_map{
 };
 
 struct chip_map RTMP_CHIP_E2P_FILE_TABLE[] = {
-#ifdef MT76x2
+	{0x3071,	"RT3092_PCIe_LNA_2T2R_ALC_V1_2.bin"},
+	{0x3090,	"RT3092_PCIe_LNA_2T2R_ALC_V1_2.bin"},
+	{0x3593,	"HMC_RT3593_PCIe_3T3R_V1_3.bin"},
+	{0x5392,	"RT5392_PCIe_2T2R_ALC_V1_4.bin"},
+	{0x5592,	"RT5592_PCIe_2T2R_V1_7.bin"},
+#if defined(CONFIG_SUPPORT_OPENWRT)
+	{0x7602,    "mt7602e/mt7602e.eeprom.bin"},
+	{0x7612,    "mt7612e/mt7612e.eeprom.bin"},
+#else
 	{0x7602, "MT7602E_EEPROM.bin"},
 	{0x7612, "MT7612E_EEPROM.bin"},
 #endif
-#ifdef RT6352
-	{0x7620, "MT7620_AP_2T2R-4L_V15.BIN"},
-#endif
-	{0, NULL}
+	{0x7620,	"MT7620_AP_2T2R-4L_V15.BIN"},
+	{0,}
 };
 
-#ifdef RTMP_FLASH_SUPPORT
-extern USHORT EE_FLASH_ID_LIST[];
-#endif /* RTMP_FLASH_SUPPORT */
+
+struct chip_map chip_card_id_map[] ={
+	{7620, ""},
+};
+
 
 UCHAR RtmpEepromGetDefault(
 	IN RTMP_ADAPTER 	*pAd)
 {
-	UCHAR e2p_default = E2P_FLASH_MODE;
+	UCHAR e2p_dafault = 0;
 
-#if defined (DRIVER_HAS_MULTI_DEV)
+#ifdef CONFIG_RT_FIRST_CARD_EEPROM
 	if ( pAd->dev_idx == 0 )
 	{
 		if ( RTMPEqualMemory("efuse", CONFIG_RT_FIRST_CARD_EEPROM, 5) )
-			e2p_default = E2P_EFUSE_MODE;
+			e2p_dafault = E2P_EFUSE_MODE;
 		if ( RTMPEqualMemory("prom", CONFIG_RT_FIRST_CARD_EEPROM, 4) )
-			e2p_default = E2P_EEPROM_MODE;
+			e2p_dafault = E2P_EEPROM_MODE;
 		if ( RTMPEqualMemory("flash", CONFIG_RT_FIRST_CARD_EEPROM, 5) )
-			e2p_default = E2P_FLASH_MODE;
-		goto out;
+			e2p_dafault = E2P_FLASH_MODE;
+		goto out;	
 	}
+#endif /* CONFIG_RT_FIRST_CARD_EEPROM */
 
+#ifdef CONFIG_RT_SECOND_CARD_EEPROM
 	if ( pAd->dev_idx == 1 )
 	{
 		if ( RTMPEqualMemory("efuse", CONFIG_RT_SECOND_CARD_EEPROM, 5) )
-			e2p_default = E2P_EFUSE_MODE;
+			e2p_dafault = E2P_EFUSE_MODE;
 		if ( RTMPEqualMemory("prom", CONFIG_RT_SECOND_CARD_EEPROM, 4) )
-			e2p_default = E2P_EEPROM_MODE;
+			e2p_dafault = E2P_EEPROM_MODE;
 		if ( RTMPEqualMemory("flash", CONFIG_RT_SECOND_CARD_EEPROM, 5) )
-			e2p_default = E2P_FLASH_MODE;
-		goto out;
+			e2p_dafault = E2P_FLASH_MODE;
+		goto out;	
 	}
+#endif /* CONFIG_RT_SECOND_CARD_EEPROM */
+
+	if (IS_RT2860(pAd) || IS_RT2870(pAd))
+		e2p_dafault = E2P_EEPROM_MODE;
+	else if (pAd->infType == RTMP_DEV_INF_RBUS)
+		e2p_dafault = E2P_FLASH_MODE;
+	else
+		e2p_dafault = E2P_EFUSE_MODE;
+
 out:
-#endif
-	DBGPRINT(RT_DEBUG_OFF, ("%s::e2p_default=%d\n", __FUNCTION__, e2p_default));
-	return e2p_default;
+	DBGPRINT(RT_DEBUG_OFF, ("%s::e2p_dafault=%d\n", __FUNCTION__, e2p_dafault));
+	return e2p_dafault;
 }
 
 
@@ -85,6 +103,7 @@ out:
 static VOID RtmpEepromTypeAdjust(RTMP_ADAPTER *pAd, UCHAR *pE2pType)
 {
 	UINT EfuseFreeBlock=0;
+	BOOLEAN bCalFree;
 
 	eFuseGetFreeBlockCount(pAd, &EfuseFreeBlock);	
 	
@@ -97,14 +116,12 @@ static VOID RtmpEepromTypeAdjust(RTMP_ADAPTER *pAd, UCHAR *pE2pType)
 	else 
 	{
 		USHORT eeFlashId = 0;
-		int listIdx, num_flash_id;
+		int listIdx;
 		BOOLEAN bFound = FALSE;
-		
-		num_flash_id = rtmp_get_flash_id_num();
 
 		rtmp_ee_efuse_read16(pAd, 0, &eeFlashId);
 		DBGPRINT(RT_DEBUG_OFF, ("%s:: eeFlashId = 0x%x.\n", __FUNCTION__, eeFlashId));
-		for(listIdx =0 ; listIdx < num_flash_id; listIdx++)
+		for(listIdx =0 ; listIdx < EE_FLASH_ID_NUM; listIdx++)
 		{
 			if (eeFlashId == EE_FLASH_ID_LIST[listIdx])
 			{			
@@ -122,7 +139,6 @@ static VOID RtmpEepromTypeAdjust(RTMP_ADAPTER *pAd, UCHAR *pE2pType)
 }
 #endif /* defined(RTMP_EFUSE_SUPPORT) && defined(RTMP_FLASH_SUPPORT) */
 
-
 INT RtmpChipOpsEepromHook(
 	IN RTMP_ADAPTER 	*pAd,
 	IN INT				infType)
@@ -130,13 +146,13 @@ INT RtmpChipOpsEepromHook(
 	RTMP_CHIP_OP *pChipOps = &pAd->chipOps;
 	UCHAR e2p_type;
 	UINT32 val;
+	NDIS_STATUS Status;
 
 #ifdef TXBF_SUPPORT
 	if (pAd->chipCap.FlgITxBfBinWrite)
 		pAd->E2pAccessMode = E2P_BIN_MODE;
 #endif		
 
-/* We can't open file here beacuse it could get file open error. */
 
 	e2p_type = pAd->E2pAccessMode;
 
@@ -187,13 +203,15 @@ INT RtmpChipOpsEepromHook(
 			pChipOps->eeread = rtmp_ee_flash_read;
 			pChipOps->eewrite = rtmp_ee_flash_write;
 			pAd->flash_offset = DEFAULT_RF_OFFSET;
-#if defined (DRIVER_HAS_MULTI_DEV)
+#ifdef CONFIG_RT_FIRST_CARD
 			if ( pAd->dev_idx == 0 )
 				pAd->flash_offset = CONFIG_RT_FIRST_IF_RF_OFFSET;
+#endif /* CONFIG_RT_FIRST_CARD */
+#ifdef CONFIG_RT_SECOND_CARD
 			if ( pAd->dev_idx == 1 )
 				pAd->flash_offset = CONFIG_RT_SECOND_IF_RF_OFFSET;
-#endif
-			DBGPRINT(RT_DEBUG_OFF, ("NVM is FLASH mode\n"));
+#endif /* CONFIG_RT_FIRST_CARD */
+			DBGPRINT(RT_DEBUG_OFF, ("NVM is FLASH mode (pAd->flash_offset = 0x%x)\n", pAd->flash_offset));
 			return 0;
 		}
 #endif /* RTMP_FLASH_SUPPORT */
@@ -238,6 +256,7 @@ INT RtmpChipOpsEepromHook(
 			break;
 #endif /* RTMP_PCI_SUPPORT */
 
+
 		default:
 			DBGPRINT(RT_DEBUG_ERROR, ("%s::hook failed\n", __FUNCTION__));
 			break;
@@ -260,12 +279,11 @@ BOOLEAN rtmp_get_default_bin_file_by_chip(
 	
 	for (i = 0; RTMP_CHIP_E2P_FILE_TABLE[i].ChipVersion != 0; i++ )
 	{
-#ifdef RT6352
 		if (IS_RT6352(pAd))
 		{
 			ChipVersion = 0x7620;
 		}
-#endif
+
 		if (RTMP_CHIP_E2P_FILE_TABLE[i].ChipVersion == ChipVersion)
 		{
 			*pBinFileName = RTMP_CHIP_E2P_FILE_TABLE[i].name;

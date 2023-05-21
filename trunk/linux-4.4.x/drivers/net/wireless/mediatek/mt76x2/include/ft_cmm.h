@@ -43,42 +43,6 @@
 
 #define FT_MDID_EQU(__D, __S) (memcmp((__D), (__S), FT_MDID_LEN) == 0)
 
-#ifdef CONFIG_STA_SUPPORT
-#define FT_OTD_RESPONSE		1
-#define FT_OTA_RESPONSE		2
-
-/* */
-/* STA's FT OTD State machine: states, events, total function # */
-/* */
-#define FT_OTD_IDLE						0
-#define FT_OTD_WAIT_SEQ2				1
-#define FT_OTD_WAIT_SEQ4				2
-#define FT_OTD_MAX_STATE				3
-
-#define FT_OTD_MACHINE_BASE		        0
-#define FT_OTD_MT2_MLME_REQ			    0
-#define FT_OTD_MT2_PEER_EVEN			1
-#define FT_OTD_MT2_TIMEOUT				2
-#define FT_OTD_MAX_MSG				    3
-
-#define	FT_OTD_FUNC_SIZE				(FT_OTD_MAX_STATE * FT_OTD_MAX_MSG)
-
-/* */
-/* STA's FT OTA AUTHENTICATION state machine: states, evvents, total function # */
-/* */
-#define FT_OTA_AUTH_REQ_IDLE			0
-#define FT_OTA_AUTH_WAIT_RESP			1
-#define FT_OTA_AUTH_WAIT_ACK			2
-#define FT_OTA_MAX_AUTH_STATE			3
-
-#define FT_OTA_AUTH_MACHINE_BASE		0
-#define FT_OTA_MT2_MLME_AUTH_REQ		0
-#define FT_OTA_MT2_PEER_AUTH_EVEN		1
-#define FT_OTA_MT2_AUTH_TIMEOUT			2
-#define FT_OTA_MAX_AUTH_MSG				3
-
-#define FT_OTA_AUTH_FUNC_SIZE			(FT_OTA_MAX_AUTH_STATE * FT_OTA_MAX_AUTH_MSG)
-#endif /* CONFIG_STA_SUPPORT */
 
 /* ----- General ----- */
 #define FT_KDP_FUNC_SOCK_COMM			/* used socket to communicate with driver */
@@ -167,62 +131,6 @@ typedef struct _FT_KDP_CTRL_BLOCK {
 } FT_KDP_CTRL_BLOCK;
 
 /* FT RIC Control Block */
-#ifdef CONFIG_STA_SUPPORT
-typedef struct _FT_RIC_STATUS {
-
-	UCHAR AP_MAC[ETH_ALEN];
-
-	BOOLEAN FlgHasBaResource; /* TRUE: exist BA resource request */
-	BOOLEAN FlgIsBaAccepted; /* TRUE: BLOCK ACK resource is accepted */
-
-	UCHAR TspecNumberOfAccepted;
-	UCHAR TspecNumberOfRequested;
-
-	UINT32 TspecMediumTimeTotalCur; /* 32-us */
-	UINT32 TspecMediumTimeTotalNew; /* 32-us */
-
-	UCHAR UnknownRDIE; /* number of RDIE with wrong Identifier or resource */
-
-} FT_RIC_STATUS;
-
-typedef struct _FT_RIC_STATUS_TSPEC {
-
-	BOOLEAN FlgIsValid; /* TRUE: valid */
-	BOOLEAN FlgIsAccepted; /* TRUE: accepted */
-	UCHAR RDIE_Identifier;
-	UINT16 MedimumTime; /* 32-us, maybe 0 for dnlink */
-
-} FT_RIC_STATUS_TSPEC;
-
-typedef struct _FT_RIC_AP {
-
-	struct _FT_RIC_AP *pNext;
-
-	/*
-		11r D9.0, 11A.11.3.2 AP procedures
-
-		The RIC Response shall comprise one RDIE for each RDIE in the RIC
-		Request. The RDIEs shall be in the same order as in the request and
-		the RDIE Identifier in each RDIE shall be the value of the RDIE
-		Identifier in the corresponding RDIE in the request.
-	*/
-
-	BOOLEAN FlgHasBaResource; /* TRUE: exist BA resource request */
-	UCHAR RDIE_IdentifierBA;
-
-	UCHAR AP_MAC[ETH_ALEN];
-
-} FT_RIC_AP;
-
-typedef struct _FT_RIC_CTRL_BLOCK {
-
-	/* resources for different APs */
-	LIST_HEADER ResourceList;
-
-	UCHAR RDIE_Identifier;
-
-} FT_RIC_CTRL_BLOCK;
-#endif /* CONFIG_STA_SUPPORT */
 
 typedef struct _FT_CAP_CFG
 {
@@ -246,7 +154,6 @@ typedef struct __FT_R1KH_ENTRY
 	struct __FT_R1KH_ENTRY *pNext;
 	UINT32 KeyLifeTime;
 	UINT32 RassocDeadline;
-	NDIS_802_11_AUTHENTICATION_MODE AuthMode;
 	UINT8 PmkR0Name[16];
 	UINT8 PmkR1Name[16];
 	UINT8 PmkR1Key[32];
@@ -328,42 +235,6 @@ typedef struct __FT_MIC_CONTENT
 } FT_MIC_CONTENT, *PFT_MIC_CONTENT;
 
 
-#ifdef CONFIG_STA_SUPPORT
-#define FT_ACT_TIMEOUT                2000       /* unit: msec */
-
-typedef struct _MLME_FT_OTA_AUTH_REQ_STRUCT {
-    UCHAR		Addr[MAC_ADDR_LEN];
-    USHORT		Alg;
-    ULONG		Timeout;
-	FT_MDIE		MdIe;
-} MLME_FT_OTA_AUTH_REQ_STRUCT, *PMLME_FT_OTA_AUTH_REQ_STRUCT;
-
-typedef struct _DOT11R_CMN_STRUC 
-{	
-	BOOLEAN			bFtSupport;			/* enable or disable Fast BSS Transition support */
-	BOOLEAN     	bInMobilityDomain;	/* Set to TRUE if is in a Mobility Domain. Decide to do Fast BSS Transition or not. */
-	BOOLEAN			bSupportResource;	/* Set to TRUE if user wants to do resource request. */
-	UINT8     		FtRspSuccess;		/* 0: not ft, 1: ft_action response from OTD, 2: ft_auth response from OTA */
-	UINT8			PMKR0Name[LEN_PMK_NAME];
-	UINT8			PMKR0[LEN_PMK];
-	UINT8 			R0khIdLen;
-	UINT8 			R0khId[FT_ROKH_ID_LEN + 1];
-	FT_MDIE_INFO	MdIeInfo;
-	FT_FTIE_INFO	FtIeInfo;
-} DOT11R_CMN_STRUC, *PDOT11R_CMN_STRUC;
-
-typedef struct _MLME_FT_REQ_STRUCT {
-	UCHAR		TargetAddr[MAC_ADDR_LEN];
-	UCHAR		HaveRSN;
-	UCHAR		SNonce[32];	
-	UCHAR		R0khIdLen;
-	UCHAR		R0khId[FT_ROKH_ID_LEN + 1];
-	FT_MDIE		MdIe;
-	ULONG		Timeout;
-	ULONG		VIeLen;
-	UCHAR		VIe[256];		/* Carry RSNIE */
-} MLME_FT_REQ_STRUCT, *PMLME_FT_REQ_STRUCT;
-#endif /* CONFIG_STA_SUPPORT */
 
 #endif /* __FT_CMM_H__ */
 #endif /* DOT11R_FT_SUPPORT */

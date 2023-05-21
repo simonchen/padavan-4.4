@@ -42,9 +42,8 @@
 #define BAND_WIDTH_20		0
 #define BAND_WIDTH_40		1
 #define BAND_WIDTH_80		2
-#define BAND_WIDTH_BOTH	3
 #define BAND_WIDTH_10		4	/* 802.11j has 10MHz. This definition is for internal usage. doesn't fill in the IE or other field. */
-#define BAND_WIDTH_160		3
+#define BW_160		3 // 160MHz
 
 
 /* SHORTGI */
@@ -71,17 +70,38 @@
 #define OID_P2P_DEVICE_NAME_LEN	32
 /*#define MAX_NUM_OF_CHS					49 */ /* 14 channels @2.4G +  12@UNII + 4 @MMAC + 11 @HiperLAN2 + 7 @Japan + 1 as NULL terminationc */
 /*#define MAX_NUM_OF_CHS             		54 */ /* 14 channels @2.4G +  12@UNII(lower/middle) + 16@HiperLAN2 + 11@UNII(upper) + 0 @Japan + 1 as NULL termination */
-#define MAX_NUMBER_OF_EVENT			10	/* entry # in EVENT table */
-
-#ifdef CONFIG_RT_MAX_CLIENTS
-#define MAX_NUMBER_OF_MAC			CONFIG_RT_MAX_CLIENTS
+#define MAX_NUMBER_OF_EVENT				10	/* entry # in EVENT table */
+#ifdef BB_SOC
+#define MAX_NUMBER_OF_MAC				8 // if MAX_MBSSID_NUM is 8, this value can't be larger than 211
 #else
-#define MAX_NUMBER_OF_MAC			32
+#ifdef MT76x2
+#ifdef MAC_REPEATER_SUPPORT				//((MAX_EXT_MAC_ADDR_SIZE + 1) * MAC_APCLI_NUM)
+#define MAX_NUMBER_OF_MAC               (116 - ((16 + 1) * 1))
+#else
+#ifdef CUSTOMER_DCC_FEATURE
+#define MAX_NUMBER_OF_MAC				64
+#else
+#define MAX_NUMBER_OF_MAC			   	 116
 #endif
-
-#define MAX_NUMBER_OF_ACL			64
+#endif /* MAC_REPEATER_SUPPORT */
+#else
+#define MAX_NUMBER_OF_MAC				32	/* if MAX_MBSSID_NUM is 8, this value can't be larger than 211 */
+#endif /* MT76X2 */
+#endif
+#define MAX_NUMBER_OF_ACL				64
 #define MAX_LENGTH_OF_SUPPORT_RATES		12	/* 1, 2, 5.5, 11, 6, 9, 12, 18, 24, 36, 48, 54 */
 #define MAX_NUMBER_OF_DLS_ENTRY			4
+
+
+#ifdef CUSTOMER_DCC_FEATURE
+#ifdef MEMORY_OPTIMIZATION
+#define MAX_LEN_OF_BSS_TABLE			1
+#define MAX_REORDERING_MPDU_NUM			256
+#else
+#define MAX_LEN_OF_BSS_TABLE			64
+#define MAX_REORDERING_MPDU_NUM			512
+#endif
+#endif
 
 #define RT_QUERY_SIGNAL_CONTEXT				0x0402
 #define RT_SET_IAPP_PID                 	0x0404
@@ -157,6 +177,8 @@
 #define OID_802_11_MIC_FAILURE_REPORT_FRAME         0x0528
 #define OID_802_11_EAP_METHOD						0x0529
 #define OID_802_11_ACL_LIST							0x052A
+#define OID_802_11_FROAM_ACL_ADD_ENTRY					0x252B
+#define OID_802_11_FROAM_ACL_DEL_ENTRY					0x252C
 
 #define OID_802_11_PASSPHRASE						0x052B
 #define OID_802_11_CHANNEL_WIDTH					0x052C
@@ -657,6 +679,7 @@ typedef ULONGLONG NDIS_802_11_KEY_RSC;
 
 #ifdef DOT1X_SUPPORT
 #define MAX_RADIUS_SRV_NUM			2	/* 802.1x failover number */
+#define MAX_MBSSID_1X_NUM			16  /* stay correspondence with 802.1x daemon */
 
 /* The dot1x related structure. 
    It's used to communicate with DOT1X daemon */
@@ -685,11 +708,11 @@ typedef struct GNU_PACKED _DOT1X_CMM_CONF {
 	UINT32 retry_interval;
 	UINT32 session_timeout_interval;
 	UINT32 quiet_interval;
-	UCHAR EAPifname[8][IFNAMSIZ];
-	UCHAR EAPifname_len[8];
-	UCHAR PreAuthifname[8][IFNAMSIZ];
-	UCHAR PreAuthifname_len[8];
-	DOT1X_BSS_INFO Dot1xBssInfo[8];
+	UCHAR EAPifname[MAX_MBSSID_1X_NUM][IFNAMSIZ];
+	UCHAR EAPifname_len[MAX_MBSSID_1X_NUM];
+	UCHAR PreAuthifname[MAX_MBSSID_1X_NUM][IFNAMSIZ];
+	UCHAR PreAuthifname_len[MAX_MBSSID_1X_NUM];
+	DOT1X_BSS_INFO Dot1xBssInfo[MAX_MBSSID_1X_NUM];
 } DOT1X_CMM_CONF, *PDOT1X_CMM_CONF;
 
 typedef struct GNU_PACKED _DOT1X_IDLE_TIMEOUT {
@@ -714,37 +737,20 @@ typedef struct _NDIS_AP_802_11_KEY {
 #endif /* CONFIG_AP_SUPPORT */
 
 #ifdef APCLI_SUPPORT
-#ifdef WPA_SUPPLICANT_SUPPORT
-typedef struct _NDIS_APCLI_802_11_KEY
-{
-    UINT           Length;             
-    UINT           KeyIndex;           
-    UINT           KeyLength;         
-    NDIS_802_11_MAC_ADDRESS BSSID;
-    NDIS_802_11_KEY_RSC KeyRSC;
-    UCHAR           KeyMaterial[1];     
-} NDIS_APCLI_802_11_KEY, *PNDIS_APCLI_802_11_KEY;
-#endif/* WPA_SUPPLICANT_SUPPORT */
 #endif /* APCLI_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-/* Key mapping keys require a BSSID */
-typedef struct _NDIS_802_11_KEY {
-	UINT Length;		/* Length of this structure */
-	UINT KeyIndex;
-	UINT KeyLength;		/* length of key in bytes */
-	NDIS_802_11_MAC_ADDRESS BSSID;
-	NDIS_802_11_KEY_RSC KeyRSC;
-	UCHAR KeyMaterial[1];	/* variable length depending on above field */
-} NDIS_802_11_KEY, *PNDIS_802_11_KEY;
 
 typedef struct _NDIS_802_11_PASSPHRASE {
 	UINT KeyLength;		/* length of key in bytes */
 	NDIS_802_11_MAC_ADDRESS BSSID;
 	UCHAR KeyMaterial[1];	/* variable length depending on above field */
 } NDIS_802_11_PASSPHRASE, *PNDIS_802_11_PASSPHRASE;
-#endif /* CONFIG_STA_SUPPORT */
 
+typedef struct GNU_PACKED _NDIS_802_11_SSID {
+	UINT SsidLength;	/* length of SSID field below, in bytes; */
+	/* this can be zero. */
+	UCHAR Ssid[NDIS_802_11_LENGTH_SSID];	/* SSID information field */
+} NDIS_802_11_SSID, *PNDIS_802_11_SSID;
 typedef struct _NDIS_802_11_REMOVE_KEY {
 	UINT Length;		/* Length of this structure */
 	UINT KeyIndex;
@@ -787,12 +793,6 @@ typedef struct GNU_PACKED _NDIS80211PSK
 	UINT    WPAKeyLen;
 	UCHAR   WPAKey[64];
 } NDIS80211PSK;
-
-typedef struct GNU_PACKED _NDIS_802_11_SSID {
-	UINT SsidLength;	/* length of SSID field below, in bytes; */
-	/* this can be zero. */
-	UCHAR Ssid[NDIS_802_11_LENGTH_SSID];	/* SSID information field */
-} NDIS_802_11_SSID, *PNDIS_802_11_SSID;
 
 typedef struct GNU_PACKED _NDIS_WLAN_BSSID {
 	ULONG Length;		/* Length of this structure */
@@ -956,29 +956,9 @@ typedef enum _NDIS_802_11_MEDIA_STREAM_MODE {
 /* PMKID Structures */
 typedef UCHAR NDIS_802_11_PMKID_VALUE[16];
 
-#if defined(CONFIG_STA_SUPPORT) || defined(WPA_SUPPLICANT_SUPPORT)
-typedef struct _BSSID_INFO {
-	NDIS_802_11_MAC_ADDRESS BSSID;
-	NDIS_802_11_PMKID_VALUE PMKID;
-} BSSID_INFO, *PBSSID_INFO;
-
-typedef struct _NDIS_802_11_PMKID {
-	UINT Length;
-	UINT BSSIDInfoCount;
-	BSSID_INFO BSSIDInfo[1];
-} NDIS_802_11_PMKID, *PNDIS_802_11_PMKID;
-#endif /* defined(CONFIG_STA_SUPPORT) || defined(WPA_SUPPLICANT_SUPPORT) */
 
 #ifdef CONFIG_AP_SUPPORT
 #ifdef APCLI_SUPPORT
-#ifdef WPA_SUPPLICANT_SUPPORT
-typedef struct _NDIS_APCLI_802_11_PMKID
-{
-    UINT    Length;
-    UINT    BSSIDInfoCount;
-    BSSID_INFO BSSIDInfo[1];
-} NDIS_APCLI_802_11_PMKID, *PNDIS_APCLI_802_11_PMKID;
-#endif/*WPA_SUPPLICANT_SUPPORT*/
 #endif /* APCLI_SUPPORT */
 
 typedef struct _AP_BSSID_INFO {
@@ -1011,7 +991,7 @@ typedef struct _NDIS_802_11_CAPABILITY {
 
 
 
-#if defined(DBG) || defined(RALINK_ATE)
+#ifdef DBG
 /*
 	When use private ioctl oid get/set the configuration, we can use following flags to provide specific rules when handle the cmd
  */
@@ -1064,18 +1044,6 @@ typedef struct _NDIS_802_11_CAPABILITY {
 #define RT_OID_LED_WPS_MODE10						0x0739
 #endif /* WSC_LED_SUPPORT */
 #endif /* WSC_INCLUDED */
-#ifdef CONFIG_STA_SUPPORT
-#define RT_OID_WSC_SET_PASSPHRASE                   0x0740	/* passphrase for wpa(2)-psk */
-#define RT_OID_WSC_DRIVER_AUTO_CONNECT              0x0741
-#define RT_OID_WSC_QUERY_DEFAULT_PROFILE            0x0742
-#define RT_OID_WSC_SET_CONN_BY_PROFILE_INDEX        0x0743
-#define RT_OID_WSC_SET_ACTION                       0x0744
-#define RT_OID_WSC_SET_SSID                         0x0745
-#define RT_OID_WSC_SET_PIN_CODE                     0x0746
-#define RT_OID_WSC_SET_MODE                         0x0747	/* PIN or PBC */
-#define RT_OID_WSC_SET_CONF_MODE                    0x0748	/* Enrollee or Registrar */
-#define RT_OID_WSC_SET_PROFILE                      0x0749
-#endif /* CONFIG_STA_SUPPORT */
 #ifdef CONFIG_AP_SUPPORT
 #ifdef APCLI_SUPPORT
 #define RT_OID_APCLI_WSC_PIN_CODE					0x074A
@@ -1118,13 +1086,6 @@ typedef struct _NDIS_802_11_CAPABILITY {
 #ifdef CON_WPS
 #define RT_OID_WSC_SET_CON_WPS_STOP                 0x0764
 #endif /* CON_WPS */
-
-#ifdef SMART_MESH
-#define RT_OID_LAST_TX_RX_STATS                     0x0765
-#define RT_OID_SET_PKT_TX_RX_STATS					0x0766
-#define RT_OID_GET_PKT_TX_RX_STATS                  0x0767
-#define RT_OID_GET_AP_LIST							0x0768
-#endif /* SMART_MESH */
 
 
 #ifdef DOT11R_FT_SUPPORT
@@ -1255,6 +1216,7 @@ typedef struct _RT_802_11_EVENT_TABLE {
 
 /* MIMO Tx parameter, ShortGI, MCS, STBC, etc.  these are fields in TXWI. Don't change this definition!!! */
 typedef union _MACHTTRANSMIT_SETTING {
+#ifdef CUSTOMER_DCC_FEATURE
 #ifdef RT_BIG_ENDIAN
 	struct {
 		USHORT MODE:3;	/* Use definition MODE_xxx. */
@@ -1278,6 +1240,16 @@ typedef union _MACHTTRANSMIT_SETTING {
 		USHORT MODE:3;
 	} field;
 #endif
+#else
+	struct {
+		USHORT MCS:7;	/* MCS */
+		USHORT BW:1;	/*channel bandwidth 20MHz or 40 MHz */
+		USHORT ShortGI:1;
+		USHORT STBC:2;	/*SPACE */
+		USHORT rsv:3;
+		USHORT MODE:2;	/* Use definition MODE_xxx. */
+	} field;
+#endif
 	USHORT word;
 } MACHTTRANSMIT_SETTING, *PMACHTTRANSMIT_SETTING;
 
@@ -1292,7 +1264,19 @@ typedef struct _RT_802_11_MAC_ENTRY {
 	CHAR AvgRssi2;
 	UINT32 ConnectedTime;
 	MACHTTRANSMIT_SETTING TxRate;
+#ifdef CUSTOMER_DCC_FEATURE
+	UINT32 AvgSnr;
+#endif
 	UINT32 LastRxRate;
+
+//sync with MT7620
+//#if 1//def RTMP_RBUS_SUPPORT
+#ifndef CUSTOMER_DCC_FEATURE
+	SHORT StreamSnr[3];				/* BF SNR from RXWI. Units=0.25 dB. 22 dB offset removed */
+	SHORT SoundingRespSnr[3];			/* SNR from Sounding Response. Units=0.25 dB. 22 dB offset removed */
+/*	SHORT TxPER;	*/					/* TX PER over the last second. Percent */
+/*	SHORT reserved;*/
+#endif /* RTMP_RBUS_SUPPORT */
 } RT_802_11_MAC_ENTRY, *PRT_802_11_MAC_ENTRY;
 
 typedef struct _RT_802_11_MAC_TABLE {
@@ -1432,45 +1416,10 @@ typedef struct _RT_LLTD_ASSOICATION_ENTRY {
 
 typedef struct _RT_LLTD_ASSOICATION_TABLE {
 	unsigned int Num;
-	RT_LLTD_ASSOICATION_ENTRY Entry[64]; /* sync from LLTD daemon */
+	RT_LLTD_ASSOICATION_ENTRY Entry[MAX_NUMBER_OF_MAC];
 } RT_LLTD_ASSOICATION_TABLE, *PRT_LLTD_ASSOICATION_TABLE;
 #endif /* LLTD_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef QOS_DLS_SUPPORT
-/*rt2860, 2007-0118 */
-/* structure for DLS */
-typedef struct _RT_802_11_DLS_UI {
-	USHORT TimeOut;		/* unit: second , set by UI */
-	USHORT CountDownTimer;	/* unit: second , used by driver only */
-	NDIS_802_11_MAC_ADDRESS MacAddr;	/* set by UI */
-	UCHAR Status;		/* 0: none , 1: wait STAkey, 2: finish DLS setup , set by driver only */
-	BOOLEAN Valid;		/* 1: valid , 0: invalid , set by UI, use to setup or tear down DLS link */
-} RT_802_11_DLS_UI, *PRT_802_11_DLS_UI;
-
-typedef struct _RT_802_11_DLS_INFO {
-	RT_802_11_DLS_UI Entry[MAX_NUMBER_OF_DLS_ENTRY];
-	UCHAR num;
-} RT_802_11_DLS_INFO, *PRT_802_11_DLS_INFO;
-
-typedef enum _RT_802_11_DLS_MODE {
-	DLS_NONE,
-	DLS_WAIT_KEY,
-	DLS_FINISH
-} RT_802_11_DLS_MODE;
-#endif /* QOS_DLS_SUPPORT */
-
-#ifdef DOT11Z_TDLS_SUPPORT
-typedef struct _RT_802_11_TDLS_UI {
-	USHORT TimeOut;		/* unit: second , set by UI */
-	USHORT CountDownTimer;	/* unit: second , used by driver only */
-	NDIS_802_11_MAC_ADDRESS MacAddr;	/* set by UI */
-	UCHAR Status;		/* 0: none , 1: wait STAkey, 2: finish DLS setup , set by driver only */
-	BOOLEAN Valid;		/* 1: valid , 0: invalid , set by UI, use to setup or tear down DLS link */
-} RT_802_11_TDLS_UI, *PRT_802_11_TDLS_UI;
-#endif /* DOT11Z_TDLS_SUPPORT */
-
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef WSC_INCLUDED
 #define RT_WSC_UPNP_EVENT_FLAG		0x109
@@ -1480,22 +1429,12 @@ typedef struct _RT_802_11_TDLS_UI {
 
 /*#define MAX_CUSTOM_LEN 128 */
 
-#ifdef CONFIG_STA_SUPPORT
-typedef enum _RT_802_11_D_CLIENT_MODE {
-	Rt802_11_D_None,
-	Rt802_11_D_Flexible,
-	Rt802_11_D_Strict,
-} RT_802_11_D_CLIENT_MODE, *PRT_802_11_D_CLIENT_MODE;
-#endif /* CONFIG_STA_SUPPORT */
 
 typedef struct _RT_CHANNEL_LIST_INFO {
 	UCHAR ChannelList[MAX_NUM_OF_CHS];	/* list all supported channels for site survey */
 	UCHAR ChannelListNum;	/* number of channel in ChannelList[] */
 } RT_CHANNEL_LIST_INFO, *PRT_CHANNEL_LIST_INFO;
 
-#ifdef IWSC_SUPPORT
-#define IWSC_MAX_SUB_MASK_LIST_COUNT	3
-#endif /* IWSC_SUPPORT */
 
 /* WSC configured credential */
 typedef struct _WSC_CREDENTIAL {
@@ -1508,13 +1447,6 @@ typedef struct _WSC_CREDENTIAL {
 	UCHAR KeyIndex;		/* optional, default is 1 */
 	UCHAR bFromUPnP;	/* TRUE: This credential is from external UPnP registrar */
 	UCHAR Rsvd[2];		/* Make alignment */
-#ifdef IWSC_SUPPORT
-	USHORT				IpConfigMethod;
-	UINT32				RegIpv4Addr;
-	UINT32				Ipv4SubMask;
-	UINT32				EnrIpv4Addr;
-	UINT32				AvaIpv4SubmaskList[IWSC_MAX_SUB_MASK_LIST_COUNT];
-#endif /* IWSC_SUPPORT */
 } WSC_CREDENTIAL, *PWSC_CREDENTIAL;
 
 /* WSC configured profiles */
@@ -1569,32 +1501,11 @@ typedef struct _FT_CONFIG_INFO {
 
 
 #ifdef APCLI_SUPPORT
-#ifdef WPA_SUPPLICANT_SUPPORT
-#define	RT_ASSOC_EVENT_FLAG                         0x0101
-#define	RT_DISASSOC_EVENT_FLAG                      0x0102
-#define	RT_REQIE_EVENT_FLAG                         0x0103
-#define	RT_RESPIE_EVENT_FLAG                        0x0104
-#define	RT_ASSOCINFO_EVENT_FLAG                     0x0105
-#define RT_PMKIDCAND_FLAG                           0x0106
-#define RT_INTERFACE_DOWN                           0x0107
-#define RT_INTERFACE_UP                             0x0108
-#endif /* WPA_SUPPLICANT_SUPPORT */
 #endif /* APCLI_SUPPORT */
 
 
 
 
-
-#ifdef IWSC_SUPPORT
-#define RT_OID_IWSC_SELF_IPV4				0x0900
-#define RT_OID_IWSC_REGISTRAR_IPV4			0x0901
-#define RT_OID_IWSC_SMPBC_ENROLLEE_COUNT	0x0902
-#endif // IWSC_SUPPORT //
-
-#ifdef AIRPLAY_SUPPORT
-#define OID_AIRPLAY_IE_INSERT                   (0x0872)
-#define OID_AIRPLAY_ENABLE                      (0x0873)
-#endif/* AIRPLAY_SUPPORT*/
 
 
 enum {
@@ -1703,28 +1614,6 @@ struct hs_param_setting {
 	UINT32 value;
 };
 
-
-struct btm_req_data {
-	UINT32 ifindex;
-	UCHAR peer_mac_addr[6];
-	UINT32 btm_req_len;
-	UCHAR btm_req[0];
-};
-
-struct btm_query_data {
-	UINT32 ifindex;
-	UCHAR peer_mac_addr[6];
-	UINT32 btm_query_len;
-	UCHAR btm_query[0];
-};
-
-struct btm_rsp_data {
-	UINT32 ifindex;
-	UCHAR peer_mac_addr[6];
-	UINT32 btm_rsp_len;
-	UCHAR btm_rsp[0];
-};
-
 struct proxy_arp_entry {
 	UINT32 ifindex;
 	UCHAR ip_type;
@@ -1756,6 +1645,107 @@ struct security_type {
 	u8 encryp_type;
 };
 
+#ifdef WH_EZ_SETUP
+#ifdef EZ_REGROUP_SUPPORT
+enum REGROUP_COMMAND {
+	OID_REGROUP_CMD_CLI_INFO				= 0x01,
+	OID_REGROUP_CMD_CONNECTED_PEER_LIST		= 0x02,
+	OID_REGROUP_CMD_SCAN					= 0x04,
+	OID_REGROUP_CMD_CAND_LIST				= 0x05,
+	OID_REGROUP_CMD_CLEAR_CAND_LIST		= 0x06,
+	OID_REGROUP_CMD_TRIGGER_REGRP			= 0x07,
+	OID_REGROUP_CMD_TERMINATE_REGRP		= 0x08,
+	OID_REGROUP_CMD_REGRP_SUPP				= 0x09,
+	OID_REGROUP_CMD_EN_REGRP_MODE			= 0x0A,
+	OID_REGROUP_QUERY_INTERFACE_DETAILS		= 0x0B,
+	OID_REGROUP_QUERY_NODE_NUMBER_WT			= 0x0C
+};
+
+typedef struct GNU_PACKED regrp_command_s
+{
+	UINT8 command_id;
+	UINT8 command_len;
+	UINT8 command_body[0];
+} regrp_command_t, *p_regrp_command_t;
+
+typedef struct GNU_PACKED _regrp_cmd_hdr {
+	UINT8 command_id;
+	UINT8 command_len;
+} regrp_cmd_hdr, *pregrp_cmd_hdr;
+
+enum REGROUP_EVENT {
+	REGROUP_EVT_USER_REGROUP_REQ = 0x02,
+	REGROUP_EVT_SCAN_COMPLETE = 0x03,
+	REGROUP_EVT_INTF_REGRP_DONE = 0x04,
+	REGROUP_EVT_INTF_CONNECTED = 0x5,
+	REGROUP_EVT_INTF_DISCONNECTED = 0x6,
+};
+
+typedef struct GNU_PACKED regrp_event_s {
+	UINT8 event_id;
+	UINT8 event_len;
+	UINT8 event_body[0];
+} regrp_event_t, *p_regrp_event_t;
+
+typedef struct GNU_PACKED _cmd_regrp_supp {
+	struct _regrp_cmd_hdr hdr;
+	UINT8 regrp_supp;
+	UINT8 ez_supp;
+	UINT8 channel;
+	UINT8 configured;
+} cmd_regrp_supp, *pcmd_regrp_supp;
+
+enum REGRP_MODE {
+	NON_REGRP_MODE = 0x0,
+	REGRP_MODE_BLOCKED = 0x1,
+	REGRP_MODE_UNBLOCKED = 0x2,
+};
+
+typedef struct GNU_PACKED _cmd_regrp_mode {
+	struct _regrp_cmd_hdr hdr;
+	UINT8 mode;
+} cmd_regrp_mode, *pcmd_regrp_mode;
+
+#define HAS_INTERNET_BIT		1
+#define HAS_DIRECT_INTERNET_BIT	2
+#define SCAN_GENERAL	1
+#define SCAN_CONNECTED_SSID	2
+#define SCAN_SPECIFIED_SSID	3
+
+typedef struct GNU_PACKED _regrp_cmd_scan {
+	struct _regrp_cmd_hdr hdr;
+	UINT8 scan_type;
+	UINT8 ssid[32];
+} regrp_cmd_scan, *pregrp_cmd_scan;
+
+#define MAX_EZ_PEERS	6
+#define MAX_AP_CANDIDATES	(MAX_EZ_PEERS + 2)
+
+typedef struct GNU_PACKED _regrp_cmd_cand_list {
+	struct _regrp_cmd_hdr hdr;
+	u8 cand_count;
+	UINT8 list[0];
+} regrp_cmd_cand_list, *pregrp_cmd_cand_list;
+
+typedef struct GNU_PACKED _regrp_cmd_cfg_cand_list {
+	struct _regrp_cmd_hdr hdr;
+	u8 cand_count;
+	u8 bssid[MAX_AP_CANDIDATES][MAC_ADDR_LEN];
+} regrp_cmd_cfg_cand_list, *pregrp_cmd_cfg_cand_list;
+
+typedef struct GNU_PACKED _drvr_cand_list {
+	UCHAR bssid[MAC_ADDR_LEN];
+	UCHAR attempted;
+} rdrvr_cand_list, *pdrvr_cand_list;
+#endif
+#endif
+#ifdef WH_EZ_SETUP
+typedef struct GNU_PACKED internet_command_s
+{
+	BOOLEAN Net_status;
+} internet_command_t, *p_internet_command_t;
+#endif
+
 #define OID_802_11_WIFI_VER                     0x0920
 #define OID_802_11_HS_TEST                      0x0921
 #define OID_802_11_HS_IE                        0x0922
@@ -1781,4 +1771,410 @@ struct security_type {
 #define OID_802_11_GET_STA_HSINFO             	0x0946
 #define OID_802_11_BSS_LOAD			           	0x0947
 
+#define MAX_CANDIDATE_NUM 5
+#define OP_LEN 16
+#define CH_LEN 30
+#define REQ_LEN 30
+#define SSID_LEN 33
+
+#define OID_802_11_RRM_COMMAND  0x094C
+#define OID_802_11_RRM_EVENT	0x094D
+#define RT_QUERY_RRM_CAPABILITY	\
+		(OID_GET_SET_FROM_UI|OID_802_11_RRM_COMMAND)
+
+enum rrm_cmd_subid {
+	OID_802_11_RRM_CMD_ENABLE = 0x01,
+	OID_802_11_RRM_CMD_CAP,
+	OID_802_11_RRM_CMD_SEND_BEACON_REQ,
+	OID_802_11_RRM_CMD_QUERY_CAP,
+	OID_802_11_RRM_CMD_SET_BEACON_REQ_PARAM,
+	OID_802_11_RRM_CMD_SEND_NEIGHBOR_REPORT,
+	OID_802_11_RRM_CMD_SET_NEIGHBOR_REPORT_PARAM,
+	OID_802_11_RRM_CMD_HANDLE_NEIGHBOR_REQUEST_BY_DAEMON,
+};
+
+enum rrm_event_subid {
+	OID_802_11_RRM_EVT_BEACON_REPORT = 0x01,
+	OID_802_11_RRM_EVT_NEIGHBOR_REQUEST,
+};
+
+typedef struct GNU_PACKED rrm_command_s {
+	UINT8 command_id;
+	UINT32 command_len;
+	UINT8 command_body[0];
+} rrm_command_t, *p_rrm_command_t;
+
+typedef struct GNU_PACKED rrm_event_s {
+	UINT8 event_id;
+	UINT32 event_len;
+	UINT8 event_body[0];
+} rrm_event_t, *p_rrm_event_t;
+
+struct GNU_PACKED nr_req_data {
+	UINT32 ifindex;
+	UCHAR peer_mac_addr[6];
+	UINT32 nr_req_len;
+	UCHAR nr_req[0];
+};
+
+typedef struct GNU_PACKED nr_rsp_data_s {
+	UINT32 ifindex;
+	UINT8 dialog_token;
+	UINT8 peer_address[MAC_ADDR_LEN];
+	UINT32 nr_rsp_len;
+	UINT8 nr_rsp[0];
+} nr_rsp_data_t, *p_nr_rsp_data_t;
+
+typedef struct GNU_PACKED bcn_req_data_s {
+	UINT32 ifindex;
+	UINT8 dialog_token;
+	UINT8 peer_address[MAC_ADDR_LEN];
+	UINT32 bcn_req_len;
+	UINT8 bcn_req[0];
+} bcn_req_data_t, *p_bcn_req_data_t;
+
+/** @peer_address: mandatory; sta to send beacon request frame;
+*	@num_rpt: optional; number of repetitions;
+*	@regclass: only mandatory when channel is set to 0; operating class;
+*	@channum: mandatory; channel number;
+*	@random_ivl: optional; randomization interval; unit ms;
+*	the upper bound of the random delay to be used prior to make measurement;
+*	@duration: optional; measurement duration; unit ms;
+*	@bssid: optional;
+*	@mode: optional; measurement mode;
+*	As default value 0 is a valid value in spec, so here need remap the value and the meaning;
+*	1 for passive mode; 2 for active mode; 3 for beacon table;
+*	@req_ssid: optional; subelement SSID;
+*	@timeout: optional; unit s;
+*	@rep_conditon: optional; subelement Beacon Reporting Information;
+*	@ref_value: optional; subelement Beacon Reporting Information;
+*	condition for report to be issued;
+*	driver will send timeout event after timeout value if no beacon report received;
+*	@detail: optional; subelement Reporting Detail;
+*	As default value 0 is a valid value in spec, so here need remap the value and the meaning;
+*	1 for no fixed length fields or elements;
+*	2 for all fixed length fields and any requested elements in the request IE;
+*	3 for all fixed length fields and elements
+*	@op_class_len:  mandatory only when channel is set to 255;
+*	@op_class_list: subelement Ap Channel Report;
+*	@ch_list_len: mandatory only when channel is set to 255;
+*	@ch_list: subelement Ap Channel Report;
+*	if you want use all the channels in operating classes then use default value
+*	otherwise specify all channels you want sta to do measurement
+*	@request_len: optional;
+*	@request: subelement Request; only valid when you specify request IDs
+*/
+typedef struct GNU_PACKED bcn_req_info_s {
+	UINT8 peer_address[MAC_ADDR_LEN];
+	UINT16 num_rpt;
+	UINT8 regclass;
+	UINT8 channum;
+	UINT16 random_ivl;
+	UINT16 duration;
+	UINT8 bssid[MAC_ADDR_LEN];
+	UINT8 mode;
+	UINT8 req_ssid_len;
+	UINT8 req_ssid[SSID_LEN];
+	UINT32 timeout;
+	UINT8 rep_conditon;
+	UINT8 ref_value;
+	UINT8 detail;
+	UINT8 op_class_len;
+	UINT8 op_class_list[OP_LEN];
+	UINT8 ch_list_len;
+	UINT8 ch_list[CH_LEN];
+	UINT8 request_len;
+	UINT8 request[REQ_LEN];
+} bcn_req_info, *p_bcn_req_info;
+
+typedef struct GNU_PACKED bcn_rsp_data_s {
+	UINT8   dialog_token;
+	UINT32  ifindex;
+	UINT8   peer_address[6];
+	UINT32  bcn_rsp_len;
+	UINT8   bcn_rsp[0];
+} bcn_rsp_data_t, *p_bcn_rsp_data_t;
+
+/**
+*	@channum: optional; channel number;
+*	@phytype: optional; PHY type;
+*	@regclass: optional; operating class;
+*	@capinfo: optional; Same as AP's Capabilities Information field in Beacon;
+*	@bssid: mandatory;
+*	@preference: not used in neighbor report; optional in btm request;
+*	indicates the network preference for BSS transition to the BSS listed in this
+*	BSS Transition Candidate List Entries; 0 is a valid value in spec, but here
+*	need remap its meaning to not include preference IE in neighbor report
+*	response frame;
+*	@is_ht:  optional; High Throughput;
+*	@is_vht: optional; Very High Throughput;
+*	@ap_reachability: optional; indicates whether the AP identified by this BSSID is
+*	reachable by the STA that requested the neighbor report. For example,
+*	the AP identified by this BSSID is reachable for the exchange of
+*	preauthentication frames;
+*	@security: optional;  indicates whether the AP identified by this BSSID supports
+*	the same security provisioning as used by the STA in its current association;
+*	@key_scope: optional; indicates whether the AP indicated by this BSSID has the
+*	same authenticator as the AP sending the report;
+*	@Mobility: optional; indicate whether the AP represented by this BSSID is
+*	including an MDE in its Beacon frames and that the contents of that MDE are
+*	identical to the MDE advertised by the AP sending the report;
+*/
+struct GNU_PACKED nr_info {
+	UINT8 channum;
+	UINT8 phytype;
+	UINT8 regclass;
+	UINT16 capinfo;
+	UINT8 bssid[MAC_ADDR_LEN];
+	UINT8 preference;
+	UINT8 is_ht;
+	UINT8 is_vht;
+	UINT8 ap_reachability;
+	UINT8 security;
+	UINT8 key_scope;
+	UINT8 mobility;
+};
+
+/**
+*	@dialogtoken: mandatory; must the same with neighbor request from sta
+*	or 0 on behalf of automatic report
+*	@nrresp_info_count: mandatory; the num of  neighbor elements;must bigger
+*	than 0 and not exceeds 5;
+*	@nrresp_info: info of neighbor elements; mandatory;
+*/
+typedef struct GNU_PACKED rrm_nrrsp_info_custom_s {
+	UINT8 peer_address[MAC_ADDR_LEN];
+	UINT8 dialogtoken;
+	UINT8 nrresp_info_count;
+	struct nr_info nrresp_info[0];
+} rrm_nrrsp_info_custom_t, *p_rrm_nrrsp_info_custom_t;
+
+
+/*#ifdef WNM_NEW_API*/
+#define URL_LEN 40
+
+#define OID_802_11_WNM_COMMAND  0x094A
+#define OID_802_11_WNM_EVENT	0x094B
+#define RT_QUERY_WNM_CAPABILITY	\
+	(OID_GET_SET_FROM_UI|OID_802_11_WNM_COMMAND)
+
+
+enum wnm_cmd_subid {
+	OID_802_11_WNM_CMD_ENABLE = 0x01,
+	OID_802_11_WNM_CMD_CAP,
+	OID_802_11_WNM_CMD_SEND_BTM_REQ,
+	OID_802_11_WNM_CMD_QUERY_BTM_CAP,
+	OID_802_11_WNM_CMD_SEND_BTM_REQ_IE,
+	OID_802_11_WNM_CMD_SET_BTM_REQ_PARAM,
+};
+
+enum wnm_event_subid {
+	OID_802_11_WNM_EVT_BTM_QUERY = 0x01,
+	OID_802_11_WNM_EVT_BTM_RSP,
+};
+
+struct GNU_PACKED wnm_command {
+	UINT8 command_id;
+	UINT8 command_len;
+	UINT8 command_body[0];
+};
+
+struct GNU_PACKED wnm_event {
+	UINT8 event_id;
+	UINT32 event_len;
+	UINT8 event_body[0];
+};
+
+typedef struct GNU_PACKED btm_req_ie_data_s {
+	UINT32 ifindex;
+	UINT8 peer_mac_addr[6];
+	UINT8 dialog_token;
+	UINT32 timeout;
+	UINT32 btm_req_len;
+	UINT8 btm_req[0];
+} btm_req_ie_data_t, *p_btm_req_ie_data_t;
+
+struct GNU_PACKED btm_req_data {
+	UINT32 ifindex;
+	UCHAR peer_mac_addr[6];
+	UINT32 btm_req_len;
+	UCHAR btm_req[0];
+};
+
+struct GNU_PACKED btm_query_data {
+	UINT32 ifindex;
+	UCHAR peer_mac_addr[6];
+	UINT32 btm_query_len;
+	UCHAR btm_query[0];
+};
+
+struct GNU_PACKED btm_rsp_data {
+	UINT32 ifindex;
+	UCHAR peer_mac_addr[6];
+	UINT32 btm_rsp_len;
+	UCHAR btm_rsp[0];
+};
+
+/**
+*	@sta_mac: mandatory; mac of sta sending the frame;
+*	@dialogtoken: optional; dialog token;
+*	@reqmode: optional; request mode;
+*	@disassoc_timer: optional; the time(TBTTs) after which the AP will issue
+*		a Disassociation frame to this STA;
+*	@valint: optional;  the number of beacon transmission times (TBTTs) until
+*		the BSS transition candidate list is no longer valid;
+*	@timeout: optional; driver will send timeout event after timeout value
+*		if no beacon report received; unit s;
+*	@TSF: optional; BSS Termination TSF;
+*	@duration: optional; number of minutes for which the BSS is not present;
+*	@url_len: optional;
+*	@url: optional; only valid when you specify url;
+*	@num_candidates: mandatory; num of candidates;
+*	@candidates: mandatory; request mode; the num of candidate is no larger
+*		than 5;
+*/
+typedef struct GNU_PACKED btm_reqinfo_s {
+	UINT8 sta_mac[MAC_ADDR_LEN];
+	UINT8 dialogtoken;
+	UINT8 reqmode;
+	UINT16 disassoc_timer;
+	UINT8 valint;
+	UINT32 timeout;
+	UINT64 TSF;
+	UINT16 duration;
+	UINT8 url_len;
+	UINT8 url[URL_LEN];
+	UINT8 num_candidates;
+	struct nr_info candidates[0];
+} btm_reqinfo_t, *p_btm_reqinfo_t;
+
+
+#ifdef AIR_MONITOR
+struct GNU_PACKED _mntr_entry_info {
+	u8 mac[MAC_ADDR_LEN];
+	u8 channel;
+	u8 index;
+};
+
+#define OID_AIR_MNTR_ADD_ENTRY	0x0980
+#define OID_AIR_MNTR_DEL_ENTRY	0x0981
+#define OID_AIR_MNTR_SET_RULE	0x0982
+#endif
+#ifdef STA_FORCE_ROAM_SUPPORT
+#define OID_FROAM_COMMAND	0x0983
+#define OID_FROAM_EVENT		0x0984
+
+enum FROAM_COMMAND {
+	OID_FROAM_CMD_FROAM_ENABLED = 0x1,
+	OID_FROAM_CMD_GET_THRESHOLD = 0x2,
+};
+
+struct GNU_PACKED _froam_command_hdr {
+	UINT8 command_id;
+	UINT8 command_len;
+};
+
+struct GNU_PACKED _threshold_info {
+	UINT8 sta_ageout_time;
+	UINT8 mntr_ageout_time;
+	UINT8 mntr_min_pkt_count;
+	UINT8 mntr_min_time;
+	UINT8 mntr_avg_rssi_pkt_count;
+	char sta_detect_rssi_threshold;
+	UINT8 acl_ageout_time;
+	UINT8 acl_hold_time;
+};
+
+struct GNU_PACKED _cmd_froam_en {
+	struct _froam_command_hdr hdr;
+	UINT8 froam_en;
+	UINT8 channel;
+};
+
+struct GNU_PACKED _cmd_threshold {
+	struct _froam_command_hdr hdr;
+	struct _threshold_info info;
+};
+
+enum FROAM_EVENT {
+	FROAM_EVT_STA_RSSI_LOW				= 0x01,
+	FROAM_EVT_STA_RSSI_GOOD				= 0x02,
+	FROAM_EVT_STA_DISCONNECT			= 0x03,
+	FROAM_EVT_CLEAR_MNTR_LIST			= 0x04,
+	FROAM_EVT_CLEAR_ACL_LIST			= 0x05,
+	FROAM_EVT_STA_AGEOUT_TIME			= 0x06,
+	FROAM_EVT_MNTR_AGEOUT_TIME			= 0x07,
+	FROAM_EVT_ACL_AGEOUT_TIME			= 0x08,
+	FROAM_EVT_STA_DETECT_RSSI_THRESHOLD	= 0x09,
+	FROAM_EVT_MNTR_MIN_PKT_COUNT		= 0x0A, /*all new below*/
+	FROAM_EVT_MNTR_MIN_TIME				= 0x0B,
+	FROAM_EVT_STA_AVG_RSSI_PKT_COUNT	= 0x0D,
+	FROAM_EVT_ACL_HOLD_TIME				= 0x0C,
+	FROAM_EVT_FROAM_SUPP				= 0x0E,
+};
+
+struct GNU_PACKED froam_event_s {
+	UINT8 event_id;
+	UINT8 event_len;
+	UINT8 event_body[0];
+};
+
+struct GNU_PACKED _froam_event_hdr {
+	UINT8 event_id;
+	UINT8 event_len;
+};
+
+#define LOW_RSSI_STA_RENOTIFY_TIME	10
+
+struct GNU_PACKED _froam_event_sta_low_rssi {
+	struct _froam_event_hdr hdr;
+	UINT8 mac[MAC_ADDR_LEN];
+	UINT8 channel;
+};
+
+struct GNU_PACKED _froam_event_sta_good_rssi {
+	struct _froam_event_hdr hdr;
+	UINT8 mac[MAC_ADDR_LEN];
+};
+
+struct GNU_PACKED _froam_event_sta_disconn {
+	struct _froam_event_hdr hdr;
+	UINT8 mac[MAC_ADDR_LEN];
+};
+
+struct GNU_PACKED _froam_event_param_cfg {
+	struct _froam_event_hdr hdr;
+	UINT8 value;
+};
+#endif
+#ifdef WH_EZ_SETUP
+enum {
+	OID_WH_EZ_ENABLE = 0x2000,
+	OID_WH_EZ_CONF_STATUS = 0x2001,
+	OID_WH_EZ_GROUP_ID = 0x2002,
+	OID_WH_EZ_GEN_GROUP_ID = 0x2003,
+	OID_WH_EZ_RSSI_THRESHOLD = 0x2004,
+	OID_WH_EZ_INTERNET_COMMAND = 0x2005,
+	OID_WH_EZ_GET_GUI_INFO = 0x2006,
+#ifdef EZ_PUSH_BW_SUPPORT
+	OID_WH_EZ_PUSH_BW = 0x2007,
+#endif
+	OID_WH_EZ_CUSTOM_DATA_CMD = 0x2008,
+	OID_WH_EZ_CUSTOM_DATA_EVENT = 0x2009
+};
+
+#define OID_WH_EZ_UPDATE_STA_INFO				0x2010
+#define OID_WH_EZ_MAN_DAEMON_EVENT						0x200A
+#define OID_WH_EZ_MAN_TRIBAND_EZ_DEVINFO_EVENT				0x200B
+#define OID_WH_EZ_MAN_TRIBAND_NONEZ_DEVINFO_EVENT				0x200c
+#define OID_WH_EZ_MAN_TRIBAND_SCAN_COMPLETE_EVENT				0x200d
+#define OID_WH_EZ_MAN_PLUS_NONMAN_EZ_DEVINFO_EVENT				0x200E
+#define OID_WH_EZ_MAN_PLUS_NONMAN_NONEZ_DEVINFO_EVENT			0x200F
+#define OID_WH_EZ_MAN_CONF_EVENT						0x2011
+#define OID_WH_EZ_REGROUP_COMMAND                                0x2012
+#define OID_WH_EZ_REGROUP_EVENT                                      0x2013
+#define OID_WH_EZ_REGROUP_DBG_LEVEL_EVENT                        0x2020
+#define OID_WH_EZ_REGROUP_THRESHOLD_EVENT                        0x2021
+#define OID_WH_EZ_REGROUP_SHOW_CANDIDATE_RSSI_EVENT              0x2022
+#endif /* WH_EZ_SETUP */
 #endif /* _OID_H_ */

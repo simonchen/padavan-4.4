@@ -74,13 +74,10 @@ VOID RTMPWriteTxWI(
 	PMAC_TABLE_ENTRY pMac = NULL;
 	TXWI_STRUC TxWI, *pTxWI;
 	UINT8 TXWISize = pAd->chipCap.TXWISize;
-	UINT TxEAPId_Cal = 0;
-	UCHAR stbc, bw, mcs, sgi, phy_mode, mpdu_density = 0, mimops = 0, ldpc = 0;
+	UINT TxEAPId_Cal;
+	UCHAR eTxBf, iTxBf, sounding, ndp_rate, stbc, bw, mcs, sgi, phy_mode, mpdu_density = 0, mimops = 0, ldpc = 0;
 	UCHAR tx_stream_mode = 0;
-#ifdef TXBF_SUPPORT
-	UCHAR eTxBf, iTxBf, sounding, ndp_rate;
-#endif /* TXBF_SUPPORT */
-
+	
 	if (WCID < MAX_LEN_OF_MAC_TABLE)
 		pMac = &pAd->MacTab.Content[WCID];
 
@@ -262,10 +259,6 @@ VOID RTMPWriteTxWI(
 		txwi_n->TxEAPId = TxEAPId_Cal;
 #endif /*CONFIG_AP_SUPPORT*/		
 
-#ifdef CONFIG_STA_SUPPORT
-		txwi_n->GroupID = FALSE;
-		txwi_n->TxEAPId = pAd->CommonCfg.Bssid[5];
-#endif /*CONFIG_STA_SUPPORT*/				
 
 		txwi_n->TxStreamMode = tx_stream_mode;
 #ifdef TXBF_SUPPORT
@@ -278,17 +271,7 @@ VOID RTMPWriteTxWI(
 #endif /* TXBF_SUPPORT */
 
 		/* Calculate TxPwrAdj */
-		txwi_n->TxPwrAdj = 0;
-		
-#ifdef SPECIFIC_TX_POWER_SUPPORT
-		if (pMac)
-		{
-			txwi_n->TxPwrAdj += pAd->ApCfg.MBSSID[pMac->apidx].TxPwrAdj;
-			DBGPRINT(RT_DEBUG_TRACE, ("%s :%d pMac->apidx = %d, txwi_n->TxPwrAdj = %d\n"
-				, __FUNCTION__,__LINE__,pMac->apidx, txwi_n->TxPwrAdj));
-		}
-#endif /* SPECIFIC_TX_POWER_SUPPORT */
-
+		txwi_n->TxPwrAdj = 0; 
 #ifdef SINGLE_SKU_V2	
 		RTMP_CHIP_ASIC_SKU_TX_POWER_ADJUST(pAd,txwi_n);	
 #endif /* SINGLE_SKU_V2 */
@@ -337,14 +320,12 @@ VOID RTMPWriteTxWI(
 #endif /* RTMP_MAC */
 
 	NdisMoveMemory(pOutTxWI, &TxWI, TXWISize);
-#ifdef DBG
 //+++Add by shiang for debug
 if (0){
 	hex_dump("TxWI", (UCHAR *)pOutTxWI, TXWISize);
 	dump_txwi(pAd, pOutTxWI);
 }
 //---Add by shiang for debug
-#endif
 }
 
 
@@ -380,14 +361,6 @@ VOID RTMPWriteTxWI_Data(RTMP_ADAPTER *pAd, TXWI_STRUC *pTxWI, TX_BLK *pTxBlk)
 	//OPSTATUS_CLEAR_FLAG(pAd, fOP_STATUS_SHORT_PREAMBLE_INUSED);
 	NdisZeroMemory(pTxWI, TXWISize);
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef QOS_DLS_SUPPORT
-	if (pMacEntry && IS_ENTRY_DLS(pMacEntry) &&
-		(pAd->StaCfg.BssType == BSS_INFRA))
-		wcid = BSSID_WCID;
-	else
-#endif /* QOS_DLS_SUPPORT */
-#endif /* CONFIG_STA_SUPPORT */
 		wcid = pTxBlk->Wcid;
 
 	sgi = pTransmit->field.ShortGI;
@@ -699,17 +672,7 @@ VOID RTMPWriteTxWI_Data(RTMP_ADAPTER *pAd, TXWI_STRUC *pTxWI, TX_BLK *pTxBlk)
 
 
 		/* Calculate TxPwrAdj */
-		txwi_n->TxPwrAdj = 0;
-
-#ifdef SPECIFIC_TX_POWER_SUPPORT
-		if (pMacEntry)
-		{
-			txwi_n->TxPwrAdj += pAd->ApCfg.MBSSID[pMacEntry->apidx].TxPwrAdj;
-			DBGPRINT(RT_DEBUG_TRACE, ("%s :%d pMacEntry->apidx = %d, txwi_n->TxPwrAdj = %d\n"
-				, __FUNCTION__,__LINE__,pMacEntry->apidx, txwi_n->TxPwrAdj));
-		}
-#endif /* SPECIFIC_TX_POWER_SUPPORT */
-
+		txwi_n->TxPwrAdj = 0; 
 #ifdef SINGLE_SKU_V2	
 		RTMP_CHIP_ASIC_SKU_TX_POWER_ADJUST(pAd,txwi_n);	
 #endif /* SINGLE_SKU_V2 */
@@ -780,6 +743,7 @@ VOID RTMPWriteTxWI_Data(RTMP_ADAPTER *pAd, TXWI_STRUC *pTxWI, TX_BLK *pTxBlk)
 VOID RTMPWriteTxWI_Cache(RTMP_ADAPTER *pAd, TXWI_STRUC *pTxWI, TX_BLK *pTxBlk)
 {
 	HTTRANSMIT_SETTING *pTransmit = pTxBlk->pTransmit;
+	HTTRANSMIT_SETTING tmpTransmit;
 	MAC_TABLE_ENTRY *pMacEntry = pTxBlk->pMacEntry;
 	UCHAR pkt_id;
 	UCHAR bw, mcs, stbc, phy_mode, sgi, ldpc;
@@ -955,8 +919,6 @@ VOID RTMPWriteTxWI_Cache(RTMP_ADAPTER *pAd, TXWI_STRUC *pTxWI, TX_BLK *pTxBlk)
 #ifdef CONFIG_FPGA_MODE
 	if (pAd->fpga_ctl.fpga_on & 0x6)
 	{
-		HTTRANSMIT_SETTING tmpTransmit;
-
 		phy_mode = pAd->fpga_ctl.tx_data_phy;
 		mcs = pAd->fpga_ctl.tx_data_mcs;
 		ldpc = pAd->fpga_ctl.tx_data_ldpc;
@@ -1047,17 +1009,7 @@ VOID RTMPWriteTxWI_Cache(RTMP_ADAPTER *pAd, TXWI_STRUC *pTxWI, TX_BLK *pTxBlk)
 #endif /* TXBF_SUPPORT */
 
 		/* Calculate TxPwrAdj */
-		txwi_n->TxPwrAdj = 0;
-
-#ifdef SPECIFIC_TX_POWER_SUPPORT
-		if (pMacEntry)
-		{
-			txwi_n->TxPwrAdj = pAd->ApCfg.MBSSID[pMacEntry->apidx].TxPwrAdj;
-			DBGPRINT(RT_DEBUG_INFO, ("%s :%d pMacEntry->apidx = %d, txwi_n->TxPwrAdj = %d\n"
-			, __FUNCTION__,__LINE__,pMacEntry->apidx, txwi_n->TxPwrAdj));
-		}
-#endif /* SPECIFIC_TX_POWER_SUPPORT */
-
+		txwi_n->TxPwrAdj = 0; 
 #ifdef SINGLE_SKU_V2	
 		RTMP_CHIP_ASIC_SKU_TX_POWER_ADJUST(pAd,txwi_n);	
 #endif /* SINGLE_SKU_V2 */
@@ -1514,22 +1466,12 @@ RTMP_REG_PAIR APMACRegTable[] = {
 };
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-RTMP_REG_PAIR STAMACRegTable[] = {
-	{WMM_AIFSN_CFG,	0x00002273},
-	{WMM_CWMIN_CFG,	0x00002344},
-	{WMM_CWMAX_CFG,	0x000034aa},
-};
-#endif /* CONFIG_STA_SUPPORT */
 
 
 #define NUM_MAC_REG_PARMS			(sizeof(MACRegTable) / sizeof(RTMP_REG_PAIR))
 #ifdef CONFIG_AP_SUPPORT
 #define NUM_AP_MAC_REG_PARMS		(sizeof(APMACRegTable) / sizeof(RTMP_REG_PAIR))
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-#define NUM_STA_MAC_REG_PARMS	(sizeof(STAMACRegTable) / sizeof(RTMP_REG_PAIR))
-#endif /* CONFIG_STA_SUPPORT */
 #ifdef RTMP_MAC
 #define NUM_RTMP_MAC_REG_PARAMS	(sizeof(MACRegTable_RTMP)/ sizeof(RTMP_REG_PAIR))
 #endif /* RTMP_MAC */
@@ -1568,17 +1510,6 @@ INT rtmp_mac_init(RTMP_ADAPTER *pAd)
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		for (idx = 0; idx < NUM_STA_MAC_REG_PARMS; idx++)
-		{
-			RTMP_IO_WRITE32(pAd,
-				STAMACRegTable[idx].Register,
-				STAMACRegTable[idx].Value);
-		}
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	rtmp_mac_pbf_init(pAd);
 

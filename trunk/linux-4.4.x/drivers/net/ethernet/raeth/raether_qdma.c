@@ -15,6 +15,8 @@
 #include "ra_ioctl.h"
 #include "raether_qdma.h"
 
+#include "mtk_hnat/nf_hnat_mtk.h"
+
 /* skb->mark to queue mapping table */
 struct QDMA_txdesc *free_head;
 
@@ -645,7 +647,7 @@ int rt2880_qdma_eth_send(struct END_DEVICE *ei_local, struct net_device *dev,
 
 	if ((ei_local->features & QDMA_QOS_MARK) && (skb->mark != 0)) {
 		if (skb->mark < 64) {
-			qidx = M2Q_table[skb->mark];
+			qidx = skb->mark;
 			cpu_ptr->txd_info4.QID = ((qidx & 0x30) >> 4);
 			cpu_ptr->txd_info3.QID = (qidx & 0x0f);
 		} else {
@@ -682,7 +684,10 @@ int rt2880_qdma_eth_send(struct END_DEVICE *ei_local, struct net_device *dev,
 		}
 	}
 #endif
-
+	
+	if (HNAT_SKB_CB2(skb)->magic == 0x78681415)
+	cpu_ptr->txd_info4.FPORT = 4;	
+	
 	/* dma_sync_single_for_device(NULL, virt_to_phys(skb->data), */
 	/* skb->len, DMA_TO_DEVICE); */
 	cpu_ptr->txd_info3.SWC_bit = 1;
@@ -803,7 +808,7 @@ int rt2880_qdma_eth_send_tso(struct END_DEVICE *ei_local,
 	/* cpu_ptr->txd_info3.QID = ring_no; */
 	if ((ei_local->features & QDMA_QOS_MARK) && (skb->mark != 0)) {
 		if (skb->mark < 64) {
-			qidx = M2Q_table[skb->mark];
+			qidx = skb->mark;
 			cpu_ptr->txd_info4.QID = ((qidx & 0x30) >> 4);
 			cpu_ptr->txd_info3.QID = (qidx & 0x0f);
 		} else {

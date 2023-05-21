@@ -145,12 +145,11 @@
 
 #if defined(CONFIG_AP_SUPPORT) && defined(CONFIG_STA_SUPPORT)
 #define WPA_GET_BSS_NUM(_pAd)		(((_pAd)->OpMode == OPMODE_AP) ? (_pAd)->ApCfg.BssidNum : 1)
+#ifdef APCLI_SUPPORT
 #define WPA_GET_GROUP_CIPHER(_pAd, _pEntry, _cipher)					\
-	do																\
-	{																	\
+	do { \
 	_cipher = Ndis802_11WEPDisabled;								\
-		if ((_pAd)->OpMode == OPMODE_AP)								\
-		{																\
+		if ((_pAd)->OpMode == OPMODE_AP) {							\
 		if (IS_ENTRY_APCLI(_pEntry) && 								\
 			((_pEntry)->wdev_idx < MAX_APCLI_NUM))			\
 			_cipher = (_pAd)->ApCfg.ApCliTab[(_pEntry)->wdev_idx].GroupCipher;	\
@@ -159,32 +158,48 @@
 		}																\
 		else															\
 			_cipher = (_pAd)->StaCfg.GroupCipher;						\
-	}while(0)
+	} while (0)
+#else
+#define WPA_GET_GROUP_CIPHER(_pAd, _pEntry, _cipher)					\
+	do {	\
+	_cipher = Ndis802_11WEPDisabled;								\
+		if ((_pAd)->OpMode == OPMODE_AP) {							\
+			if ((_pEntry)->apidx < (_pAd)->ApCfg.BssidNum)			\
+				_cipher = (_pAd)->ApCfg.MBSSID[_pEntry->apidx].wdev.GroupKeyWepStatus;\
+		}	\
+		else			\
+			_cipher = (_pAd)->StaCfg.GroupCipher;						\
+	} while (0)
+#endif
 #define WPA_BSSID(_pAd, _apidx) 	(((_pAd)->OpMode == OPMODE_AP) ?\
 									(_pAd)->ApCfg.MBSSID[_apidx].Bssid :\
 									(_pAd)->CommonCfg.Bssid)
 #elif defined(CONFIG_AP_SUPPORT)
 #define WPA_GET_BSS_NUM(_pAd)		(_pAd)->ApCfg.BssidNum
+#ifdef APCLI_SUPPORT
 #define WPA_GET_GROUP_CIPHER(_pAd, _pEntry, _cipher)				\
-	do 															\
-	{																\
+	do {	\
 	_cipher = Ndis802_11WEPDisabled;							\
 	if (IS_ENTRY_APCLI(_pEntry) && 								\
 		((_pEntry)->wdev_idx < MAX_APCLI_NUM))			\
 		_cipher = (_pAd)->ApCfg.ApCliTab[(_pEntry)->wdev_idx].GroupCipher;	\
 		else if ((_pEntry)->apidx < (_pAd)->ApCfg.BssidNum)			\
 			_cipher = (_pAd)->ApCfg.MBSSID[_pEntry->apidx].wdev.GroupKeyWepStatus;\
-	}while(0)
-
+	} while (0)
+#else
+#define WPA_GET_GROUP_CIPHER(_pAd, _pEntry, _cipher)				\
+	do {	\
+	_cipher = Ndis802_11WEPDisabled;							\
+	if ((_pEntry)->apidx < (_pAd)->ApCfg.BssidNum)			\
+		_cipher = (_pAd)->ApCfg.MBSSID[_pEntry->apidx].wdev.GroupKeyWepStatus;\
+	} while (0)
+#endif
 #define WPA_BSSID(_pAd, _apidx) 	(_pAd)->ApCfg.MBSSID[_apidx].Bssid
 
 #elif defined(CONFIG_STA_SUPPORT)
 #define WPA_GET_BSS_NUM(_pAd)		1
-#define WPA_GET_GROUP_CIPHER(_pAd, _pEntry, _cipher)				\
-	do															\
-	{																\
-		_cipher = (_pAd)->StaCfg.GroupCipher;						\
-	}while(0)
+#define WPA_GET_GROUP_CIPHER(_pAd, _pEntry, _cipher)			\
+		_cipher = (_pAd)->StaCfg.GroupCipher					\
 #define WPA_BSSID(_pAd, _apidx) 	(_pAd)->CommonCfg.Bssid
 #endif /* defined(CONFIG_STA_SUPPORT) */
 
@@ -418,99 +433,10 @@ VOID CalculateMIC(
 
 BOOLEAN rtmp_chk_tkip_mic(RTMP_ADAPTER *pAd, MAC_TABLE_ENTRY *pEntry, RX_BLK *pRxBlk);
 
-#ifdef WPA_SUPPLICANT_SUPPORT
-INT WpaCheckEapCode(
-	IN  RTMP_ADAPTER *pAd,
-	IN  UCHAR *pFrame,
-	IN  USHORT FrameLen,
-	IN  USHORT OffSet);
-#endif /* WPA_SUPPLICANT_SUPPORT */
 
 
 PSTRING GetEapolMsgType(CHAR msg);
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef ADHOC_WPA2PSK_SUPPORT
-/* 
- =====================================	
- 	function prototype in cmm_wpa_adhoc.c
- =====================================	
-*/
-VOID Adhoc_WpaEAPOLStartAction(
-	IN PRTMP_ADAPTER pAd,
-	IN MLME_QUEUE_ELEM *Elem);
-
-VOID Adhoc_WpaEAPOLKeyAction(
-	IN PRTMP_ADAPTER pAd,
-	IN MLME_QUEUE_ELEM *Elem);
-
-VOID Adhoc_WpaStart4WayHS(
-	IN PRTMP_ADAPTER pAd,
-	IN MAC_TABLE_ENTRY *pEntry,
-	IN ULONG TimeInterval);
-
-VOID Adhoc_PeerPairMsg1Action(
-	IN PRTMP_ADAPTER pAd,
-	IN MAC_TABLE_ENTRY *pEntry,
-	IN MLME_QUEUE_ELEM *Elem);
-
-VOID Adhoc_PeerPairMsg2Action(
-	IN PRTMP_ADAPTER pAd,
-	IN MAC_TABLE_ENTRY *pEntry,
-	IN MLME_QUEUE_ELEM *Elem);
-
-VOID Adhoc_PeerPairMsg3Action(
-	IN PRTMP_ADAPTER pAd,
-	IN MAC_TABLE_ENTRY *pEntry,
-	IN MLME_QUEUE_ELEM *Elem);
-
-VOID Adhoc_PeerPairMsg4Action(
-	IN PRTMP_ADAPTER pAd,
-	IN MAC_TABLE_ENTRY *pEntry,
-	IN MLME_QUEUE_ELEM *Elem);
-
-VOID Adhoc_PeerGroupMsg1Action(
-	IN PRTMP_ADAPTER pAd,
-	IN MAC_TABLE_ENTRY *pEntry,
-	IN MLME_QUEUE_ELEM *Elem);
-
-VOID Adhoc_Wpa4WayComplete(
-	IN PRTMP_ADAPTER pAd,
-	IN MAC_TABLE_ENTRY *pEntry);
-
-VOID Adhoc_WpaRetryExec(
-	IN PVOID SystemSpecific1,
-	IN PVOID FunctionContext,
-	IN PVOID SystemSpecific2,
-	IN PVOID SystemSpecific3);
-
-VOID Adhoc_ConstructEapolMsg(
-	IN PMAC_TABLE_ENTRY pEntry,
-	IN UCHAR GroupKeyWepStatus,
-	IN UCHAR MsgType,
-	IN UCHAR DefaultKeyIdx,
-	IN UCHAR *KeyNonce,
-	IN UCHAR *TxRSC,
-	IN UCHAR *GTK,
-	IN UCHAR *RSNIE,
-	IN UCHAR RSNIE_Len,
-	IN PFOUR_WAY_HANDSHAKE_PROFILE p4WayProfile,
-	OUT PEAPOL_PACKET pMsg);
-
-VOID Adhoc_ConstructEapolKeyData(
-	IN PMAC_TABLE_ENTRY pEntry,
-	IN UCHAR GroupKeyWepStatus,
-	IN UCHAR keyDescVer,
-	IN UCHAR MsgType,
-	IN UCHAR DefaultKeyIdx,
-	IN UCHAR *GTK,
-	IN UCHAR *RSNIE,
-	IN UCHAR RSNIE_LEN,
-	IN PFOUR_WAY_HANDSHAKE_PROFILE p4WayProfile,
-	OUT PEAPOL_PACKET pMsg);
-
-#endif /* ADHOC_WPA2PSK_SUPPORT */
-#endif /* CONFIG_STA_SUPPORT */
 
 /* 
  =====================================	

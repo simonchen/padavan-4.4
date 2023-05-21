@@ -38,8 +38,13 @@
 #include <linux/rtnetlink.h>
 
 #if defined(CONFIG_RA_HW_NAT) || defined(CONFIG_RA_HW_NAT_MODULE)
-#include "../../../../../../../net/nat/hw_nat/ra_nat.h"
-#include "../../../../../../../net/nat/hw_nat/frame_engine.h"
+#if defined(CONFIG_SUPPORT_OPENWRT)
+#include "../../../linux-kernel/net/nat/hw_nat/ra_nat.h"
+#include "../../../linux-kernel/net/nat/hw_nat/frame_engine.h"
+#else
+#include "../../../../../../net/nat/hw_nat/ra_nat.h"
+#include "../../../../../../net/nat/hw_nat/frame_engine.h"
+#endif /* CONFIG_SUPPORT_OPENWRT */
 #endif
 
 /* TODO */
@@ -283,7 +288,6 @@ NDIS_STATUS os_free_mem(
 }
 
 #if defined(RTMP_RBUS_SUPPORT) || defined(RTMP_FLASH_SUPPORT)
-
 int mt_mtd_write_nm_wifi(char *name, loff_t to, size_t len, const u_char *buf);
 int mt_mtd_read_nm_wifi(char *name, loff_t from, size_t len, u_char *buf);
 #define flash_read(_ctrl, _ptr, _offset, _len) mt_mtd_read_nm_wifi("Factory", _offset, (size_t)_len, _ptr)
@@ -360,7 +364,7 @@ NDIS_STATUS RTMPAllocateNdisPacket(
 	pPacket = dev_alloc_skb(HeaderLen + DataLen + RTMP_PKT_TAIL_PADDING + LEN_CCMP_HDR + LEN_CCMP_MIC);
 	if (pPacket == NULL) {
 		*ppPacket = NULL;
-#ifdef DBG
+#ifdef DEBUG
 		printk(KERN_ERR "RTMPAllocateNdisPacket Fail\n\n");
 #endif
 		return NDIS_STATUS_FAILURE;
@@ -439,6 +443,11 @@ PNDIS_PACKET DuplicatePacket(
 {
 	struct sk_buff *skb;
 	PNDIS_PACKET pRetPacket = NULL;
+	USHORT DataSize;
+	UCHAR *pData;
+
+	DataSize = (USHORT) GET_OS_PKT_LEN(pPacket);
+	pData = (PUCHAR) GET_OS_PKT_DATAPTR(pPacket);
 
 	skb = skb_clone(RTPKT_TO_OSPKT(pPacket), MEM_ALLOC_FLAG);
 	if (skb) {
@@ -666,6 +675,23 @@ PNDIS_PACKET ClonePacket(
 	return pClonedPkt;
 }
 
+PNDIS_PACKET CopyPacket(
+	IN VOID * pReserved,
+	IN PNDIS_PACKET pPacket,
+	IN PUCHAR pData,
+	IN ULONG DataSize)
+{
+	struct sk_buff *pRxPkt;
+
+	ASSERT(pPacket);
+
+	pRxPkt = RTPKT_TO_OSPKT(pPacket);
+	if (pRxPkt->len > 1530)
+		DBGPRINT(RT_DEBUG_TRACE,
+			("%s %d : DataSize > 1530 , len = %d!\n", __func__, __LINE__, pRxPkt->len));
+	return skb_copy(pRxPkt, MEM_ALLOC_FLAG);
+}
+
 VOID RtmpOsPktInit(
 	IN PNDIS_PACKET pNetPkt,
 	IN PNET_DEV pNetDev,
@@ -729,19 +755,13 @@ void wlan_802_11_to_802_3_packet(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	RT_CONFIG_IF_OPMODE_ON_STA(OpMode)
-	{
-	    NdisMoveMemory(skb_push(pOSPkt, LENGTH_802_3), pHeader802_3, LENGTH_802_3);
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 }
 
 
-#ifdef DBG
 void hex_dump(char *str, UCHAR *pSrcBufVA, UINT SrcBufLen)
 {
+#ifdef DBG
 	unsigned char *pt;
 	int x;
 
@@ -758,8 +778,8 @@ void hex_dump(char *str, UCHAR *pSrcBufVA, UINT SrcBufLen)
 			printk("\n");
 	}
 	printk("\n");
-}
 #endif /* DBG */
+}
 
 #ifdef SYSTEM_LOG_SUPPORT
 /*
@@ -856,28 +876,25 @@ void RtmpOSFileSeek(RTMP_OS_FD osfd, int offset)
 
 int RtmpOSFileRead(RTMP_OS_FD osfd, char *pDataPtr, int readLen)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,1,0)
 	/* The object must have a read method */
+#if (KERNEL_VERSION(3, 19, 0) > LINUX_VERSION_CODE)
 	if (osfd->f_op && osfd->f_op->read) {
 		return osfd->f_op->read(osfd, pDataPtr, readLen, &osfd->f_pos);
 #else
-	if (osfd && osfd->f_mode & FMODE_CAN_READ) {
+
+	if (osfd->f_mode & FMODE_CAN_READ) {
 		return __vfs_read(osfd, pDataPtr, readLen, &osfd->f_pos);
 #endif
 	} else {
-		DBGPRINT(RT_DEBUG_ERROR, ("no file read method\n"));
 		return -1;
 	}
 }
 
 
+
 int RtmpOSFileWrite(RTMP_OS_FD osfd, char *pDataPtr, int writeLen)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,1,0)
 	return osfd->f_op->write(osfd, pDataPtr, (size_t) writeLen, &osfd->f_pos);
-#else
-	return __vfs_write(osfd, pDataPtr, (size_t) writeLen, &osfd->f_pos);
-#endif
 }
 
 
@@ -890,9 +907,6 @@ static inline void __RtmpOSFSInfoChange(OS_FS_INFO * pOSFSInfo, BOOLEAN bSet)
 		pOSFSInfo->fsuid = current->fsuid;
 		pOSFSInfo->fsgid = current->fsgid;
 		current->fsuid = current->fsgid = 0;
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
-		pOSFSInfo->fsuid = __kuid_val(current_fsuid());
-		pOSFSInfo->fsgid = __kgid_val(current_fsgid());
 #else
 		pOSFSInfo->fsuid = current_fsuid();
 		pOSFSInfo->fsgid = current_fsgid();
@@ -1403,15 +1417,6 @@ int RtmpOSNetDevAddrSet(
 {
 	struct net_device *net_dev = (struct net_device *)pNetDev;
 
-#ifdef CONFIG_STA_SUPPORT
-	/* work-around for the SuSE due to it has it's own interface name management system. */
-	RT_CONFIG_IF_OPMODE_ON_STA(OpMode) {
-		if (dev_name != NULL) {
-			NdisZeroMemory(dev_name, 16);
-			NdisMoveMemory(dev_name, net_dev->name, strlen(net_dev->name));
-		}
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	NdisMoveMemory(net_dev->dev_addr, pMacAddr, 6);
 
@@ -1681,8 +1686,11 @@ int RtmpOSNetDevAttach(
 		/* if you don't implement get_stats, just leave the callback function as NULL, a dummy 
 		   function will make kernel panic.
 		 */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,35)
-		pNetDevOps->ndo_get_stats64 = pDevOpHook->get_stats;
+		if (pDevOpHook->get_stats)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,31)
+			pNetDevOps->ndo_get_stats = pDevOpHook->get_stats;
+#else
+			pNetDev->get_stats = pDevOpHook->get_stats;
 #endif
 
 		/* OS specific flags, here we used to indicate if we are virtual interface */
@@ -1694,14 +1702,6 @@ int RtmpOSNetDevAttach(
 		pNetDev->get_wireless_stats = pDevOpHook->get_wstats;
 #endif
 
-#ifdef CONFIG_STA_SUPPORT
-#if WIRELESS_EXT >= 12
-		if (OpMode == OPMODE_STA) {
-/*			pNetDev->wireless_handlers = &rt28xx_iw_handler_def; */
-			pNetDev->wireless_handlers = pDevOpHook->iw_handler;
-		}
-#endif /*WIRELESS_EXT >= 12 */
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_APSTA_MIXED_SUPPORT
 #if WIRELESS_EXT >= 12
@@ -2214,12 +2214,41 @@ VOID RtmpOsVfree(VOID *pMem)
 		vfree(pMem);
 }
 
+
+/*
+========================================================================
+Routine Description:
+	Assign protocol to the packet.
+
+Arguments:
+	pPkt			- the packet
+
+Return Value:
+	None
+
+Note:
+========================================================================
+*/
+VOID RtmpOsPktProtocolAssign(PNDIS_PACKET pNetPkt)
+{
+	struct sk_buff *pRxPkt = RTPKT_TO_OSPKT(pNetPkt);
+	pRxPkt->protocol = eth_type_trans(pRxPkt, pRxPkt->dev);
+}
+
+
 BOOLEAN RtmpOsStatsAlloc(
+	IN VOID **ppStats,
 	IN VOID **ppIwStats)
 {
+	os_alloc_mem(NULL, (UCHAR **) ppStats, sizeof (struct net_device_stats));
+	if ((*ppStats) == NULL)
+		return FALSE;
+	NdisZeroMemory((UCHAR *) *ppStats, sizeof (struct net_device_stats));
+
 #if WIRELESS_EXT >= 12
 	os_alloc_mem(NULL, (UCHAR **) ppIwStats, sizeof (struct iw_statistics));
 	if ((*ppIwStats) == NULL) {
+		os_free_mem(NULL, *ppStats);
 		return FALSE;
 	}
 	NdisZeroMemory((UCHAR *)* ppIwStats, sizeof (struct iw_statistics));
@@ -2227,6 +2256,30 @@ BOOLEAN RtmpOsStatsAlloc(
 
 	return TRUE;
 }
+
+
+/*
+========================================================================
+Routine Description:
+	Pass the received packet to OS.
+
+Arguments:
+	pPkt			- the packet
+
+Return Value:
+	None
+
+Note:
+========================================================================
+*/
+VOID RtmpOsPktRcvHandle(PNDIS_PACKET pNetPkt)
+{
+	struct sk_buff *pRxPkt = RTPKT_TO_OSPKT(pNetPkt);
+
+
+	netif_rx(pRxPkt);
+}
+
 
 VOID RtmpOsTaskPidInit(RTMP_OS_PID *pPid)
 {
@@ -2310,6 +2363,28 @@ PNDIS_PACKET RtmpOsPktIappMakeUp(
 }
 #endif /* IAPP_SUPPORT */
 
+
+VOID RtmpOsPktNatMagicTag(IN PNDIS_PACKET pNetPkt)
+{
+#if !defined(CONFIG_RA_NAT_NONE)
+#if defined (CONFIG_RA_HW_NAT)  || defined (CONFIG_RA_HW_NAT_MODULE)
+	struct sk_buff *pRxPkt = RTPKT_TO_OSPKT(pNetPkt);
+	FOE_MAGIC_TAG(pRxPkt) = FOE_MAGIC_WLAN;
+#endif /* CONFIG_RA_HW_NAT || CONFIG_RA_HW_NAT_MODULE */
+#endif /* CONFIG_RA_NAT_NONE */
+}
+
+
+VOID RtmpOsPktNatNone(IN PNDIS_PACKET pNetPkt)
+{
+#if defined(CONFIG_RA_NAT_NONE)
+#if defined (CONFIG_RA_HW_NAT)  || defined (CONFIG_RA_HW_NAT_MODULE)
+	FOE_AI(((struct sk_buff *)pNetPkt)) = UN_HIT;
+#endif /* CONFIG_RA_HW_NAT || CONFIG_RA_HW_NAT_MODULE */
+#endif /* CONFIG_RA_NAT_NONE */
+}
+
+
 /*
 ========================================================================
 Routine Description:
@@ -2333,45 +2408,6 @@ VOID RtmpOsDCacheFlush(
 }
 
 
-#ifdef CONFIG_STA_SUPPORT
-INT RtmpOSNotifyRawData(
-	IN PNET_DEV pNetDev, 
-	IN PUCHAR buff,
-	IN INT len, 
-	IN ULONG type,
-	IN USHORT protocol)
-{
-	struct sk_buff *skb = NULL;
-	
-	skb = dev_alloc_skb(len + 2);
-	
-	if (!skb) 
-	{
-		DBGPRINT(RT_DEBUG_ERROR,( "%s: failed to allocate sk_buff for notification\n", pNetDev->name));		
-		return -ENOMEM;		
-	} 
-	else 
-	{		
-		skb_reserve(skb, 2);		
-		memcpy(skb_put(skb, len), buff, len);		
-		skb->len = len;
-		skb->dev = pNetDev;
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,21))
-		skb->mac.raw = skb->data;
-#else
-		skb_set_mac_header(skb, 0);
-#endif
-		skb->ip_summed = CHECKSUM_UNNECESSARY;
-		skb->pkt_type = PACKET_OTHERHOST;
-		skb->protocol = htons(protocol);
-		memset(skb->cb, 0, sizeof(skb->cb));
-
-		netif_rx(skb);
-	}
-	return 0;
-}
-
-#endif /* CONFIG_STA_SUPPORT */
 
 
 void OS_SPIN_LOCK_IRQSAVE(NDIS_SPIN_LOCK *lock, unsigned long *flags)
@@ -2422,7 +2458,7 @@ void OS_CLEAR_BIT(int bit, unsigned long *flags)
 #ifndef BB_SOC
 void OS_LOAD_CODE_FROM_BIN(unsigned char **image, char *bin_name, void *inf_dev, UINT32 *code_len)
 {
-	struct device *dev = NULL;
+	struct device *dev;
 	const struct firmware *fw_entry;
 
 #ifdef RTMP_PCI_SUPPORT

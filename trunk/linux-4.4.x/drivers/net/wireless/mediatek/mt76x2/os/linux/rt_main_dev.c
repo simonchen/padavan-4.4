@@ -88,8 +88,8 @@ int rt28xx_open(VOID *net_dev);
 /* private function prototype */
 INT rt28xx_send_packets(IN struct sk_buff *skb_p, IN struct net_device *net_dev);
 
-struct rtnl_link_stats64 *
-RT28xx_get_ether_stats64(PNET_DEV net_dev, struct rtnl_link_stats64 *stats);
+
+struct net_device_stats *RT28xx_get_ether_stats(struct net_device *net_dev);
 
 
 /*
@@ -130,10 +130,11 @@ int MainVirtualIF_close(IN struct net_device *net_dev)
 #else
 	VIRTUAL_IF_DOWN(pAd);
 #endif /* IFUP_IN_PROBE */
-
+	
 #ifdef CONFIG_RA_HW_NAT_WIFI_NEW_ARCH
 	RT_MOD_HNAT_DEREG(net_dev);
 #endif
+
 	RT_MOD_DEC_USE_COUNT();
 
 	return 0; /* close ok */
@@ -188,7 +189,6 @@ int MainVirtualIF_open(struct net_device *net_dev)
 #ifdef CONFIG_RA_HW_NAT_WIFI_NEW_ARCH
 	RT_MOD_HNAT_REG(net_dev);
 #endif
-
 
 	netif_start_queue(net_dev);
 	netif_carrier_on(net_dev);
@@ -260,15 +260,6 @@ int rt28xx_open(VOID *dev)
 	int retval = 0;
 	ULONG OpMode;
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef CONFIG_PM
-#ifdef USB_SUPPORT_SELECTIVE_SUSPEND
-	struct usb_interface *intf;
-	struct usb_device *pUsb_Dev;
-	INT pm_usage_cnt;
-#endif /* USB_SUPPORT_SELECTIVE_SUSPEND */
-#endif /* CONFIG_PM */
-#endif /* CONFIG_STA_SUPPORT */
 
 
 	if (sizeof(ra_dma_addr_t) < sizeof(dma_addr_t))
@@ -286,32 +277,6 @@ int rt28xx_open(VOID *dev)
 
 	RTMP_DRIVER_OP_MODE_GET(pAd, &OpMode);
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef CONFIG_PM
-#ifdef USB_SUPPORT_SELECTIVE_SUSPEND
-
-	RTMP_DRIVER_USB_DEV_GET(pAd, &pUsb_Dev);
-	RTMP_DRIVER_USB_INTF_GET(pAd, &intf);
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
-	pm_usage_cnt = atomic_read(&intf->pm_usage_cnt);	
-#else
-	pm_usage_cnt = intf->pm_usage_cnt;
-#endif
-	if (pm_usage_cnt == 0)
-	{
-		int res=1;
-
-		res = usb_autopm_get_interface(intf);
-		if (res)
-		{
-			DBGPRINT(RT_DEBUG_ERROR, ("rt28xx_open autopm_resume fail!\n"));
-			return (-1);;
-		}			
-	}
-#endif /* USB_SUPPORT_SELECTIVE_SUSPEND */
-#endif /* CONFIG_PM */
-#endif /* CONFIG_STA_SUPPORT */
 
 
 #if WIRELESS_EXT >= 12
@@ -322,10 +287,6 @@ int rt28xx_open(VOID *dev)
 		if (OpMode == OPMODE_AP)
 			net_dev->wireless_handlers = (struct iw_handler_def *) &rt28xx_ap_iw_handler_def;
 #endif /* CONFIG_APSTA_MIXED_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-		if (OpMode == OPMODE_STA)
-			net_dev->wireless_handlers = (struct iw_handler_def *) &rt28xx_iw_handler_def;
-#endif /* CONFIG_STA_SUPPORT */
 	}
 #endif /* WIRELESS_EXT >= 12 */
 
@@ -436,7 +397,7 @@ PNET_DEV RtmpPhyNetDevInit(VOID *pAd, RTMP_OS_NETDEV_OP_HOOK *pNetDevHook)
 #endif /* IKANOS_VX_1X0 */
 	pNetDevHook->ioctl = rt28xx_ioctl;
 	pNetDevHook->priv_flags = InfId; /*INT_MAIN; */
-	pNetDevHook->get_stats = RT28xx_get_ether_stats64;
+	pNetDevHook->get_stats = RT28xx_get_ether_stats;
 
 	pNetDevHook->needProtcted = FALSE;
 
@@ -449,14 +410,6 @@ PNET_DEV RtmpPhyNetDevInit(VOID *pAd, RTMP_OS_NETDEV_OP_HOOK *pNetDevHook)
 	/* put private data structure */
 	RTMP_OS_NETDEV_SET_PRIV(net_dev, pAd);
 
-#ifdef CONFIG_STA_SUPPORT
-#if WIRELESS_EXT >= 12
-	if (OpMode == OPMODE_STA)
-	{
-		pNetDevHook->iw_handler = (void *)&rt28xx_iw_handler_def;
-	}
-#endif /*WIRELESS_EXT >= 12 */
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_APSTA_MIXED_SUPPORT
 #if WIRELESS_EXT >= 12
@@ -654,13 +607,6 @@ INT rt28xx_ioctl(PNET_DEV net_dev, struct ifreq *rq, INT cmd)
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-/*	IF_DEV_CONFIG_OPMODE_ON_STA(pAd) */
-	RT_CONFIG_IF_OPMODE_ON_STA(OpMode)
-	{
-		ret = rt28xx_sta_ioctl(net_dev, rq, cmd);
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	return ret;
 }
@@ -676,60 +622,73 @@ INT rt28xx_ioctl(PNET_DEV net_dev, struct ifreq *rq, INT cmd)
         net_dev                     Pointer to net_device
 
     Return Value:
-        rtnl_link_stats64*
+        net_device_stats*
 
     Note:
 
     ========================================================================
 */
-struct rtnl_link_stats64 *
-RT28xx_get_ether_stats64(PNET_DEV net_dev, struct rtnl_link_stats64 *stats)
+struct net_device_stats *RT28xx_get_ether_stats(struct net_device *net_dev)
 {
-	RT_CMD_STATS64 WifStats;
     VOID *pAd = NULL;
+	struct net_device_stats *pStats;
 
 	if (net_dev)
 		GET_PAD_FROM_NET_DEV(pAd, net_dev);	
 
-	if (!pAd)
-		return NULL;
+	if (pAd)
+	{
+		RT_CMD_STATS DrvStats, *pDrvStats = &DrvStats;
+ 
 
-	WifStats.pNetDev = net_dev;
-	RTMP_DRIVER_INF_STATS_GET(pAd, &WifStats);
+		//assign net device for RTMP_DRIVER_INF_STATS_GET()
+		pDrvStats->pNetDev = net_dev;
+		RTMP_DRIVER_INF_STATS_GET(pAd, pDrvStats);
 
-	stats->rx_packets		= WifStats.rx_packets;
-	stats->tx_packets		= WifStats.tx_packets;
-	stats->rx_bytes			= WifStats.rx_bytes;
-	stats->tx_bytes			= WifStats.tx_bytes;
-	stats->rx_errors		= WifStats.rx_errors;
-	stats->tx_errors		= WifStats.tx_errors;
-	stats->rx_dropped		= 0;
-	stats->tx_dropped		= 0;
-	stats->multicast		= WifStats.multicast;
-	stats->collisions		= WifStats.collisions;
+		pStats = (struct net_device_stats *)(pDrvStats->pStats);
+		pStats->rx_packets = pDrvStats->rx_packets;
+		pStats->tx_packets = pDrvStats->tx_packets;
 
-	stats->rx_length_errors		= 0;
-	stats->rx_over_errors		= WifStats.rx_over_errors;
-	stats->rx_crc_errors		= 0;
-	stats->rx_frame_errors		= WifStats.rx_frame_errors;
-	stats->rx_fifo_errors		= WifStats.rx_fifo_errors;
-	stats->rx_missed_errors		= 0;
+		pStats->rx_bytes = pDrvStats->rx_bytes;
+		pStats->tx_bytes = pDrvStats->tx_bytes;
 
-	stats->tx_aborted_errors	= 0;
-	stats->tx_carrier_errors	= 0;
-	stats->tx_fifo_errors		= 0;
-	stats->tx_heartbeat_errors	= 0;
-	stats->tx_window_errors		= 0;
+		pStats->rx_errors = pDrvStats->rx_errors;
+		pStats->tx_errors = pDrvStats->tx_errors;
 
-	stats->rx_compressed		= 0;
-	stats->tx_compressed		= 0;
+		pStats->rx_dropped = 0;
+		pStats->tx_dropped = 0;
+
+	    pStats->multicast = pDrvStats->multicast;
+	    pStats->collisions = pDrvStats->collisions;
+
+	    pStats->rx_length_errors = 0;
+	    pStats->rx_over_errors = pDrvStats->rx_over_errors;
+	    pStats->rx_crc_errors = 0;/*pAd->WlanCounters.FCSErrorCount;     // recved pkt with crc error */
+	    pStats->rx_frame_errors = pDrvStats->rx_frame_errors;
+	    pStats->rx_fifo_errors = pDrvStats->rx_fifo_errors;
+	    pStats->rx_missed_errors = 0;                                            /* receiver missed packet */
+
+	    /* detailed tx_errors */
+	    pStats->tx_aborted_errors = 0;
+	    pStats->tx_carrier_errors = 0;
+	    pStats->tx_fifo_errors = 0;
+	    pStats->tx_heartbeat_errors = 0;
+	    pStats->tx_window_errors = 0;
+
+	    /* for cslip etc */
+	    pStats->rx_compressed = 0;
+	    pStats->tx_compressed = 0;
 		
-	return stats;
+		return pStats;
+	}
+	else
+    	return NULL;
 }
 
 
 BOOLEAN RtmpPhyNetDevExit(VOID *pAd, PNET_DEV net_dev)
 {
+
 #ifdef CONFIG_AP_SUPPORT
 #ifdef APCLI_SUPPORT
 #if defined(P2P_APCLI_SUPPORT) || defined(RT_CFG80211_P2P_CONCURRENT_DEVICE)
@@ -772,7 +731,7 @@ BOOLEAN RtmpPhyNetDevExit(VOID *pAd, PNET_DEV net_dev)
 	/* Unregister network device */
 	if (net_dev != NULL)
 	{
-		DBGPRINT(RT_DEBUG_ERROR, ("RtmpOSNetDevDetach(): RtmpOSNetDeviceDetach(), dev->name=%s!\n", net_dev->name));
+		printk("RtmpOSNetDevDetach(): RtmpOSNetDeviceDetach(), dev->name=%s!\n", net_dev->name);
 		RtmpOSNetDevProtect(1);
 		RtmpOSNetDevDetach(net_dev);
 		RtmpOSNetDevProtect(0);
@@ -807,6 +766,8 @@ int RtmpOSIRQRequest(IN PNET_DEV pNetDev)
 	if (infType == RTMP_DEV_INF_PCI || infType == RTMP_DEV_INF_PCIE)
 	{
 		struct pci_dev *pci_dev;
+/*		POS_COOKIE _pObj = (POS_COOKIE)(pAd->OS_Cookie); */
+/*		RTMP_MSI_ENABLE(pAd); */
 		RTMP_DRIVER_PCI_MSI_ENABLE(pAd, &pci_dev);
 #ifdef CONFIG_ARCH_MT7623
 		retval = request_irq(pci_dev->irq,  rt2860_interrupt, SA_SHIRQ|IRQF_TRIGGER_LOW, (net_dev)->name, (net_dev));
@@ -835,6 +796,7 @@ int RtmpOSIRQRequest(IN PNET_DEV pNetDev)
 	return retval; 
 }
 
+
 #ifdef WDS_SUPPORT
 /*
     ========================================================================
@@ -846,125 +808,79 @@ int RtmpOSIRQRequest(IN PNET_DEV pNetDev)
         net_dev                     Pointer to net_device
 
     Return Value:
-        rtnl_link_stats64 *
+        net_device_stats*
 
     Note:
 
     ========================================================================
 */
-struct rtnl_link_stats64 *
-RT28xx_get_wds_ether_stats64(PNET_DEV net_dev, struct rtnl_link_stats64 *stats)
+struct net_device_stats *RT28xx_get_wds_ether_stats(
+    IN PNET_DEV net_dev)
 {
-	RT_CMD_STATS64 WdsStats;
     VOID *pAd = NULL;
+/*	INT WDS_apidx = 0,index; */
+	struct net_device_stats *pStats;
+	RT_CMD_STATS WdsStats, *pWdsStats = &WdsStats;
 
-	if (net_dev)
+	if (net_dev) {
 		GET_PAD_FROM_NET_DEV(pAd, net_dev);
+	}
 
-	if (!pAd)
-		return NULL;
+/*	if (RT_DEV_PRIV_FLAGS_GET(net_dev) == INT_WDS) */
+	{
+		if (pAd)
+		{
 
-	WdsStats.pNetDev = net_dev;
-
+			pWdsStats->pNetDev = net_dev;
 			if (RTMP_COM_IoctlHandle(pAd, NULL, CMD_RTPRIV_IOCTL_WDS_STATS_GET,
-			0, &WdsStats, RT_DEV_PRIV_FLAGS_GET(net_dev)) != NDIS_STATUS_SUCCESS)
+					0, pWdsStats, RT_DEV_PRIV_FLAGS_GET(net_dev)) != NDIS_STATUS_SUCCESS)
 				return NULL;
 
-	stats->rx_packets		= WdsStats.rx_packets;
-	stats->tx_packets		= WdsStats.tx_packets;
-	stats->rx_bytes			= WdsStats.rx_bytes;
-	stats->tx_bytes			= WdsStats.tx_bytes;
-	stats->rx_errors		= WdsStats.rx_errors;
-	stats->tx_errors		= 0;
-	stats->rx_dropped		= 0;
-	stats->tx_dropped		= 0;
-	stats->multicast		= WdsStats.multicast;
-	stats->collisions		= 0;
+			pStats = (struct net_device_stats *)pWdsStats->pStats; /*pAd->stats; */
 
-	stats->rx_length_errors		= 0;
-	stats->rx_over_errors		= 0;
-	stats->rx_crc_errors		= 0;
-	stats->rx_frame_errors		= 0;
-	stats->rx_fifo_errors		= 0;
-	stats->rx_missed_errors		= 0;
+			pStats->rx_packets = pWdsStats->rx_packets; /*pAd->WdsTab.WdsEntry[WDS_apidx].WdsCounter.ReceivedFragmentCount.QuadPart; */
+			pStats->tx_packets = pWdsStats->tx_packets; /*pAd->WdsTab.WdsEntry[WDS_apidx].WdsCounter.TransmittedFragmentCount.QuadPart; */
 
-	stats->tx_aborted_errors	= 0;
-	stats->tx_carrier_errors	= 0;
-	stats->tx_fifo_errors		= 0;
-	stats->tx_heartbeat_errors	= 0;
-	stats->tx_window_errors		= 0;
+			pStats->rx_bytes = pWdsStats->rx_bytes; /*pAd->WdsTab.WdsEntry[WDS_apidx].WdsCounter.ReceivedByteCount; */
+			pStats->tx_bytes = pWdsStats->tx_bytes; /*pAd->WdsTab.WdsEntry[WDS_apidx].WdsCounter.TransmittedByteCount; */
 
-	stats->rx_compressed		= 0;
-	stats->tx_compressed		= 0;
+			pStats->rx_errors = pWdsStats->rx_errors; /*pAd->WdsTab.WdsEntry[WDS_apidx].WdsCounter.RxErrors; */
+			pStats->tx_errors = pWdsStats->tx_errors; /*pAd->WdsTab.WdsEntry[WDS_apidx].WdsCounter.TxErrors; */
 
-	return stats;
+			pStats->rx_dropped = 0;
+			pStats->tx_dropped = 0;
+
+	  		pStats->multicast = pWdsStats->multicast; /*pAd->WdsTab.WdsEntry[WDS_apidx].WdsCounter.MulticastReceivedFrameCount.QuadPart;   // multicast packets received */
+	  		pStats->collisions = pWdsStats->collisions; /* Collision packets */
+	  
+	  		pStats->rx_length_errors = 0;
+	  		pStats->rx_over_errors = pWdsStats->rx_over_errors; /*pAd->WdsTab.WdsEntry[WDS_apidx].WdsCounter.RxNoBuffer;                   // receiver ring buff overflow */
+	  		pStats->rx_crc_errors = 0;/*pAd->WlanCounters.FCSErrorCount;     // recved pkt with crc error */
+	  		pStats->rx_frame_errors = 0; /* recv'd frame alignment error */
+	  		pStats->rx_fifo_errors = pWdsStats->rx_fifo_errors; /*pAd->WdsTab.WdsEntry[WDS_apidx].WdsCounter.RxNoBuffer;                   // recv'r fifo overrun */
+	  		pStats->rx_missed_errors = 0;                                            /* receiver missed packet */
+	  
+	  		    /* detailed tx_errors */
+	  		pStats->tx_aborted_errors = 0;
+	  		pStats->tx_carrier_errors = 0;
+	  		pStats->tx_fifo_errors = 0;
+	  		pStats->tx_heartbeat_errors = 0;
+	  		pStats->tx_window_errors = 0;
+	  
+	  		    /* for cslip etc */
+	  		pStats->rx_compressed = 0;
+	  		pStats->tx_compressed = 0;
+
+			return pStats;
+		}
+		else
+			return NULL;
+	}
+/*	else */
+/*    		return NULL; */
 }
 #endif /* WDS_SUPPORT */
 
-#ifdef APCLI_SUPPORT
-/*
-    ========================================================================
-
-    Routine Description:
-        return ethernet statistics counter
-
-    Arguments:
-        net_dev                     Pointer to net_device
-
-    Return Value:
-        rtnl_link_stats64 *
-
-    Note:
-
-    ========================================================================
-*/
-struct rtnl_link_stats64 *
-RT28xx_get_apcli_ether_stats64(PNET_DEV net_dev, struct rtnl_link_stats64 *stats)
-{
-	RT_CMD_STATS64 ApCliStats;
-	VOID *pAd = NULL;
-
-	if (net_dev)
-		GET_PAD_FROM_NET_DEV(pAd, net_dev);
-
-	if (!pAd)
-			return NULL;
-
-	ApCliStats.pNetDev = net_dev;
-	if (RTMP_COM_IoctlHandle(pAd, NULL, CMD_RTPRIV_IOCTL_APCLI_STATS_GET,
-			0, &ApCliStats, RT_DEV_PRIV_FLAGS_GET(net_dev)) != NDIS_STATUS_SUCCESS)
-		return NULL;
-
-	stats->rx_packets		= ApCliStats.rx_packets;
-	stats->tx_packets		= ApCliStats.tx_packets;
-	stats->rx_bytes			= ApCliStats.rx_bytes;
-	stats->tx_bytes			= ApCliStats.tx_bytes;
-	stats->rx_errors		= ApCliStats.rx_errors;
-	stats->tx_errors		= 0;
-	stats->rx_dropped		= 0;
-	stats->tx_dropped		= 0;
-	stats->multicast		= ApCliStats.multicast;
-	stats->collisions		= 0;
-
-	stats->rx_length_errors		= 0;
-	stats->rx_over_errors		= 0;
-	stats->rx_crc_errors		= 0;
-	stats->rx_frame_errors		= 0;
-	stats->rx_fifo_errors		= 0;
-	stats->rx_missed_errors		= 0;
-
-	stats->tx_aborted_errors	= 0;
-	stats->tx_carrier_errors	= 0;
-	stats->tx_fifo_errors		= 0;
-	stats->tx_heartbeat_errors	= 0;
-	stats->tx_window_errors		= 0;
-
-	stats->rx_compressed		= 0;
-	stats->tx_compressed		= 0;
-
-	return stats;
-}
-#endif /* APCLI_SUPPORT */
 
 
 

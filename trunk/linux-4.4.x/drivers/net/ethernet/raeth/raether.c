@@ -19,6 +19,8 @@
 #include "raether_hwlro.h"
 #include "ra_ethtool.h"
 
+#include "mtk_hnat/nf_hnat_mtk.h"
+
 void __iomem *ethdma_sysctl_base;
 #if defined(CONFIG_RA_HW_NAT)  || defined(CONFIG_RA_HW_NAT_MODULE)
 EXPORT_SYMBOL(ethdma_sysctl_base);
@@ -323,12 +325,22 @@ static int rt2880_eth_recv(struct net_device *dev,
 		}
 #endif
 
+
 	if (ei_local->features & FE_HW_VLAN_RX) {
 		if (rx_ring->rxd_info2.TAG)
 			__vlan_hwaccel_put_tag(rx_skb,
 					       htons(ETH_P_8021Q),
 					       rx_ring->rxd_info3.VID);
 	}
+	
+
+		*(uint32_t *)(rx_skb->head) =*(uint32_t *)(&rx_ring->rxd_info4);
+		skb_hnat_alg(rx_skb) = 0;
+		skb_hnat_magic_tag(rx_skb) = HNAT_MAGIC_TAG;
+		if (skb_hnat_reason(rx_skb) == HIT_BIND_FORCE_TO_CPU) {
+			rx_skb->pkt_type = PACKET_HOST;
+		}
+
 
 /* ra_sw_nat_hook_rx return 1 --> continue
  * ra_sw_nat_hook_rx return 0 --> FWD & without netif_rx

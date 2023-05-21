@@ -824,83 +824,6 @@ VOID CFG80211OS_Scaning(
 	IN UINT8					BW)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30))
-#ifdef CONFIG_STA_SUPPORT
-	CFG80211_CB *pCfg80211_CB = (CFG80211_CB *)pCB;
-	struct ieee80211_supported_band *pBand;
-	UINT32 IdChan;
-	UINT32 CenFreq;
-	UINT CurBand;
-	struct wiphy *pWiphy = pCfg80211_CB->pCfg80211_Wdev->wiphy;
-	struct cfg80211_bss *bss = NULL;
-	struct ieee80211_mgmt *mgmt;
-	mgmt = (struct ieee80211_mgmt *) pFrame;
-
-	if (ChanId == 0) 
-		ChanId = 1;
-		
-	/* get channel information */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,39))
-	if (ChanId > 14)
-	    CenFreq = ieee80211_channel_to_frequency(ChanId, IEEE80211_BAND_5GHZ);
-	else
-		CenFreq = ieee80211_channel_to_frequency(ChanId, IEEE80211_BAND_2GHZ); 
-#else
-	CenFreq = ieee80211_channel_to_frequency(ChanId);
-#endif
-
-	if (ChanId > 14)
-		CurBand = IEEE80211_BAND_5GHZ;
-	else
-		CurBand = IEEE80211_BAND_2GHZ;
-
-	pBand = &pCfg80211_CB->Cfg80211_bands[CurBand];
-	
-	for(IdChan=0; IdChan < pBand->n_channels; IdChan++)
-	{
-		if (pBand->channels[IdChan].center_freq == CenFreq)
-			break;
-	}
-	
-	if (IdChan >= pBand->n_channels)
-	{
-		DBGPRINT(RT_DEBUG_ERROR, ("80211> Can not find any chan info! ==> %d[%d],[%d] \n", 
-			ChanId, CenFreq, pBand->n_channels));
-		return;
-	}
-
-	if(pWiphy->signal_type == CFG80211_SIGNAL_TYPE_MBM)
-	{
-		/* CFG80211_SIGNAL_TYPE_MBM: signal strength in mBm (100*dBm) */
-		RSSI = RSSI * 100;  
-	}
-	
-	if (!mgmt->u.probe_resp.timestamp)
-	{
-		struct timeval tv;
-		do_gettimeofday(&tv);
-		mgmt->u.probe_resp.timestamp = ((UINT64) tv.tv_sec * 1000000) + tv.tv_usec;
-	}
-
-	/* inform 80211 a scan is got */
-	/* we can use cfg80211_inform_bss in 2.6.31, it is easy more than the one */
-	/* in cfg80211_inform_bss_frame(), it will memcpy pFrame but pChan */
-	bss = cfg80211_inform_bss_frame(pWiphy, &pBand->channels[IdChan],
-					  mgmt,	FrameLen,
-					  RSSI,	GFP_ATOMIC);
-									
-	if (unlikely(!bss)) 
-	{
-		CFG80211DBG(RT_DEBUG_ERROR, ("80211> bss inform fail ==> %d\n", IdChan));
-		return;
-	}
-	
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,9,0))
-	cfg80211_put_bss(pWiphy,bss);
-#else
-	cfg80211_put_bss(bss);
-#endif /* LINUX_VERSION_CODE: 3.9.0 */
-		
-#endif /* CONFIG_STA_SUPPORT */
 #endif /* LINUX_VERSION_CODE */
 }
 
@@ -925,21 +848,6 @@ VOID CFG80211OS_ScanEnd(
 	IN BOOLEAN FlgIsAborted)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30))
-#ifdef CONFIG_STA_SUPPORT
-	CFG80211_CB *pCfg80211_CB = (CFG80211_CB *)pCB;
-	NdisAcquireSpinLock(&pCfg80211_CB->scan_notify_lock);
-	if (pCfg80211_CB->pCfg80211_ScanReq)
-	{
-		CFG80211DBG(RT_DEBUG_ERROR, ("80211> cfg80211_scan_done\n"));
-		cfg80211_scan_done(pCfg80211_CB->pCfg80211_ScanReq, FlgIsAborted);
-		pCfg80211_CB->pCfg80211_ScanReq = NULL;
-	}
-	else
-	{
-		CFG80211DBG(RT_DEBUG_ERROR, ("80211> cfg80211_scan_done ==> NULL\n"));
-	}
-	NdisReleaseSpinLock(&pCfg80211_CB->scan_notify_lock);
-#endif /* CONFIG_STA_SUPPORT */
 #endif /* LINUX_VERSION_CODE */
 }
 
@@ -1041,12 +949,6 @@ void CFG80211OS_P2pClientConnectResultInform(
 
 BOOLEAN CFG80211OS_RxMgmt(IN PNET_DEV pNetDev, IN INT32 freq, IN PUCHAR frame, IN UINT32 len) 
 {
-	if (pNetDev == NULL)
-	{
-		CFG80211DBG(RT_DEBUG_ERROR, ("%s: pNetDev == NULL\n", __FUNCTION__));
-                return FALSE;
-	}
-
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,12,0))
 	return cfg80211_rx_mgmt(pNetDev->ieee80211_ptr,
                                 freq,
@@ -1114,10 +1016,7 @@ VOID CFG80211OS_NewSta(IN PNET_DEV pNetDev, IN const PUCHAR mac_addr, IN const P
 	NdisZeroMemory(&sinfo, sizeof(sinfo));
 
 /* If get error here, be sure patch the cfg80211_new_sta.patch into kernel. */
-	if (pNetDev->ieee80211_ptr->iftype != RT_CMD_80211_IFTYPE_ADHOC) 
-	{
 	sinfo.filled = STATION_INFO_ASSOC_REQ_IES;
-        	mgmt = (struct ieee80211_mgmt *) assoc_frame;   
 
 	if (ieee80211_is_reassoc_req(mgmt->frame_control))
 	{
@@ -1130,11 +1029,11 @@ VOID CFG80211OS_NewSta(IN PNET_DEV pNetDev, IN const PUCHAR mac_addr, IN const P
 		sinfo.assoc_req_ies_len = assoc_len - LENGTH_802_11_CRC;
 		sinfo.assoc_req_ies = mgmt->u.assoc_req.variable;
 	}
-	}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,34))	
 	return cfg80211_new_sta(pNetDev, mac_addr, &sinfo, GFP_ATOMIC);
-#endif /* LINUX_VERSION_CODE: 2.6.34 */
+#endif
+
 }
 
 VOID CFG80211OS_DelSta(IN PNET_DEV pNetDev, IN const PUCHAR mac_addr)

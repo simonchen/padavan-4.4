@@ -27,15 +27,30 @@
 #ifndef __RTMP_RBUS_H__
 #define __RTMP_RBUS_H__
 
+
 /*************************************************************************
   *
   *	Device hardware/ Interface related definitions.
   *
   ************************************************************************/  
 
-#define RTMP_MAC_IRQ_NUM		SURFBOARDINT_WLAN
+#define RTMP_MAC_IRQ_NUM		4
 
-//#define DEFAULT_RF_OFFSET		0x40000
+
+#if defined (CONFIG_RT2880_FLASH_32M)
+#define MTD_NUM_FACTORY 5
+#else
+#define MTD_NUM_FACTORY 2
+#endif
+
+#define NVRAM_OFFSET				0x30000
+
+#define DEFAULT_RF_OFFSET					0x40000
+
+#define SECOND_RF_OFFSET					0x48000
+
+#define RALINK_SYSCTL_BASE			0xb0000000
+
 
 #ifdef LINUX
 /*************************************************************************

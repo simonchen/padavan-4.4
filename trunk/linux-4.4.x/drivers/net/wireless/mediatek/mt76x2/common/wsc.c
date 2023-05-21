@@ -57,9 +57,6 @@ extern UCHAR   WPS_OUI[];
 extern UCHAR	RALINK_OUI[];
 extern UCHAR	MTK_OUI[];
 
-#ifdef IWSC_SUPPORT
-extern UCHAR	IWSC_OUI[];
-#endif // IWSC_SUPPORT //
 
 #if defined(__ECOS) && defined(BRANCH_ADV)
 extern int CFG_set(int id, void *val);
@@ -151,10 +148,6 @@ VOID WscSendNACK(
 
 static INT wsc_write_dat_file_thread(IN ULONG data);
 
-#ifdef CONFIG_STA_SUPPORT
-VOID WscLinkDown(
-	IN	PRTMP_ADAPTER	pAd);
-#endif /* CONFIG_STA_SUPPORT */
 
 VOID	WscDelListEntryByMAC(
 	PLIST_HEADER		pWscEnList,
@@ -271,12 +264,6 @@ INT WscGenerateUUID(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		NdisMoveMemory(&uuid_t.node[0], &pAd->CurrentAddress[0], sizeof(uuid_t.node));
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	/* Create the UUID ASCII string. */
 	memset(uuidTmpStr, 0, sizeof(uuidTmpStr));
@@ -298,12 +285,7 @@ INT WscGenerateUUID(
 	NdisMoveMemory(&uuidHexStr[9], &uuid_t.clockSeqLow, 1);
 	NdisMoveMemory(&uuidHexStr[10], &uuid_t.node[0], 6);
 
-#ifdef MULTI_INF_SUPPORT
-#ifdef CON_WPS_AP_SAME_UUID
 show:
-#endif /* CON_WPS_AP_SAME_UUID */
-#endif /* MULTI_INF_SUPPORT */
-
 	DBGPRINT(RT_DEBUG_TRACE, ("The UUID Hex string is:"));
 	for (i=0; i< 16; i++)
 	{
@@ -386,17 +368,6 @@ VOID    WscStateMachineInit(
 
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		pWScControl = &pAd->StaCfg.WscControl;
-		pWScControl->EntryIfIdx = BSS0;
-
-		WscInitCommonTimers(pAd, pWScControl);
-		WscInitClientTimers(pAd, pWScControl);
-		
-	}
-#endif /* CONFIG_STA_SUPPORT */
 }
 
 void WscM2DTimeOutAction(
@@ -422,10 +393,6 @@ void WscM2DTimeOutAction(
 	IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 		CurOpMode = AP_MODE;
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		CurOpMode = STA_MODE;
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_AP_SUPPORT
 	if (CurOpMode == AP_MODE)
@@ -439,9 +406,6 @@ void WscM2DTimeOutAction(
 #ifdef CONFIG_AP_SUPPORT
 		(((pEntry == NULL) || (pWscNodeInfo->registrarID != 0)) &&  (CurOpMode == AP_MODE)) ||
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-		((pWscNodeInfo->registrarID != 0) &&  (CurOpMode == STA_MODE)) ||
-#endif /* CONFIG_STA_SUPPORT */
 		(0))
 	{
 		DBGPRINT(RT_DEBUG_TRACE, ("%s():pEntry maybe gone or already received M2 Packet!\n", __FUNCTION__));
@@ -581,29 +545,11 @@ VOID WscEAPOLStartAction(
 	IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 		CurOpMode = AP_MODE;
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		CurOpMode = STA_MODE;
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_AP_SUPPORT
 	if (CurOpMode == AP_MODE)
 		pWpsCtrl = &pAd->ApCfg.MBSSID[pEntry->apidx].WscControl;
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-#ifdef IWSC_SUPPORT
-		if ((pAd->StaCfg.BssType == BSS_ADHOC) &&
-			(IWSC_PeerEapolStart(pAd, pEntry) == FALSE))
-		{
-			DBGPRINT(RT_DEBUG_TRACE, ("Rejected by IWSC SM. Ignore EAPOL-Start.\n"));
-			return;
-		}
-#endif // IWSC_SUPPORT //
-		pWpsCtrl = &pAd->StaCfg.WscControl;
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	if (pWpsCtrl == NULL)
 	{
@@ -650,10 +596,6 @@ VOID WscEAPOLStartAction(
 			if (CurOpMode == AP_MODE)
 				WscApShowPeerList(pAd, NULL);
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-			if (CurOpMode == STA_MODE)
-				WscStaShowPeerList(pAd, NULL);
-#endif /* CONFIG_STA_SUPPORT */
 			DBGPRINT(RT_DEBUG_TRACE, ("<----- WscEAPOLStartAction\n"));
 			return;
 		}
@@ -766,10 +708,6 @@ VOID WscEAPAction(
 	IF_DEV_CONFIG_OPMODE_ON_AP(pAdapter)
 		CurOpMode = AP_MODE;
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAdapter)
-		CurOpMode = STA_MODE;
-#endif /* CONFIG_STA_SUPPORT */
 			
 #ifdef CONFIG_AP_SUPPORT
 	if (CurOpMode == AP_MODE)
@@ -822,14 +760,6 @@ VOID WscEAPAction(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 	
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		pWscControl = &pAdapter->StaCfg.WscControl;
-		pWscUPnPNodeInfo = &pWscControl->WscUPnPNodeInfo;
-		pWscUPnPNodeInfo->bUPnPMsgTimerPending = TRUE;
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	if (pWscControl == NULL)
 	{
@@ -896,7 +826,7 @@ VOID WscEAPAction(
 					Need to check DPID from STA again here.
 				*/
 				WscPBC_DPID_FromSTA(pAdapter, pWscControl->EntryAddr);
-				WscPBCSessionOverlapCheck(pAdapter,pWscControl);
+				WscPBCSessionOverlapCheck(pAdapter);
 				if ((pAdapter->CommonCfg.WscStaPbcProbeInfo.WscPBCStaProbeCount == 1) &&
 					!NdisEqualMemory(pAdapter->CommonCfg.WscStaPbcProbeInfo.StaMacAddr[0], &ZERO_MAC_ADDR[0], MAC_ADDR_LEN) &&
 					(NdisEqualMemory(pAdapter->CommonCfg.WscStaPbcProbeInfo.StaMacAddr[0], &pWscControl->EntryAddr[0], 6) == FALSE))
@@ -1023,19 +953,22 @@ VOID WscEAPAction(
 		/* Receive EAP_Fail from WPS AP */
 		DBGPRINT(RT_DEBUG_TRACE, ("Receive EAP_Fail from WPS AP\n"));
 
-/*If APClinet wirh registrar configures AP as Inband(EAP)-Enrollee, it will send WSC_MSG_EAP_FAIL to us. */
-		if ((pWscControl->WscState >= WSC_STATE_WAIT_EAPFAIL) ||
-            ((pWscControl->WscState == WSC_STATE_WAIT_ACK) && 
-             (pEntry && IS_ENTRY_CLIENT(pEntry)) &&
-             (pWscControl->WscStatus == STATUS_WSC_CONFIGURED) &&
-             ((pWscControl->WscConfMode & WSC_ENROLLEE) != 0)))
+		if (pWscControl->WscState >= WSC_STATE_WAIT_EAPFAIL)
 		{
 			pWscControl->WscState = WSC_STATE_OFF;
 #ifdef CONFIG_AP_SUPPORT
-            pWscControl->WscConfMode = WSC_DISABLE;
 #ifdef APCLI_SUPPORT
 			if (CurOpMode == AP_MODE)
 			{
+				pWscControl->WscConfMode = WSC_DISABLE;
+#ifdef WH_EZ_SETUP
+				if (IS_EZ_SETUP_ENABLED(pEntry->wdev)) {
+					pEntry->wdev->ez_driver_params.ez_wps_reconnect = TRUE;
+					NdisGetSystemUpTime(&pEntry->wdev->ez_driver_params.ez_wps_reconnect_timestamp);
+					COPY_MAC_ADDR(pEntry->wdev->ez_driver_params.ez_wps_bssid,
+						pWscControl->WscBssid);
+				}
+#endif
 #ifdef CON_WPS
 				/* ApCli: WPS Done notify the other side of band to stop */
 				if (pAdapter->conWscStatus != CON_WPS_STATUS_DISABLED)
@@ -1054,34 +987,10 @@ VOID WscEAPAction(
 			}
 #endif /* APCLI_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT            
-			if (CurOpMode == STA_MODE)
-			{
-#ifdef IWSC_SUPPORT
-			if ((pAdapter->OpMode == OPMODE_STA) &&
-				(pAdapter->StaCfg.BssType == BSS_ADHOC) &&
-				(pAdapter->StaCfg.WscControl.WscConfMode == WSC_ENROLLEE))
-				pAdapter->StaCfg.IWscInfo.bReStart = TRUE;
-#endif /* IWSC_SUPPORT */
-				pWscControl->WscConfMode = WSC_DISABLE;
-				WscLinkDown(pAdapter);
-			}
-#endif /* CONFIG_STA_SUPPORT */
 		}
 		else if (pWscControl->WscState == WSC_STATE_RX_M2D)
 		{
 			/* Wait M2; */
-#ifdef IWSC_SUPPORT
-			/*
-				We need to send EAPOL_Start again to trigger WPS process
-			*/
-			if (pAdapter->StaCfg.BssType == BSS_ADHOC)
-			{
-				pWscControl->WscState = WSC_STATE_LINK_UP;
-				pWscControl->WscStatus = STATUS_WSC_LINK_UP;
-				WscSendEapolStart(pAdapter, pWscControl->WscPeerMAC, STA_MODE);
-			}
-#endif /* IWSC_SUPPORT */
 		}
 		else if ((pWscControl->WscState <= WSC_STATE_WAIT_REQ_ID) && 
 				 (pWscControl->WscState != WSC_STATE_FAIL))
@@ -1093,31 +1002,16 @@ VOID WscEAPAction(
 			pWscControl->WscStatus = STATUS_WSC_FAIL;	
 			RTMPSendWirelessEvent(pAdapter, IW_WSC_STATUS_FAIL, NULL, (pWscControl->EntryIfIdx & 0x0F), 0);
 
-#ifdef IWSC_SUPPORT
-			if ((pAdapter->OpMode == OPMODE_STA) &&
-				(pAdapter->StaCfg.BssType == BSS_ADHOC) &&
-				(pAdapter->StaCfg.WscControl.WscConfMode == WSC_ENROLLEE))
-				pAdapter->StaCfg.IWscInfo.bReStart = TRUE;
-#endif /* IWSC_SUPPORT */
 
 			pWscControl->WscConfMode = WSC_DISABLE;
 			/* Change the state to next one */
 			pWscControl->WscState = WSC_STATE_OFF;
 			
-#ifdef CONFIG_STA_SUPPORT
-			if (CurOpMode == STA_MODE)
-			{
-				WscLinkDown(pAdapter);
-				
-			}
-#endif /* CONFIG_STA_SUPPORT */
 		}
 	}
 	else if (MsgType == WSC_MSG_M1)
 	{
-#ifdef CONFIG_STA_SUPPORT
 		UINT32 rv = 0;
-#endif
 		/*
 			If Buffalo WPS STA doesn't receive M2D from AP, Buffalo WPS STA will stop to do WPS.
 			Therefore we need to receive M1 and send M2D without trigger.
@@ -1133,9 +1027,7 @@ VOID WscEAPAction(
 			}
 			else
 				WscEapRegistrarAction(pAdapter, Elem, MsgType, pEntry, pWscControl);
-#ifdef CONFIG_STA_SUPPORT
 			rv = 1;
-#endif
 		}
 #ifdef CONFIG_AP_SUPPORT
 		if (((pWscControl->WscConfMode & WSC_PROXY) != 0) && (!bUPnPMsg) && (CurOpMode == AP_MODE))
@@ -1156,16 +1048,6 @@ VOID WscEAPAction(
 			goto out;
 		}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-		else
-		{
-			if ((rv == 0) && (CurOpMode == STA_MODE))
-			{
-				DBGPRINT(RT_DEBUG_TRACE, ("(Line:%d)Ignore EAP M1.\n", __LINE__));
-				goto out;
-			}
-		}
-#endif /* CONFIG_STA_SUPPORT */
 	}
 	else if (MsgType == WSC_MSG_M3 ||
              MsgType == WSC_MSG_M5 ||
@@ -1210,8 +1092,6 @@ VOID WscEAPAction(
 		if ((CurOpMode == AP_MODE) ||
 			((CurOpMode == STA_MODE) && 
 			 (pWscControl->bWscTrigger
-#ifdef CONFIG_STA_SUPPORT
-#endif /* CONFIG_STA_SUPPORT */
 			  )))
 			bGoWPS = TRUE;
 		
@@ -1267,10 +1147,6 @@ VOID WscEAPAction(
 				}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef IWSC_SUPPORT
-				if (pAdapter->StaCfg.BssType == BSS_ADHOC)
-					bReadOwnPIN = FALSE;
-#endif /* IWSC_SUPPORT */
 
 				if (bReadOwnPIN)
 				{
@@ -1419,13 +1295,6 @@ VOID WscEAPAction(
 				WscSendEapFail(pAdapter, pWscControl, TRUE);
 				pWscControl->WscState = WSC_STATE_FAIL;
 			}
-#ifdef CONFIG_STA_SUPPORT
-			else if ((CurOpMode == STA_MODE) && INFRA_ON(pAdapter))
-			{
-				WscEapActionDisabled(pAdapter, pWscControl);
-				pWscControl->WscState = WSC_STATE_WAIT_DISCONN;
-			}
-#endif /* CONFIG_STA_SUPPORT */
 			
 			RTMPCancelTimer(&pWscControl->EapolTimer, &Cancelled);			
 			pWscControl->EapolTimerRunning = FALSE;
@@ -1497,7 +1366,7 @@ VOID WscEapEnrolleeAction(
 	IN  PWSC_CTRL       pWscControl)
 {
     INT     DataLen = 0, rv = 0, DH_Len = 0;
-	UCHAR   OpCode/*, bssIdx = 0*/;
+	UCHAR   OpCode, bssIdx;
     PUCHAR  WscData = NULL;
     BOOLEAN bUPnPMsg, bUPnPStatus = FALSE, Cancelled;
 	WSC_UPNP_NODE_INFO *pWscUPnPInfo = &pWscControl->WscUPnPNodeInfo;
@@ -1508,16 +1377,13 @@ VOID WscEapEnrolleeAction(
 
 	bUPnPMsg = Elem->MsgType == WSC_EAPOL_UPNP_MSG ? TRUE : FALSE;
 	OpCode = bUPnPMsg ? WSC_OPCODE_UPNP_MASK : 0;
+	bssIdx = 0;
 
 #ifdef CONFIG_AP_SUPPORT
 	IF_DEV_CONFIG_OPMODE_ON_AP(pAdapter)
 		CurOpMode = AP_MODE;
 #endif // CONFIG_AP_SUPPORT //
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAdapter)
-		CurOpMode = STA_MODE;
-#endif // CONFIG_STA_SUPPORT //
 
 #ifdef CONFIG_AP_SUPPORT
 	if (CurOpMode == AP_MODE)
@@ -1531,7 +1397,7 @@ VOID WscEapEnrolleeAction(
 						pWscControl->WscActionMode, pWscControl->WscConfStatus, pWscControl->WscUseUPnP, pEntry));
 			goto Fail;
 		}
-		/* bssIdx = (pWscControl->EntryIfIdx & 0x0F);*/
+		bssIdx = (pWscControl->EntryIfIdx & 0x0F);
 	}
 #endif /* CONFIG_AP_SUPPORT */
 	DBGPRINT(RT_DEBUG_TRACE, ("MsgType=0x%x, WscState=%d, bUPnPMsg=%d!\n", MsgType, pWscControl->WscState, bUPnPMsg));
@@ -1544,12 +1410,6 @@ VOID WscEapEnrolleeAction(
 			/* let it pass */
 		} else
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-		if ((MsgType ==WSC_MSG_EAP_REQ_START) &&  (CurOpMode == STA_MODE))
-		{
-			/*let it pass */
-		} else 
-	#endif /* CONFIG_STA_SUPPORT */
 		if(MsgType ==WSC_MSG_M2 && pWscUPnPInfo->bUPnPInProgress == FALSE)
 		{
 #ifdef CONFIG_AP_SUPPORT
@@ -1603,13 +1463,6 @@ VOID WscEapEnrolleeAction(
 			if (MsgType == WSC_MSG_EAP_REQ_START)
 				DBGPRINT(RT_DEBUG_TRACE, ("WscEapEnrolleeAction : Rx Wsc_Start(ReComputePke=%d)\n", pWscControl->RegData.ReComputePke));
 			
-        	/* To avoid to receive duplicate WSC_START */
-            if(pWscControl->WscState >= WSC_STATE_SENT_M1)
-            {
-                DBGPRINT(RT_DEBUG_TRACE, ("Already received this WSC_START, ignore it\n"));
-                goto Done;
-            }
-            
 #ifdef WSC_NFC_SUPPORT
 			if (pWscControl->bTriggerByNFC)
 				; /* Do NOT need to generate EnrolleeRandom and DH public key here. */
@@ -1654,28 +1507,28 @@ VOID WscEapEnrolleeAction(
 					/* Enrollee 192 random bytes for DH key generation */
 					for (idx = 0; idx < 192; idx++)
 						pWscControl->RegData.EnrolleeRandom[idx] = RandomByte(pAdapter);
-                NdisZeroMemory(pWscControl->RegData.Pke, sizeof(pWscControl->RegData.Pke));
-            		RT_DH_PublicKey_Generate (
+            		NdisZeroMemory(pWscControl->RegData.Pke, sizeof(pWscControl->RegData.Pke));
+			RT_DH_PublicKey_Generate (
                     	WPS_DH_G_VALUE, sizeof(WPS_DH_G_VALUE),
             	    	WPS_DH_P_VALUE, sizeof(WPS_DH_P_VALUE),
             	    	pWscControl->RegData.EnrolleeRandom, sizeof(pWscControl->RegData.EnrolleeRandom),
             	    	pWscControl->RegData.Pke, (UINT *) &DH_Len);
+			
+			/* Need to prefix zero padding */
+			if((DH_Len != sizeof(pWscControl->RegData.Pke)) &&
+					(DH_Len < sizeof(pWscControl->RegData.Pke)))
+			{
+				UCHAR TempKey[192];
+				INT DiffCnt;
+				DiffCnt = sizeof(pWscControl->RegData.Pke) - DH_Len;
 
-		/* Need to prefix zero padding */
-                if((DH_Len != sizeof(pWscControl->RegData.Pke)) &&
-                    (DH_Len < sizeof(pWscControl->RegData.Pke)))
-                {
-                    UCHAR TempKey[192];
-                    INT DiffCnt;
-                    DiffCnt = sizeof(pWscControl->RegData.Pke) - DH_Len;
-
-                    NdisFillMemory(&TempKey, DiffCnt, 0);
-                    NdisCopyMemory(&TempKey[DiffCnt], pWscControl->RegData.Pke, DH_Len);
-                    NdisCopyMemory(pWscControl->RegData.Pke, TempKey, sizeof(TempKey));
-                    DH_Len += DiffCnt;
-                    DBGPRINT(RT_DEBUG_TRACE, ("%s: Do zero padding!\n", __func__));
-                }	
-					pWscControl->RegData.ReComputePke = 0;
+				NdisFillMemory(&TempKey, DiffCnt, 0);
+				NdisCopyMemory(&TempKey[DiffCnt], pWscControl->RegData.Pke, DH_Len);
+				NdisCopyMemory(pWscControl->RegData.Pke, TempKey, sizeof(TempKey));
+				DH_Len += DiffCnt;
+				DBGPRINT(RT_DEBUG_TRACE, ("%s: Do zero padding!\n", __func__));
+			}
+			pWscControl->RegData.ReComputePke = 0;
 				}
 			}
 			OpCode |= WSC_OPCODE_MSG;
@@ -1895,8 +1748,21 @@ VOID WscEapEnrolleeAction(
 						/* Change the state to next one */
 #ifdef APCLI_SUPPORT
 						/* Ap Client only supports Inband(EAP)-Enrollee. */
-						if (!bUPnPMsg && pEntry && IS_ENTRY_APCLI(pEntry))
+						if (!bUPnPMsg && pEntry && IS_ENTRY_APCLI(pEntry)){
 							pWscControl->WscState = WSC_STATE_WAIT_EAPFAIL;
+#ifdef WH_EZ_SETUP
+							if (IS_EZ_SETUP_ENABLED(pEntry->wdev)) {
+								ez_driver_params_t *pDriverParams =
+									&pEntry->wdev->ez_driver_params;
+
+								pDriverParams->ez_wps_reconnect = TRUE;
+								NdisGetSystemUpTime(
+									&pDriverParams->ez_wps_reconnect_timestamp);
+								COPY_MAC_ADDR(pDriverParams->ez_wps_bssid,
+									pWscControl->WscBssid);
+							}
+#endif
+						}
 						else
 #endif /* APCLI_SUPPORT */
 						pWscControl->WscState = WSC_STATE_WAIT_ACK;
@@ -1909,13 +1775,6 @@ VOID WscEapEnrolleeAction(
 					}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-					if (CurOpMode == STA_MODE)
-					{
-						pWscControl->WscState = WSC_STATE_WAIT_EAPFAIL;
-						pWscControl->WscStatus = STATUS_WSC_EAP_RSP_DONE_SENT;
-					}
-#endif /* CONFIG_STA_SUPPORT */
 	 				RTMPSendWirelessEvent(pAdapter, IW_WSC_SEND_DONE, NULL, (pWscControl->EntryIfIdx & 0x0F), 0);
 				}
 			}
@@ -2008,10 +1867,6 @@ VOID WscEapEnrolleeAction(
 			}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-			if (CurOpMode == STA_MODE)
-				WscSendMessage(pAdapter, OpCode, WscData, DataLen, pWscControl, STA_MODE, EAP_CODE_RSP);
-#endif /* CONFIG_STA_SUPPORT */
 		}
 	}
 	else
@@ -2060,22 +1915,6 @@ Fail:
 		}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-		if (CurOpMode == STA_MODE)
-		{
-	       	pWscControl->WscState = WSC_STATE_WAIT_DISCONN;
-			if (pWscControl->WscSsid.SsidLength)
-			{
-				pAdapter->MlmeAux.AutoReconnectSsidLen = pWscControl->WscSsid.SsidLength;
-				NdisZeroMemory(&pAdapter->MlmeAux.AutoReconnectSsid[0], MAX_LEN_OF_SSID);
-				NdisMoveMemory(&pAdapter->MlmeAux.AutoReconnectSsid[0], 
-							   &pWscControl->WscSsid.Ssid[0], 
-							   pWscControl->WscSsid.SsidLength);
-			}
-			else
-				pAdapter->MlmeAux.AutoReconnectSsidLen = 0;
- 		}
-#endif /* CONFIG_STA_SUPPORT */
 
 		/*NdisZeroMemory(pWscControl->EntryAddr, MAC_ADDR_LEN); */
         /*pWscControl->WscMode = 1; */
@@ -2084,34 +1923,6 @@ Fail:
 #endif /* WSC_NFC_SUPPORT */
 
         bUPnPStatus = FALSE;
-        if(pWscControl->WscMode == WSC_PBC_MODE)
-        {
-#ifdef SMART_MESH_MONITOR
-            struct nsmpif_drvevnt_buf drvevnt;
-            drvevnt.data.wps_pbc_stat.type = NSMPIF_DRVEVNT_WPS_PBC_STAT;
-            drvevnt.data.wps_pbc_stat.stat = NSMP_WPS_PBC_STAT_END_TIMEOUT;
-            drvevnt.data.wps_pbc_stat.reason = 1;
-            drvevnt.data.wps_pbc_stat.channel = pAdapter->CommonCfg.Channel;
-#ifdef SMART_MESH
-            if(pWscControl->bWscPBCAddrMode)
-                COPY_MAC_ADDR(drvevnt.data.wps_pbc_stat.sta_mac,pWscControl->WscPBCAddr);
-            else
-#endif /* SMART_MESH */
-                COPY_MAC_ADDR(drvevnt.data.wps_pbc_stat.sta_mac,pWscControl->EntryAddr);
-            RtmpOSWrielessEventSend(pAdapter->net_dev, RT_WLAN_EVENT_CUSTOM,NSMPIF_DRVEVNT_WPS_PBC_STAT,
-                                    NULL, (PUCHAR)&drvevnt.data.wps_pbc_stat, sizeof(drvevnt.data.wps_pbc_stat));
-            DBGPRINT(RT_DEBUG_OFF,
-                    ("Send Custom Wireless Event. (NSMPIF_DRVEVNT_WPS_PBC_STAT:NSMP_WPS_PBC_STAT_END_TIMEOUT(Reason :%d))\n",drvevnt.data.wps_pbc_stat.reason));
-#endif /* SMART_MESH_MONITOR */
-#ifdef SMART_MESH
-            pWscControl->bWscPBCAddrMode = FALSE;
-#ifdef APCLI_SUPPORT
-            if (pEntry && IS_ENTRY_APCLI(pEntry))
-                Set_HiddenWps_State(&pAdapter->ApCfg.ApCliTab[(pWscControl->EntryIfIdx & 0x0F)].SmartMeshCfg,
-                    HIDDEN_WPS_STATE_STOP);
-#endif /* APCLI_SUPPORT */
-#endif /* SMART_MESH */
-        }
     }
 
 Done:
@@ -2136,16 +1947,6 @@ Done:
 		}
 	}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		if ((pWscControl->WscState == WSC_STATE_WAIT_EAPFAIL) ||
-			(pWscControl->WscState == WSC_STATE_CONFIGURED))
-		{
-    		rv = 1;
-		}
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	if (rv == 1)
 	{
@@ -2163,18 +1964,6 @@ Done:
 			pWscControl->Wsc2MinsTimerRunning = FALSE;
 			RTMPCancelTimer(&pWscControl->Wsc2MinsTimer, &Cancelled);
 		}
-#ifdef IWSC_SUPPORT
-		if ((pAdapter->OpMode == OPMODE_STA) && (pAdapter->StaCfg.BssType == BSS_ADHOC))
-		{
-			pAdapter->StaCfg.IWscInfo.bReStart = TRUE;
-			if (pAdapter->StaCfg.IWscInfo.bIWscT1TimerRunning)
-			{
-				pAdapter->StaCfg.IWscInfo.bIWscT1TimerRunning = FALSE;
-				RTMPCancelTimer(&pAdapter->StaCfg.IWscInfo.IWscT1Timer, &Cancelled);
-			}
-			pAdapter->StaCfg.IWscInfo.bIWscDevQueryReqTimerRunning = TRUE;
-		}
-#endif /* IWSC_SUPPORT */
 		if ((pWscControl->WscConfStatus == WSC_SCSTATE_UNCONFIGURED)
 #ifdef CONFIG_AP_SUPPORT
 			|| (pWscControl->bWCNTest == TRUE)
@@ -2182,38 +1971,6 @@ Done:
 #endif /* CONFIG_AP_SUPPORT */
 			)
 		{
-#ifdef SMART_MESH
-			pWscControl->bWscPBCAddrMode = FALSE;
-#ifdef SMART_MESH_HIDDEN_WPS
-            pWscControl->bRunningHiddenWPS = FALSE;
-#ifdef CONFIG_AP_SUPPORT
-            if((CurOpMode == AP_MODE) && !bUPnPMsg && pEntry)
-            { 
-#ifdef APCLI_SUPPORT
-                if(IS_ENTRY_APCLI(pEntry))
-                    Set_HiddenWps_State(&pAdapter->ApCfg.ApCliTab[(pWscControl->EntryIfIdx & 0x0F)].SmartMeshCfg,
-                        HIDDEN_WPS_STATE_STOP);
-#endif /* APCLI_SUPPORT */
-            }
-#endif /* CONFIG_AP_SUPPORT */            
-#endif /* SMART_MESH_HIDDEN_WPS */
-#endif /* SMART_MESH */
-#ifdef SMART_MESH_MONITOR
-			if((pWscControl->WscMode == WSC_PBC_MODE))
-			{
-				struct nsmpif_drvevnt_buf drvevnt;
-				drvevnt.data.wps_pbc_stat.type = NSMPIF_DRVEVNT_WPS_PBC_STAT;
-				drvevnt.data.wps_pbc_stat.stat = NSMP_WPS_PBC_STAT_END_SUCCESS;
-				drvevnt.data.wps_pbc_stat.reason = 0;
-                drvevnt.data.wps_pbc_stat.channel = pAdapter->CommonCfg.Channel;
-				NdisCopyMemory(drvevnt.data.wps_pbc_stat.sta_mac,pWscControl->EntryAddr,MAC_ADDR_LEN);
-				RtmpOSWrielessEventSend(pAdapter->net_dev, RT_WLAN_EVENT_CUSTOM,NSMPIF_DRVEVNT_WPS_PBC_STAT,
-										NULL, (PUCHAR)&drvevnt.data.wps_pbc_stat, sizeof(drvevnt.data.wps_pbc_stat));
-                DBGPRINT(RT_DEBUG_OFF,
-                        ("Send Custom Wireless Event. (NSMPIF_DRVEVNT_WPS_PBC_STAT:NSMP_WPS_PBC_STAT_END_SUCCESS)\n"));
-			}
-#endif /* SMART_MESH_MONITOR */
-
 			pWscControl->WscStatus = STATUS_WSC_CONFIGURED;
 			pWscControl->WscConfStatus = WSC_SCSTATE_CONFIGURED;
 			pWscControl->WscMode = 1;
@@ -2256,36 +2013,6 @@ Done:
 			}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-			if (CurOpMode == STA_MODE)
-			{
-				pWscControl->WscConfMode = WSC_DISABLE;
-				if (bUPnPMsg)
-				{
-					pWscControl->WscState = WSC_STATE_OFF;
-					WscLinkDown(pAdapter);
-				}
-				if (pWscControl->WscDriverAutoConnect != 0)
-				{
-					pAdapter->StaCfg.bAutoConnectByBssid = TRUE;
-					pWscControl->WscProfile.ApplyProfileIdx = 0;  /* add by johnli, fix WPS test plan 5.1.1 */
-					{
-						WscWriteConfToPortCfg(pAdapter, pWscControl, &pWscControl->WscProfile.Profile[0], TRUE);
-						pAdapter->WriteWscCfgToDatFile = (pWscControl->EntryIfIdx & 0x0F);
-
-						RtmpOsTaskWakeUp(&(pAdapter->wscTask));
-					}
-#ifdef IWSC_SUPPORT
-				if ((pAdapter->StaCfg.BssType == BSS_ADHOC)&&
-					(pAdapter->StaCfg.IWscInfo.bIWscDevQueryReqTimerRunning == FALSE))
-				{
-					pAdapter->StaCfg.IWscInfo.bIWscDevQueryReqTimerRunning = TRUE;
-					RTMPSetTimer(&pAdapter->StaCfg.IWscInfo.IWscDevQueryTimer, 200);
-				}
-#endif /* IWSC_SUPPORT */
-				}
-			}
-#endif /* CONFIG_STA_SUPPORT */
 
 		}
 #ifdef WSC_LED_SUPPORT
@@ -2500,7 +2227,7 @@ VOID WscEapRegistrarAction(
 	INT     DataLen = 0, rv = 0;
 	UCHAR   OpCode = 0;
 	UCHAR   *WscData = NULL;    
-	BOOLEAN bUPnPMsg, bUPnPStatus = FALSE, Cancelled, isApCli = FALSE;
+	BOOLEAN bUPnPMsg, bUPnPStatus = FALSE, Cancelled;
 	WSC_UPNP_NODE_INFO *pWscUPnPInfo = &pWscControl->WscUPnPNodeInfo;
 	UINT	MaxWscDataLen = WSC_MAX_DATA_LEN;
 	UCHAR	CurOpMode = 0xFF;
@@ -2510,16 +2237,8 @@ VOID WscEapRegistrarAction(
 #ifdef CONFIG_AP_SUPPORT
 		IF_DEV_CONFIG_OPMODE_ON_AP(pAdapter)
 			CurOpMode = AP_MODE;
-#ifdef APCLI_SUPPORT 		
-		if (pEntry && IS_ENTRY_APCLI(pEntry))
-			isApCli = TRUE;
-#endif /* APCLI_SUPPORT */	
 #endif // CONFIG_AP_SUPPORT //
 	
-#ifdef CONFIG_STA_SUPPORT
-		IF_DEV_CONFIG_OPMODE_ON_STA(pAdapter)
-			CurOpMode = STA_MODE;
-#endif // CONFIG_STA_SUPPORT //
 
 	bUPnPMsg = Elem->MsgType == WSC_EAPOL_UPNP_MSG ? TRUE : FALSE;
 
@@ -2623,13 +2342,6 @@ VOID WscEapRegistrarAction(
 						else
 #endif /* WSC_NFC_SUPPORT */
 							pWscControl->WscState = WSC_STATE_WAIT_M3;
-#ifdef CONFIG_STA_SUPPORT
-						if ((CurOpMode == STA_MODE) && INFRA_ON(pAdapter))
-						{
-							if (!bUPnPMsg)
-								pWscControl->WscConfStatus = pWscControl->bConfiguredAP ? WSC_SCSTATE_UNCONFIGURED : WSC_SCSTATE_CONFIGURED;
-						}
-#endif /* CONFIG_STA_SUPPORT */
 		 				RTMPSendWirelessEvent(pAdapter, IW_WSC_SEND_M2, NULL, (pWscControl->EntryIfIdx & 0x0F), 0);
 					}
 				}
@@ -2687,36 +2399,18 @@ VOID WscEapRegistrarAction(
 				{
 					if (
 #ifdef CONFIG_AP_SUPPORT                        
-						 /* Restrict to Normal AP & ApCli not go in */   
-					     ((CurOpMode == AP_MODE) && !isApCli) || 
-					     ((CurOpMode == AP_MODE) && isApCli && (pWscControl->bConfiguredAP == FALSE)) || 
+						(CurOpMode == AP_MODE) || 
 #endif /* CONFIG_AP_SUPPORT */   
-#ifdef CONFIG_STA_SUPPORT
-						((CurOpMode == STA_MODE) && ((pWscControl->bConfiguredAP == FALSE)
-#ifdef WSC_V2_SUPPORT
-                            /* 
-                            	Check AP is v2 or v1, Check WscV2 Enabled or not
-                            */
-							|| (pWscControl->WscV2Info.bForceSetAP 
-								&& pWscControl->WscV2Info.bEnableWpsV2 
-								&& (pWscControl->RegData.PeerInfo.Version2!= 0))
-#endif /* WSC_V2_SUPPORT */
-						)) ||
-#endif /* CONFIG_STA_SUPPORT */
 						(0))
 					{
 						OpCode |= WSC_OPCODE_MSG;
-#ifdef IWSC_SUPPORT
-						if ((pAdapter->OpMode == OPMODE_STA) && (pAdapter->StaCfg.BssType == BSS_ADHOC))
-							pWscControl->WscConfStatus = WSC_SCSTATE_CONFIGURED;
-#endif /* IWSC_SUPPORT */
-						DataLen = BuildMessageM8(pAdapter, pWscControl, isApCli, WscData);
+						DataLen = BuildMessageM8(pAdapter, pWscControl, WscData);
 						pWscControl->WscStatus = STATUS_WSC_EAP_M8_SENT;
 						/* Change the state to next one */
 						pWscControl->WscState = WSC_STATE_WAIT_DONE;
 #ifdef CONFIG_AP_SUPPORT
 		/* 
-                            			If APUT is Registrar 
+			If APUT is Registra 
 			send event to wscd / miniupnpd , to let it query crendential and sync to system's flash & GUI. 
 		*/
 			WscSendUPnPMessage(pAdapter, (pWscControl->EntryIfIdx & 0x0F), 
@@ -2726,7 +2420,8 @@ VOID WscEapRegistrarAction(
 		 				RTMPSendWirelessEvent(pAdapter, IW_WSC_SEND_M8, NULL, (pWscControl->EntryIfIdx & 0x0F), 0);
 #ifdef CONFIG_AP_SUPPORT
 #ifdef WSC_V2_SUPPORT
-                        if (pWscControl->WscV2Info.bEnableWpsV2 && (CurOpMode == AP_MODE) && !isApCli)
+
+						if (pWscControl->WscV2Info.bEnableWpsV2 && (CurOpMode == AP_MODE))
 							WscAddEntryToAclList(pAdapter, pEntry->apidx, pEntry->Addr);
 #endif /* WSC_V2_SUPPORT */
 						/*
@@ -2734,7 +2429,7 @@ VOID WscEapRegistrarAction(
 							2. Some WPS STA will send dis-assoc close to WSC_DONE 
 							   then AP will miss WSC_DONE from STA; hence we need to call WscDelListEntryByMAC here.
 						*/
-						if (pEntry && (CurOpMode == AP_MODE) && !isApCli)
+						if (pEntry && (CurOpMode == AP_MODE))
 						{
 							RTMP_SEM_LOCK(&pWscControl->WscPeerListSemLock);
 							WscDelListEntryByMAC(&pWscControl->WscPeerList, pEntry->Addr);
@@ -2742,25 +2437,6 @@ VOID WscEapRegistrarAction(
 						}
 #endif /* CONFIG_AP_SUPPORT */
 
-					}
-					else if ((FALSE
-#ifdef CONFIG_AP_SUPPORT
-#ifdef APCLI_SUPPORT
-|| ((CurOpMode == AP_MODE) && isApCli)
-#endif /* APCLI_SUPPORT */						 
-#endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-|| (CurOpMode == STA_MODE)
-#endif /* CONFIG_STA_SUPPORT */
-						) && (pWscControl->bConfiguredAP == TRUE))
-					{
-						/* Some WPS AP expects to receive WSC_NACK when AP is configured */
-						OpCode |= WSC_OPCODE_NACK;
-						DataLen = BuildMessageNACK(pAdapter, pWscControl, WscData);
-						pWscControl->WscStatus = STATUS_WSC_CONFIGURED;
-						pWscControl->WscState = WSC_STATE_CONFIGURED;
-						pWscControl->EapMsgRunning = FALSE;
-		 				RTMPSendWirelessEvent(pAdapter, IW_WSC_SEND_NACK, NULL, (pWscControl->EntryIfIdx & 0x0F), 0);
 					}
 				}
 			}
@@ -2789,38 +2465,6 @@ VOID WscEapRegistrarAction(
 				}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-				if (CurOpMode == STA_MODE)
-				{
-					if ((CurOpMode == STA_MODE) && ADHOC_ON(pAdapter))
-					{
-						WscSendEapFail(pAdapter, pWscControl, FALSE);
-					}
-					else
-					{
-						OpCode |= WSC_OPCODE_ACK;
-						DataLen = BuildMessageACK(pAdapter, pWscControl, WscData);
-		 				RTMPSendWirelessEvent(pAdapter, IW_WSC_SEND_ACK, NULL, (pWscControl->EntryIfIdx & 0x0F), 0);
-					}
-#ifdef IWSC_SUPPORT
-					if ((pAdapter->StaCfg.BssType == BSS_ADHOC) &&
-						(pWscControl->WscMode == WSC_SMPBC_MODE))
-					{
-						pAdapter->StaCfg.IWscInfo.IWscSmpbcAcceptCount--;
-						pWscControl->WscStatus = STATUS_WSC_CONFIGURED;
-						
-						if (pEntry && pEntry->bIWscSmpbcAccept)
-						{
-							pEntry->bIWscSmpbcAccept = FALSE;							
-							WscDelListEntryByMAC(&pWscControl->WscPeerList, pEntry->Addr);
-						}
-						pAdapter->StaCfg.IWscInfo.SmpbcEnrolleeCount++;
-					}
-					else
-#endif /* IWSC_SUPPORT */
-					pWscControl->WscStatus = STATUS_WSC_CONFIGURED;
-				}
-#endif /* CONFIG_STA_SUPPORT */
 
 				pWscControl->WscState = WSC_STATE_CONFIGURED;
 				RTMPSendWirelessEvent(pAdapter, IW_WSC_STATUS_SUCCESS, NULL, (pWscControl->EntryIfIdx & 0x0F), 0);
@@ -2862,24 +2506,11 @@ VOID WscEapRegistrarAction(
 #ifdef CONFIG_AP_SUPPORT
 		if (CurOpMode == AP_MODE)
 		{
-			if ((pWscControl->WscState != WSC_STATE_CONFIGURED) && (!isApCli))
+			if (pWscControl->WscState != WSC_STATE_CONFIGURED)
 				WscSendMessage(pAdapter, OpCode, WscData, DataLen, pWscControl, AP_MODE, EAP_CODE_REQ);
-#ifdef APCLI_SUPPORT			
-			if(isApCli)
-				WscSendMessage(pAdapter, OpCode, WscData, DataLen, pWscControl, AP_CLIENT_MODE, EAP_CODE_RSP);
-#endif /* APCLI_SUPPORT */
 		}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-		if (CurOpMode == STA_MODE)
-		{
-			if (ADHOC_ON(pAdapter))
-				WscSendMessage(pAdapter, OpCode, WscData, DataLen, pWscControl, STA_MODE, EAP_CODE_REQ);
-			else
-				WscSendMessage(pAdapter, OpCode, WscData, DataLen, pWscControl, STA_MODE, EAP_CODE_RSP);
-		}
-#endif /* CONFIG_STA_SUPPORT */
 		    
 	}
 	else
@@ -2937,15 +2568,6 @@ Fail:
 		}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-		if (CurOpMode == STA_MODE)
-			{
-				if (ADHOC_ON(pAdapter))
-					WscSendMessage(pAdapter, WSC_OPCODE_NACK, WscData, DataLen, pWscControl, STA_MODE, EAP_CODE_REQ);
-				else
-					WscSendMessage(pAdapter, WSC_OPCODE_NACK, WscData, DataLen, pWscControl, STA_MODE, EAP_CODE_RSP);
-			}
-#endif /* CONFIG_STA_SUPPORT */
 
 		RTMPCancelTimer(&pWscControl->EapolTimer, &Cancelled);
 		pWscControl->EapolTimerRunning = FALSE;
@@ -2970,34 +2592,6 @@ Fail:
 #endif /* WSC_NFC_SUPPORT */		
 		
         bUPnPStatus = FALSE;
-        if(pWscControl->WscMode == WSC_PBC_MODE)
-        {
-#ifdef SMART_MESH_MONITOR
-            struct nsmpif_drvevnt_buf drvevnt;
-            drvevnt.data.wps_pbc_stat.type = NSMPIF_DRVEVNT_WPS_PBC_STAT;
-            drvevnt.data.wps_pbc_stat.stat = NSMP_WPS_PBC_STAT_END_TIMEOUT;
-            drvevnt.data.wps_pbc_stat.reason = 1;
-            drvevnt.data.wps_pbc_stat.channel = pAdapter->CommonCfg.Channel;
-#ifdef SMART_MESH
-            if(pWscControl->bWscPBCAddrMode)
-                COPY_MAC_ADDR(drvevnt.data.wps_pbc_stat.sta_mac,pWscControl->WscPBCAddr);
-            else
-#endif /* SMART_MESH */
-            COPY_MAC_ADDR(drvevnt.data.wps_pbc_stat.sta_mac,pWscControl->EntryAddr);
-            RtmpOSWrielessEventSend(pAdapter->net_dev, RT_WLAN_EVENT_CUSTOM,NSMPIF_DRVEVNT_WPS_PBC_STAT,
-                                    NULL, (PUCHAR)&drvevnt.data.wps_pbc_stat, sizeof(drvevnt.data.wps_pbc_stat));
-            DBGPRINT(RT_DEBUG_OFF,
-                    ("Send Custom Wireless Event. (NSMPIF_DRVEVNT_WPS_PBC_STAT:NSMP_WPS_PBC_STAT_END_TIMEOUT(Reason :%d))\n",drvevnt.data.wps_pbc_stat.reason));
-#endif /* SMART_MESH_MONITOR */
-#ifdef SMART_MESH
-            pWscControl->bWscPBCAddrMode = FALSE;
-#ifdef APCLI_SUPPORT
-            if (pEntry && IS_ENTRY_APCLI(pEntry))
-                Set_HiddenWps_State(&pAdapter->ApCfg.ApCliTab[(pWscControl->EntryIfIdx & 0x0F)].SmartMeshCfg,
-                    HIDDEN_WPS_STATE_STOP);
-#endif /* APCLI_SUPPORT */
-#endif /* SMART_MESH */
-        }
     }
 
 	if(WscData)
@@ -3016,24 +2610,6 @@ Fail:
 #endif /* WSC_NFC_SUPPORT */
 
 		pWscControl->bWscTrigger = FALSE;
-#ifdef IWSC_SUPPORT
-		if ((pAdapter->OpMode == OPMODE_STA) &&
-			(pAdapter->StaCfg.BssType == BSS_ADHOC))
-		{			
-			if (pAdapter->StaCfg.IWscInfo.bSinglePIN)
-			{
-				pAdapter->StaCfg.IWscInfo.bDoNotStop = TRUE;
-			}
-			else
-				pAdapter->StaCfg.IWscInfo.bDoNotStop = FALSE;
-			RTMP_SEM_LOCK(&pWscControl->WscConfiguredPeerListSemLock);
-			WscInsertPeerEntryByMAC(&pWscControl->WscConfiguredPeerList, pWscControl->WscPeerMAC);
-			RTMP_SEM_UNLOCK(&pWscControl->WscConfiguredPeerListSemLock);
-			NdisZeroMemory(pWscControl->WscPeerMAC, MAC_ADDR_LEN); // We need to clear here for 4-way handshaking
-			MlmeEnqueue(pAdapter, IWSC_STATE_MACHINE, IWSC_MT2_MLME_STOP, 0, NULL, 0);
-			RTMP_MLME_HANDLER(pAdapter);
-		}
-#endif /* IWSC_SUPPORT */
 		if (pWscControl->Wsc2MinsTimerRunning)
 		{
 			pWscControl->Wsc2MinsTimerRunning = FALSE;
@@ -3051,60 +2627,17 @@ Fail:
 #ifdef CONFIG_AP_SUPPORT        
 		else
 		{
-#ifdef SMART_MESH
-            pWscControl->bWscPBCAddrMode = FALSE;
-#ifdef SMART_MESH_HIDDEN_WPS
-            pWscControl->bRunningHiddenWPS = FALSE;
-#ifdef CONFIG_AP_SUPPORT
-            if((CurOpMode == AP_MODE))
-            {
-#ifdef APCLI_SUPPORT
-                if(isApCli)
-                    Set_HiddenWps_State(&pAdapter->ApCfg.ApCliTab[(pWscControl->EntryIfIdx & 0x0F)].SmartMeshCfg,
-                                        HIDDEN_WPS_STATE_STOP);
-#endif /* APCLI_SUPPORT */
-            }
-#endif /* CONFIG_AP_SUPPORT */            
-#endif /* SMART_MESH_HIDDEN_WPS */
-#endif /* SMART_MESH */
-
-			if (CurOpMode == AP_MODE && !isApCli)
+			if (CurOpMode == AP_MODE)
 			{
 				WscBuildBeaconIE(pAdapter, WSC_SCSTATE_CONFIGURED, FALSE, 0, 0, pEntry->apidx, NULL, 0, CurOpMode);
 				WscBuildProbeRespIE(pAdapter, WSC_MSGTYPE_AP_WLAN_MGR, WSC_SCSTATE_CONFIGURED, FALSE, 0, 0, pWscControl->EntryIfIdx, NULL, 0, CurOpMode);
 				APUpdateBeaconFrame(pAdapter, pEntry->apidx);
+
 			}
-#ifdef SMART_MESH_MONITOR
-			if(pWscControl->WscMode == WSC_PBC_MODE)
-			{
-				struct nsmpif_drvevnt_buf drvevnt;
-				drvevnt.data.wps_pbc_stat.type = NSMPIF_DRVEVNT_WPS_PBC_STAT;
-				drvevnt.data.wps_pbc_stat.stat = NSMP_WPS_PBC_STAT_END_SUCCESS;
-				drvevnt.data.wps_pbc_stat.reason = 0;
-                drvevnt.data.wps_pbc_stat.channel = pAdapter->CommonCfg.Channel;
-				NdisCopyMemory(drvevnt.data.wps_pbc_stat.sta_mac,pWscControl->EntryAddr,MAC_ADDR_LEN);
-				RtmpOSWrielessEventSend(pAdapter->net_dev, RT_WLAN_EVENT_CUSTOM,NSMPIF_DRVEVNT_WPS_PBC_STAT,
-										NULL, (PUCHAR)&drvevnt.data.wps_pbc_stat, sizeof(drvevnt.data.wps_pbc_stat));
-                DBGPRINT(RT_DEBUG_OFF,
-                        ("Send Custom Wireless Event. (NSMPIF_DRVEVNT_WPS_PBC_STAT:NSMP_WPS_PBC_STAT_END_SUCCESS)\n"));
-			}
-#endif /* SMART_MESH_MONITOR */
 		}
 		NdisZeroMemory(&pAdapter->CommonCfg.WscStaPbcProbeInfo, sizeof(WSC_STA_PBC_PROBE_INFO));
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-		if (CurOpMode == STA_MODE)
-		{
-#ifdef IWSC_SUPPORT
-			if (pAdapter->StaCfg.IWscInfo.bDoNotStop == FALSE)
-#endif /* IWSC_SUPPORT */
-				pWscControl->WscConfMode = WSC_DISABLE;
-
-			if (pAdapter->StaCfg.BssType == BSS_INFRA)
-				pWscControl->WscState = WSC_STATE_WAIT_EAPFAIL;
-		}
-#endif /* CONFIG_STA_SUPPORT */
 		if (INFRA_ON(pAdapter) ||
 			 (
 				(pWscControl->WscConfStatus == WSC_SCSTATE_UNCONFIGURED) &&
@@ -3116,21 +2649,6 @@ Fail:
 #ifdef CONFIG_AP_SUPPORT
 			if (CurOpMode == AP_MODE)
 			{
-#ifdef APCLI_SUPPORT			
-                if (isApCli)
-                {
-                    DBGPRINT(RT_DEBUG_TRACE,("Write the Config for APCLI\n"));
-                    if (pWscControl->bConfiguredAP)
-                    {
-                        RTMPMoveMemory(&pWscControl->WscProfile, &pWscControl->WscM7Profile, 
-                                        sizeof(pWscControl->WscM7Profile));
-                    }
-                    pWscControl->WscConfMode=WSC_DISABLE;
-                    WscWriteConfToApCliCfg(pAdapter, pWscControl, &pWscControl->WscProfile.Profile[0], TRUE);
-                    RtmpOsTaskWakeUp(&(pAdapter->wscTask));
-                }
-                else
-#endif /* APCLI_SUPPORT */
 				{
 					/*
 						Use ApplyProfileIdx to inform WscUpdatePortCfgTimer AP acts registrar.
@@ -3142,60 +2660,12 @@ Fail:
 			}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-			if (CurOpMode == STA_MODE)
-			{
-				pAdapter->StaCfg.bAutoConnectByBssid = TRUE;
-				if ((pWscControl->bConfiguredAP) 
-#ifdef WSC_V2_SUPPORT
-					/* 
-						Check AP is v2 or v1, Check WscV2 Enabled or not
-					*/
-					&& !(pWscControl->WscV2Info.bForceSetAP 
-						&& pWscControl->WscV2Info.bEnableWpsV2 
-						&& (pWscControl->RegData.PeerInfo.Version2!= 0))
-#endif /* WSC_V2_SUPPORT */
-					)
-					RTMPMoveMemory(&pWscControl->WscProfile, &pWscControl->WscM7Profile, sizeof(pWscControl->WscM7Profile));
-
-				WscWriteConfToPortCfg(pAdapter, pWscControl, &pWscControl->WscProfile.Profile[0], TRUE);
-				
-				{
-/*#ifdef KTHREAD_SUPPORT */
-	/*				WAKE_UP(&(pAdapter->wscTask)); */
-	/*#else */
-	/*				RTMP_SEM_EVENT_UP(&(pAdapter->wscTask.taskSema)); */
-	/*#endif */
-					RtmpOsTaskWakeUp(&(pAdapter->wscTask));
-				}
-#ifdef IWSC_SUPPORT
-				if (pAdapter->StaCfg.BssType == BSS_ADHOC)
-				{
-					if (pAdapter->StaCfg.IWscInfo.bDoNotStop == FALSE)
-					{
-						WscBuildBeaconIE(pAdapter, WSC_SCSTATE_CONFIGURED, FALSE, 0, 0, BSS0, NULL, 0, STA_MODE);
-						WscBuildProbeRespIE(pAdapter, WSC_MSGTYPE_REGISTRAR, WSC_SCSTATE_CONFIGURED, FALSE, 0, 0, BSS0, NULL, 0, STA_MODE);
-					}
-					pAdapter->StaCfg.IWscInfo.bReStart = TRUE;
-					WscLinkDown(pAdapter);
-					if (pAdapter->StaCfg.IWscInfo.bIWscDevQueryReqTimerRunning == FALSE)
-					{
-						pAdapter->StaCfg.IWscInfo.bIWscDevQueryReqTimerRunning = TRUE;
-						RTMPSetTimer(&pAdapter->StaCfg.IWscInfo.IWscDevQueryTimer, 200);
-					}
-				}				
-#endif /* IWSC_SUPPORT */
-			}
-#endif /* CONFIG_STA_SUPPORT */
 		}
 #ifdef WSC_LED_SUPPORT
 		/* The protocol is finished. */
 		WPSLEDStatus = LED_WPS_SUCCESS;
 		RTMPSetLED(pAdapter, WPSLEDStatus);
 #endif /* WSC_LED_SUPPORT */
-#ifdef IWSC_SUPPORT
-		if (pAdapter->StaCfg.IWscInfo.bDoNotStop == FALSE)
-#endif /* IWSC_SUPPORT */
 		{
 			pWscControl->WscPinCode = 0;
 			pWscControl->WscMode = 1;
@@ -3203,14 +2673,6 @@ Fail:
 		RTMPCancelTimer(&pWscControl->EapolTimer, &Cancelled);
 		pWscControl->EapolTimerRunning = FALSE;
 
-#ifdef IWSC_SUPPORT
-		/*
-			Some peer doesn't stop beacon and send de-auth, it will cause 4-way failed when our MAC is higher than peer.
-			After WPS process complete, delete entry here for adding entry to table again for 4-way handshaking.
-		*/
-		if (pEntry && (pAdapter->StaCfg.BssType == BSS_ADHOC))
-			MacTableDeleteEntry(pAdapter, pEntry->wcid, pEntry->Addr);
-#endif /* IWSC_SUPPORT */
 		return;
 	}	
 }
@@ -3229,10 +2691,6 @@ VOID WscTimeOutProcess(
 		CurOpMode = AP_MODE;
 #endif // CONFIG_AP_SUPPORT //
 	
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		CurOpMode = STA_MODE;
-#endif // CONFIG_STA_SUPPORT //
 
     if (nWscState == WSC_STATE_WAIT_ACK)
         pWscControl->WscState = WSC_STATE_CONFIGURED;
@@ -3261,12 +2719,6 @@ VOID WscTimeOutProcess(
 		pWscControl->EapolTimerRunning = FALSE;
 		pWscControl->WscRetryCount = 0;
         
-#ifdef CONFIG_STA_SUPPORT
-		if (CurOpMode == STA_MODE)
-		{
-			WscLinkDown(pAd);
-		}
-#endif /* CONFIG_STA_SUPPORT */
 
         return;
     }
@@ -3345,12 +2797,6 @@ VOID WscTimeOutProcess(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		WscLinkDown(pAd);
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
     DBGPRINT(RT_DEBUG_TRACE, ("WscTimeOutProcess\n"));
 }
@@ -3367,7 +2813,7 @@ VOID WscEAPOLTimeOutAction(
 	PRTMP_ADAPTER pAd = NULL;
 	UINT				MaxWscDataLen = WSC_MAX_DATA_LEN;
 	UCHAR				CurOpMode = 0xFF;
-	UCHAR 				WscMaxRetryCount = 2;
+    
     DBGPRINT(RT_DEBUG_TRACE, ("-----> WscEAPOLTimeOutAction\n"));
         
     if (FunctionContext == 0)
@@ -3383,10 +2829,6 @@ VOID WscEAPOLTimeOutAction(
 			return;
 		}
 		pEntry = MacTableLookup(pWscControl->pAd, pWscControl->EntryAddr);
-#ifdef SMART_MESH_HIDDEN_WPS
-		if(pEntry && pEntry->bHyperFiPeer)
-			WscMaxRetryCount = 5;
-#endif /* SMART_MESH_HIDDEN_WPS */
     }
 
 #ifdef CONFIG_AP_SUPPORT
@@ -3394,10 +2836,6 @@ VOID WscEAPOLTimeOutAction(
 		CurOpMode = AP_MODE;
 #endif // CONFIG_AP_SUPPORT //
 	
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		CurOpMode = STA_MODE;
-#endif // CONFIG_STA_SUPPORT //
 
 	if ((CurOpMode == AP_MODE) || ADHOC_ON(pAd))
 	{
@@ -3425,16 +2863,6 @@ VOID WscEAPOLTimeOutAction(
 			}			
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef IWSC_SUPPORT
-#ifdef CONFIG_STA_SUPPORT            
-			
-			if ((pAd->OpMode == OPMODE_STA) &&
-				(pAd->StaCfg.BssType == BSS_ADHOC) &&
-				(pAd->StaCfg.WscControl.WscConfMode == WSC_ENROLLEE))
-				pAd->StaCfg.IWscInfo.bReStart = TRUE;
-			
-#endif // CONFIG_STA_SUPPORT //
-#endif // IWSC_SUPPORT //
 			pWscControl->EapolTimerRunning = FALSE;
 			NdisZeroMemory(pWscControl->EntryAddr, MAC_ADDR_LEN);
 			DBGPRINT(RT_DEBUG_TRACE, ("sta is left.\n"));
@@ -3485,26 +2913,18 @@ VOID WscEAPOLTimeOutAction(
     {
         case WSC_STATE_WAIT_REQ_ID:
 			/* For IWSC case, keep sending EAPOL_START until 2 mins timeout */
-			if ((pWscControl->WscRetryCount >= WscMaxRetryCount)
-#ifdef CONFIG_STA_SUPPORT
-				&& (pAd->StaCfg.BssType == BSS_INFRA)
-#endif /* CONFIG_STA_SUPPORT */
+			if ((pWscControl->WscRetryCount >= 2)
 				)
 				WscTimeOutProcess(pWscControl->pAd, pEntry, WSC_STATE_WAIT_REQ_ID, pWscControl);
 			else
 			{
 				pWscControl->WscRetryCount++;
-#ifdef CONFIG_STA_SUPPORT
-				if ((pAd->StaCfg.BssType == BSS_INFRA) && (CurOpMode == STA_MODE))
-					WscSendEapolStart(pAd, pAd->CommonCfg.Bssid, CurOpMode);
-				else
-#endif /* CONFIG_STA_SUPPORT */
 					WscSendEapolStart(pAd, pEntry->Addr, CurOpMode);
 				RTMPModTimer(&pWscControl->EapolTimer, WSC_EAP_MSG_TIME_OUT);
 			}
             break;
         case WSC_STATE_WAIT_WSC_START:
-			if (pWscControl->WscRetryCount >= WscMaxRetryCount)
+			if (pWscControl->WscRetryCount >= 2)
 		    	WscTimeOutProcess(pWscControl->pAd, pEntry, WSC_STATE_WAIT_WSC_START, pWscControl);
 			else
 			{
@@ -3513,7 +2933,7 @@ VOID WscEAPOLTimeOutAction(
 			}
             break;
         case WSC_STATE_WAIT_M1:
-		if (pWscControl->WscRetryCount >= WscMaxRetryCount)
+		if (pWscControl->WscRetryCount >= 2)
 			WscTimeOutProcess(pWscControl->pAd, pEntry, WSC_STATE_WAIT_M1, pWscControl);
 		else
 		{
@@ -3521,19 +2941,12 @@ VOID WscEAPOLTimeOutAction(
 				if (CurOpMode == AP_MODE)
 					WscSendMessage(pWscControl->pAd, WSC_OPCODE_START, NULL, 0, pWscControl, AP_MODE, EAP_CODE_REQ);
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-				if (CurOpMode == STA_MODE)
-				{
-					/*WscSendMessage(pWscControl->pAd, WSC_OPCODE_START, NULL, 0, pWscControl, STA_MODE, EAP_CODE_REQ); */
-					WscSendEapRspId(pAd, pEntry, pWscControl);
-				}
-#endif /* CONFIG_STA_SUPPORT */
 				pWscControl->WscRetryCount++;
 				RTMPModTimer(&pWscControl->EapolTimer, WSC_EAP_MSG_TIME_OUT);
 			}
             	break;
 		case WSC_STATE_SENT_M1:
-			if (pWscControl->WscRetryCount >= WscMaxRetryCount)
+			if (pWscControl->WscRetryCount >= 2)
 				WscTimeOutProcess(pWscControl->pAd, pEntry, WSC_STATE_WAIT_M2, pWscControl);
 			else
 			{
@@ -3550,10 +2963,6 @@ VOID WscEAPOLTimeOutAction(
 						}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-						if (CurOpMode == STA_MODE)
-							WscSendMessage(pWscControl->pAd, WSC_OPCODE_MSG, pWscControl->RegData.LastTx.Data, pWscControl->RegData.LastTx.Length, pWscControl, STA_MODE, EAP_CODE_RSP);
-#endif /* CONFIG_STA_SUPPORT */
 				}
 			}
 			pWscControl->WscRetryCount++;
@@ -3580,7 +2989,7 @@ VOID WscEAPOLTimeOutAction(
 		}
 		break;
 	case WSC_STATE_WAIT_M3:
-		if (pWscControl->WscRetryCount >= WscMaxRetryCount)
+		if (pWscControl->WscRetryCount >= 2)
 			WscTimeOutProcess(pWscControl->pAd, pEntry, WSC_STATE_WAIT_M3, pWscControl);
 		else
 		{
@@ -3589,35 +2998,9 @@ VOID WscEAPOLTimeOutAction(
 				{
 #ifdef CONFIG_AP_SUPPORT
 						if (CurOpMode == AP_MODE)
-						{
-						    if (IS_ENTRY_CLIENT(pEntry))
 							WscSendMessage(pWscControl->pAd, WSC_OPCODE_MSG, pWscControl->RegData.LastTx.Data, pWscControl->RegData.LastTx.Length, pWscControl, AP_MODE, EAP_CODE_REQ);
-						    else if (IS_ENTRY_APCLI(pEntry))
-						        WscSendMessage(pWscControl->pAd, WSC_OPCODE_MSG, pWscControl->RegData.LastTx.Data, pWscControl->RegData.LastTx.Length, pWscControl, AP_CLIENT_MODE, EAP_CODE_RSP);
-						}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-						if (CurOpMode == STA_MODE)
-						{
-							if (ADHOC_ON(pAd))
-								WscSendMessage(pWscControl->pAd, 
-										   WSC_OPCODE_MSG, 
-										   pWscControl->RegData.LastTx.Data, 
-										   pWscControl->RegData.LastTx.Length, 
-										   pWscControl, 
-										   STA_MODE, 
-										   EAP_CODE_REQ);
-							else
-								WscSendMessage(pWscControl->pAd, 
-											   WSC_OPCODE_MSG, 
-											   pWscControl->RegData.LastTx.Data, 
-											   pWscControl->RegData.LastTx.Length, 
-											   pWscControl, 
-											   STA_MODE, 
-											   EAP_CODE_RSP);
-						}
-#endif /* CONFIG_STA_SUPPORT */
 				}
 			}
 			pWscControl->WscRetryCount++;
@@ -3625,7 +3008,7 @@ VOID WscEAPOLTimeOutAction(
 		}
 		break;
         case WSC_STATE_WAIT_M4:
-		if (pWscControl->WscRetryCount >= WscMaxRetryCount)
+		if (pWscControl->WscRetryCount >= 2)
 			WscTimeOutProcess(pWscControl->pAd, pEntry, WSC_STATE_WAIT_M4, pWscControl);
 		else
 		{
@@ -3642,10 +3025,6 @@ VOID WscEAPOLTimeOutAction(
 						}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-						if (CurOpMode == STA_MODE)
-							WscSendMessage(pWscControl->pAd, WSC_OPCODE_MSG, pWscControl->RegData.LastTx.Data, pWscControl->RegData.LastTx.Length, pWscControl, STA_MODE, EAP_CODE_RSP);
-#endif /* CONFIG_STA_SUPPORT */
 				}
 			}
 			pWscControl->WscRetryCount++;
@@ -3653,7 +3032,7 @@ VOID WscEAPOLTimeOutAction(
 		}
 		break;
 	case WSC_STATE_WAIT_M5:
-		if (pWscControl->WscRetryCount >= WscMaxRetryCount)
+		if (pWscControl->WscRetryCount >= 2)
 			WscTimeOutProcess(pWscControl->pAd, pEntry, WSC_STATE_WAIT_M5, pWscControl);
 		else
 		{
@@ -3662,35 +3041,9 @@ VOID WscEAPOLTimeOutAction(
 				{
 #ifdef CONFIG_AP_SUPPORT
 						if (CurOpMode == AP_MODE)
-						{
-						    if (IS_ENTRY_CLIENT(pEntry))
 							WscSendMessage(pWscControl->pAd, WSC_OPCODE_MSG, pWscControl->RegData.LastTx.Data, pWscControl->RegData.LastTx.Length, pWscControl, AP_MODE, EAP_CODE_REQ);
-						    else if (IS_ENTRY_APCLI(pEntry))
-						        WscSendMessage(pWscControl->pAd, WSC_OPCODE_MSG, pWscControl->RegData.LastTx.Data, pWscControl->RegData.LastTx.Length, pWscControl, AP_CLIENT_MODE, EAP_CODE_RSP);
-						}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-						if (CurOpMode == STA_MODE)
-						{
-							if (ADHOC_ON(pAd))
-								WscSendMessage(pWscControl->pAd, 
-											   WSC_OPCODE_MSG, 
-											   pWscControl->RegData.LastTx.Data, 
-											   pWscControl->RegData.LastTx.Length, 
-											   pWscControl, 
-											   STA_MODE, 
-											   EAP_CODE_REQ);
-							else
-								WscSendMessage(pWscControl->pAd, 
-											   WSC_OPCODE_MSG, 
-											   pWscControl->RegData.LastTx.Data, 
-											   pWscControl->RegData.LastTx.Length, 
-											   pWscControl, 
-											   STA_MODE, 
-											   EAP_CODE_RSP);
-						}
-#endif /* CONFIG_STA_SUPPORT */
 				}
 			}
 			pWscControl->WscRetryCount++;
@@ -3698,7 +3051,7 @@ VOID WscEAPOLTimeOutAction(
 		}
 		break;
         case WSC_STATE_WAIT_M6:
-		if (pWscControl->WscRetryCount >= WscMaxRetryCount)
+		if (pWscControl->WscRetryCount >= 2)
 			WscTimeOutProcess(pWscControl->pAd, pEntry, WSC_STATE_WAIT_M6, pWscControl);
 		else
 		{
@@ -3715,10 +3068,6 @@ VOID WscEAPOLTimeOutAction(
 						}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-						if (CurOpMode == STA_MODE)
-							WscSendMessage(pWscControl->pAd, WSC_OPCODE_MSG, pWscControl->RegData.LastTx.Data, pWscControl->RegData.LastTx.Length, pWscControl, STA_MODE, EAP_CODE_RSP);
-#endif /* CONFIG_STA_SUPPORT */
 				}
 			}
 			pWscControl->WscRetryCount++;
@@ -3726,7 +3075,7 @@ VOID WscEAPOLTimeOutAction(
 		}
 		break;
         case WSC_STATE_WAIT_M7:
-		if (pWscControl->WscRetryCount >= WscMaxRetryCount)
+		if (pWscControl->WscRetryCount >= 2)
 			WscTimeOutProcess(pWscControl->pAd, pEntry, WSC_STATE_WAIT_M7, pWscControl);
 		else
 		{
@@ -3735,35 +3084,9 @@ VOID WscEAPOLTimeOutAction(
 				{
 #ifdef CONFIG_AP_SUPPORT
 						if (CurOpMode == AP_MODE)
-						{
-						    if (IS_ENTRY_CLIENT(pEntry))
 							WscSendMessage(pWscControl->pAd, WSC_OPCODE_MSG, pWscControl->RegData.LastTx.Data, pWscControl->RegData.LastTx.Length, pWscControl, AP_MODE, EAP_CODE_REQ);
-						    else if (IS_ENTRY_APCLI(pEntry))
-						        WscSendMessage(pWscControl->pAd, WSC_OPCODE_MSG, pWscControl->RegData.LastTx.Data, pWscControl->RegData.LastTx.Length, pWscControl, AP_CLIENT_MODE, EAP_CODE_RSP);
-						}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-						if (CurOpMode == STA_MODE)
-						{
-							if (ADHOC_ON(pAd))								
-								WscSendMessage(pWscControl->pAd, 
-											   WSC_OPCODE_MSG, 
-											   pWscControl->RegData.LastTx.Data, 
-											   pWscControl->RegData.LastTx.Length, 
-											   pWscControl, 
-											   STA_MODE, 
-											   EAP_CODE_REQ);
-							else
-								WscSendMessage(pWscControl->pAd, 
-											   WSC_OPCODE_MSG, 
-											   pWscControl->RegData.LastTx.Data, 
-											   pWscControl->RegData.LastTx.Length, 
-											   pWscControl, 
-											   STA_MODE, 
-											   EAP_CODE_RSP);
-						}
-#endif /* CONFIG_STA_SUPPORT */
 				}
 			}
 			pWscControl->WscRetryCount++;
@@ -3771,7 +3094,7 @@ VOID WscEAPOLTimeOutAction(
 		}
 		break;
         case WSC_STATE_WAIT_M8:
-		if (pWscControl->WscRetryCount >= WscMaxRetryCount)
+		if (pWscControl->WscRetryCount >= 2)
 			WscTimeOutProcess(pWscControl->pAd, pEntry, WSC_STATE_WAIT_M8, pWscControl);
 		else
 		{
@@ -3788,10 +3111,6 @@ VOID WscEAPOLTimeOutAction(
 						}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-						if (CurOpMode == STA_MODE)
-							WscSendMessage(pWscControl->pAd, WSC_OPCODE_MSG, pWscControl->RegData.LastTx.Data, pWscControl->RegData.LastTx.Length, pWscControl, STA_MODE, EAP_CODE_RSP);
-#endif /* CONFIG_STA_SUPPORT */
 				}
 			}
 			pWscControl->WscRetryCount++;
@@ -3808,35 +3127,9 @@ VOID WscEAPOLTimeOutAction(
 				{
 #ifdef CONFIG_AP_SUPPORT
 						if (CurOpMode == AP_MODE)
-						{
-						    if (IS_ENTRY_CLIENT(pEntry))
 							WscSendMessage(pWscControl->pAd, WSC_OPCODE_MSG, pWscControl->RegData.LastTx.Data, pWscControl->RegData.LastTx.Length, pWscControl, AP_MODE, EAP_CODE_REQ);
-						    else if (IS_ENTRY_APCLI(pEntry))
-						        WscSendMessage(pWscControl->pAd, WSC_OPCODE_MSG, pWscControl->RegData.LastTx.Data, pWscControl->RegData.LastTx.Length, pWscControl, AP_CLIENT_MODE, EAP_CODE_RSP);
-						}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-						if (CurOpMode == STA_MODE)
-						{
-							if (ADHOC_ON(pAd))
-								WscSendMessage(pWscControl->pAd, 
-											   WSC_OPCODE_MSG, 
-											   pWscControl->RegData.LastTx.Data, 
-											   pWscControl->RegData.LastTx.Length, 
-											   pWscControl, 
-											   STA_MODE, 
-											   EAP_CODE_REQ);
-							else
-								WscSendMessage(pWscControl->pAd, 
-											   WSC_OPCODE_MSG, 
-											   pWscControl->RegData.LastTx.Data, 
-											   pWscControl->RegData.LastTx.Length, 
-											   pWscControl, 
-											   STA_MODE, 
-											   EAP_CODE_RSP);
-						}
-#endif /* CONFIG_STA_SUPPORT */
 				}
 			}
 			pWscControl->WscRetryCount++;
@@ -3908,10 +3201,6 @@ VOID Wsc2MinsTimeOutAction(
 					CurOpMode = AP_MODE;
 #endif /* CONFIG_AP_SUPPORT */
 		
-#ifdef CONFIG_STA_SUPPORT
-				IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-					CurOpMode = STA_MODE;
-#endif /* CONFIG_STA_SUPPORT */
 
 		DBGPRINT(RT_DEBUG_TRACE, ("Wsc2MinsTimerRunning is %s\n", 
 		pWscControl->Wsc2MinsTimerRunning ? "TRUE, reset WscState to WSC_STATE_OFF":"FALSE"));
@@ -3930,13 +3219,6 @@ VOID Wsc2MinsTimeOutAction(
 #ifdef CONFIG_AP_SUPPORT
 			if (CurOpMode == AP_MODE)
 			{
-#ifdef SMART_MESH_HIDDEN_WPS
-                pWscControl->bRunningHiddenWPS = FALSE;
-                if(pWscControl->bFromApCli)
-                     Set_HiddenWps_State(&pAd->ApCfg.ApCliTab[(pWscControl->EntryIfIdx & 0x0F)].SmartMeshCfg,
-                                        HIDDEN_WPS_STATE_STOP);
-#endif /* SMART_MESH_HIDDEN_WPS */
-
 				IsAPConfigured = pWscControl->WscConfStatus;
 				if ((pWscControl->EntryIfIdx & 0x0F) < pAd->ApCfg.BssidNum)
 				{
@@ -3950,30 +3232,6 @@ VOID Wsc2MinsTimeOutAction(
 				}
 			}
 #endif /* CONFIG_AP_SUPPORT */
-
-			if(pWscControl->WscMode == WSC_PBC_MODE)
-			{
-#ifdef SMART_MESH_MONITOR
-				struct nsmpif_drvevnt_buf drvevnt;
-				drvevnt.data.wps_pbc_stat.type = NSMPIF_DRVEVNT_WPS_PBC_STAT;
-				drvevnt.data.wps_pbc_stat.stat = NSMP_WPS_PBC_STAT_END_TIMEOUT;
-				drvevnt.data.wps_pbc_stat.reason = 0;
-                drvevnt.data.wps_pbc_stat.channel = pAd->CommonCfg.Channel;
-#ifdef SMART_MESH
-                if(pWscControl->bWscPBCAddrMode)
-                    COPY_MAC_ADDR(drvevnt.data.wps_pbc_stat.sta_mac,pWscControl->WscPBCAddr);
-                else
-#endif /* SMART_MESH */
-				COPY_MAC_ADDR(drvevnt.data.wps_pbc_stat.sta_mac,pWscControl->EntryAddr);
-				RtmpOSWrielessEventSend(pAd->net_dev, RT_WLAN_EVENT_CUSTOM,NSMPIF_DRVEVNT_WPS_PBC_STAT,
-										NULL, (PUCHAR)&drvevnt.data.wps_pbc_stat, sizeof(drvevnt.data.wps_pbc_stat));
-                DBGPRINT(RT_DEBUG_OFF,
-                        ("Send Custom Wireless Event. (NSMPIF_DRVEVNT_WPS_PBC_STAT:NSMP_WPS_PBC_STAT_END_TIMEOUT(Reason :%d))\n",drvevnt.data.wps_pbc_stat.reason));										
-#endif /* SMART_MESH_MONITOR */
-			}
-#ifdef SMART_MESH
-            pWscControl->bWscPBCAddrMode = FALSE;
-#endif /* SMART_MESH */
 
 			pWscControl->WscMode = 1;
 			pWscControl->WscRetryCount = 0;
@@ -4003,37 +3261,6 @@ VOID Wsc2MinsTimeOutAction(
 #ifdef WSC_NFC_SUPPORT
 			pWscControl->bTriggerByNFC = FALSE;
 #endif /* WSC_NFC_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-			if (CurOpMode == STA_MODE)
-			{				
-				pAd->StaCfg.bAutoConnectByBssid = FALSE;
-				RTMPZeroMemory(pAd->MlmeAux.AutoReconnectSsid, MAX_LEN_OF_SSID);
-				pAd->MlmeAux.AutoReconnectSsidLen = pAd->CommonCfg.SsidLen;
-				RTMPMoveMemory(pAd->MlmeAux.AutoReconnectSsid, pAd->CommonCfg.Ssid, pAd->CommonCfg.SsidLen);
-				if (INFRA_ON(pAd) || 
-					(pWscControl->WscConfMode == WSC_ENROLLEE))
-					WscLinkDown(pAd);
-				else
-				{
-					AsicDisableSync(pAd);
-					WscBuildBeaconIE(pAd, pWscControl->WscConfStatus, FALSE, 0, 0, BSS0, NULL, 0, CurOpMode);
-					WscBuildProbeRespIE(pAd,
-						WSC_MSGTYPE_REGISTRAR,
-						pWscControl->WscConfStatus,
-						FALSE,
-						0,
-						0,
-						BSS0,
-						NULL, 
-						0,
-						CurOpMode);
-					MakeIbssBeacon(pAd);
-					AsicEnableIbssSync(pAd);
-				}
-				pWscControl->WscConfMode = WSC_DISABLE;
-				pWscControl->WscState = WSC_STATE_OFF;
-			}
-#endif /* CONFIG_STA_SUPPORT */		
 		}
 
 #ifdef WSC_LED_SUPPORT
@@ -4281,10 +3508,6 @@ VOID	WscInitRegistrarPair(
 		CurOpMode = AP_MODE;
 #endif // CONFIG_AP_SUPPORT //
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAdapter)
-		CurOpMode = STA_MODE;
-#endif // CONFIG_STA_SUPPORT //
 
 	pWscControl->WscActionMode = 0;
 
@@ -4307,10 +3530,6 @@ VOID	WscInitRegistrarPair(
 		NdisMoveMemory(pWscControl->RegData.SelfInfo.MacAddr, pAdapter->ApCfg.MBSSID[apidx].wdev.bssid, 6);
 	}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT	
-	if (CurOpMode == STA_MODE)
-		NdisMoveMemory(pWscControl->RegData.SelfInfo.MacAddr, pAdapter->CurrentAddress, 6);
-#endif /* CONFIG_STA_SUPPORT */
 
 	/* 4. Device Name */
 #ifdef CONFIG_AP_SUPPORT
@@ -4321,15 +3540,6 @@ VOID	WscInitRegistrarPair(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-	if (!RTMP_TEST_FLAG(pWscControl, 0x04))
-		{
-		NdisMoveMemory(&pWscControl->RegData.SelfInfo.DeviceName, STA_WSC_DEVICE_NAME, sizeof(STA_WSC_DEVICE_NAME));
-	}
-	}
-#endif /* CONFIG_STA_SUPPORT */
 	
 	/* 5. Manufacture woody */
 	if (!RTMP_TEST_FLAG(pWscControl, 0x01))
@@ -4344,15 +3554,6 @@ VOID	WscInitRegistrarPair(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		if (!RTMP_TEST_FLAG(pWscControl, 0x02))
-		{
-		NdisMoveMemory(&pWscControl->RegData.SelfInfo.ModelName, STA_WSC_MODEL_NAME, sizeof(STA_WSC_MODEL_NAME));
-	}
-	}
-#endif /* CONFIG_STA_SUPPORT */
 	
 	/* 7. Model Number */
 
@@ -4391,14 +3592,6 @@ VOID	WscInitRegistrarPair(
 	pWscControl->RegData.SelfInfo.EncrTypeFlags  = cpu2be16(0x000F);
 	
 	/* 11. Connection Type Flag */
-#ifdef CONFIG_STA_SUPPORT
-	if ((pAdapter->StaCfg.BssType == BSS_ADHOC) &&
-		(pAdapter->OpMode == OPMODE_STA))
-	{
-		pWscControl->RegData.SelfInfo.ConnTypeFlags = 0x02;				/* IBSS */
-	}
-	else
-#endif // CONFIG_STA_SUPPORT //	// 11. Connection Type Flag
 	pWscControl->RegData.SelfInfo.ConnTypeFlags = 0x01;					/* ESS */
 
 	/* 12. Associate state */
@@ -4429,30 +3622,12 @@ VOID	WscInitRegistrarPair(
 	if (CurOpMode == AP_MODE)
 		pWscControl->RegData.SelfInfo.ScState = pWscControl->WscConfStatus;
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-		pWscControl->RegData.SelfInfo.ScState = 0x01;
-#endif /* CONFIG_STA_SUPPORT */
 
 	/* 18. Device Password ID */
 	if (pWscControl->WscMode == WSC_PIN_MODE)
 	{
-#ifdef IWSC_SUPPORT
-		if ((pAdapter->StaCfg.BssType == BSS_ADHOC) &&
-			(pAdapter->StaCfg.IWscInfo.bLimitedUI == FALSE))
-		{
-			pWscControl->RegData.SelfInfo.DevPwdId = cpu2be16(DEV_PASS_ID_REG);		/* PIN mode */
-		}
-		else
-#endif /* IWSC_SUPPORT */
 		pWscControl->RegData.SelfInfo.DevPwdId = cpu2be16(DEV_PASS_ID_PIN);		/* PIN mode */
 	}
-#ifdef IWSC_SUPPORT
-	else if (pWscControl->WscMode == WSC_SMPBC_MODE)
-	{
-		pWscControl->RegData.SelfInfo.DevPwdId = cpu2be16(DEV_PASS_ID_SMPBC);	// SMPBC mode
-	}
-#endif // IWSC_SUPPORT //
 	else
 	{
 		pWscControl->RegData.SelfInfo.DevPwdId = cpu2be16(DEV_PASS_ID_PBC);		/* PBC */
@@ -4463,10 +3638,6 @@ VOID	WscInitRegistrarPair(
 	if (CurOpMode == AP_MODE)
 		NdisMoveMemory(pWscControl->RegData.SelfInfo.Ssid, pAdapter->ApCfg.MBSSID[apidx].Ssid, pAdapter->ApCfg.MBSSID[apidx].SsidLen);
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-		NdisMoveMemory(pWscControl->RegData.SelfInfo.Ssid, pAdapter->CommonCfg.Ssid, pAdapter->CommonCfg.SsidLen);
-#endif /* CONFIG_STA_SUPPORT */
 
 	/* 20. Primary Device Type */
 #ifdef CONFIG_AP_SUPPORT
@@ -4479,10 +3650,6 @@ VOID	WscInitRegistrarPair(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-		NdisMoveMemory(&pWscControl->RegData.SelfInfo.PriDeviceType, &STA_Wsc_Pri_Dev_Type[0], 8);
-#endif /* CONFIG_STA_SUPPORT */
 
 	DBGPRINT(RT_DEBUG_TRACE, ("<----- WscInitRegistrarPair\n"));	
 }
@@ -4518,16 +3685,6 @@ VOID	WscSendEapReqId(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		pWpsCtrl = &pAd->StaCfg.WscControl;
-		MAKE_802_3_HEADER(Header802_3, 
-						  &pEntry->Addr[0], 
-						  &pAd->CurrentAddress[0], 
-						  EAPOL);
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	if (pWpsCtrl == NULL)
 	{
@@ -4612,13 +3769,6 @@ VOID    WscSendEapolStart(
 	
 	pEntry = MacTableLookup(pAdapter, pBssid);
 	
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		if (pAdapter->StaCfg.WscControl.WscState >= WSC_STATE_WAIT_WSC_START)
-			return;
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	DBGPRINT(RT_DEBUG_TRACE, ("-----> WscSendEapolStart\n"));
 
@@ -4638,10 +3788,6 @@ VOID    WscSendEapolStart(
 	}
 #endif /* APCLI_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-		MAKE_802_3_HEADER(Header802_3, pBssid, &pAdapter->CurrentAddress[0], EAPOL);
-#endif /* CONFIG_STA_SUPPORT */
 	
 	/* Zero message 2 body */
 	NdisZeroMemory(&Packet, sizeof(Packet));
@@ -4668,19 +3814,6 @@ VOID    WscSendEapolStart(
 #endif /* APCLI_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		/* Update WSC status */
-		pAdapter->StaCfg.WscControl.WscStatus = STATUS_WSC_EAPOL_START_SENT;
-		pAdapter->StaCfg.WscControl.WscState = WSC_STATE_WAIT_REQ_ID;
-		if (!pAdapter->StaCfg.WscControl.EapolTimerRunning)
-		{
-			pAdapter->StaCfg.WscControl.EapolTimerRunning = TRUE;
-			RTMPSetTimer(&pAdapter->StaCfg.WscControl.EapolTimer, 2000);
-		}
-	}
-#endif /* CONFIG_STA_SUPPORT */    
 	DBGPRINT(RT_DEBUG_TRACE, ("<----- WscSendEapolStart\n"));
 }
 
@@ -4710,10 +3843,6 @@ VOID WscSendEapRspId(
 		CurOpMode = AP_MODE;
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAdapter)
-		CurOpMode = STA_MODE;
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_AP_SUPPORT
 #ifdef APCLI_SUPPORT
@@ -4723,36 +3852,12 @@ VOID WscSendEapRspId(
 						  &pEntry->Addr[0],
 						  &pAdapter->ApCfg.ApCliTab[0].wdev.if_addr[0], 
 						  EAPOL);
-        
-		if (pWscControl->WscConfMode == WSC_ENROLLEE)
-			Length = sizeof(EAP_FRAME) + sizeof(enrIdentity) - 1;
-		else if (pWscControl->WscConfMode == WSC_REGISTRAR)
-			Length = sizeof(EAP_FRAME) + sizeof(regIdentity) - 1;
+		Length = sizeof(EAP_FRAME) + sizeof(enrIdentity) - 1;
+		pWscControl->WscConfMode = WSC_ENROLLEE; /* Ap Client only support Enrollee now. 20070518 */
 	}
 #endif /* APCLI_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT    
-	if (CurOpMode == STA_MODE)
-	{
-		/* init 802.3 header and Fill Packet */
-		if (INFRA_ON(pAdapter))
-		{
-			MAKE_802_3_HEADER(Header802_3, &pAdapter->CommonCfg.Bssid[0], &pAdapter->CurrentAddress[0], EAPOL);
-		}
-		else
-		{
-			MAKE_802_3_HEADER(Header802_3, &pWscControl->WscPeerMAC[0], &pAdapter->CurrentAddress[0], EAPOL);
-		}
-		
-		/* Length, -1 NULL pointer of string */
-		if (pWscControl->WscConfMode == WSC_ENROLLEE)	
-			Length = sizeof(EAP_FRAME) + sizeof(enrIdentity) - 1;
-		else if (pWscControl->WscConfMode == WSC_REGISTRAR)
-			Length = sizeof(EAP_FRAME) + sizeof(regIdentity) - 1;
-	}
-
-#endif /* CONFIG_STA_SUPPORT */
    	
 	/* Zero 802.1x body */
 	NdisZeroMemory(&Ieee_8021x, sizeof(Ieee_8021x));
@@ -4785,10 +3890,6 @@ VOID WscSendEapRspId(
     }
     else if (pWscControl->WscConfMode == WSC_ENROLLEE)
     {
-#ifdef IWSC_SUPPORT
-		if (pAdapter->StaCfg.BssType == BSS_ADHOC)
-			pWscControl->WscConfStatus = WSC_SCSTATE_UNCONFIGURED;
-#endif /* IWSC_SUPPORT */
         /* Make	 Transmitting frame */
     	MakeOutgoingFrame(pOutBuffer, &FrameLen,
     		sizeof(IEEE8021X_FRAME), &Ieee_8021x,
@@ -4812,11 +3913,6 @@ VOID WscSendEapRspId(
 #endif /* APCLI_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT	
-	if (CurOpMode == STA_MODE)
-		RTMPToWirelessSta((PRTMP_ADAPTER)pWscControl->pAd, &pAdapter->MacTab.Content[BSSID_WCID],
-							Header802_3, LENGTH_802_3, (PUCHAR)pOutBuffer, FrameLen, TRUE);
-#endif /* CONFIG_STA_SUPPORT */
 
 	pWscControl->WscRetryCount = 0;
     if (!pWscControl->EapolTimerRunning)
@@ -4847,10 +3943,6 @@ VOID WscUPnPErrHandle(
 		CurOpMode = AP_MODE;
 #endif // CONFIG_AP_SUPPORT //
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		CurOpMode = STA_MODE;
-#endif // CONFIG_STA_SUPPORT //
 
 	os_alloc_mem(NULL, (UCHAR **)&pWscData, WSC_MAX_DATA_LEN);
 	if (pWscData != NULL)
@@ -4952,7 +4044,7 @@ int WscSendUPnPMessage(
 	RTMP_WSC_MSG_HDR *pWscMsgHdr;
 	
 	UCHAR hdrBuf[42]; /*RTMP_WSC_NLMSG_HDR_LEN + RTMP_WSC_MSG_HDR_LEN */
-	int leftLen = 0, copyLen;
+	int totalLen, leftLen, copyLen;
 	PUCHAR pBuf = NULL, pBufPtr = NULL, pPos = NULL;
 	PUCHAR	pDevAddr = NULL;
 #ifdef CONFIG_AP_SUPPORT
@@ -4982,12 +4074,6 @@ int WscSendUPnPMessage(
 		pDevAddr = &pAd->ApCfg.MBSSID[bssIdx].wdev.bssid[0];
 	}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		pDevAddr = &pAd->CurrentAddress[0];
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	if (pDevAddr == NULL)
 	{
@@ -5042,6 +4128,7 @@ int WscSendUPnPMessage(
 	}
 	
 	/*Allocate memory and copy the msg. */
+	totalLen = leftLen = pNLMsgHdr->msgLen;
 	pPos = pData;
 	os_alloc_mem(NULL, (UCHAR **)&pBuf, IWEVCUSTOM_MSG_MAX_LEN);
 	if (pBuf != NULL)
@@ -5124,10 +4211,6 @@ VOID	WscSendMessage(
 		CurOpMode = AP_MODE;
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAdapter)
-		CurOpMode = STA_MODE;
-#endif /* CONFIG_STA_SUPPORT */
 	NdisZeroMemory(Header802_3,sizeof(UCHAR)*14);
 
 #ifdef CONFIG_AP_SUPPORT
@@ -5145,22 +4228,6 @@ VOID	WscSendMessage(
 #endif /* APCLI_SUPPORT */
 	}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-	        if (OpMode == STA_MODE)
-	        {
-	        	if (INFRA_ON(pAdapter))
-	        	{
-					MAKE_802_3_HEADER(Header802_3, &pAdapter->CommonCfg.Bssid[0], &pAdapter->CurrentAddress[0], EAPOL);
-	        	}
-				else
-				{
-					MAKE_802_3_HEADER(Header802_3, &pWscControl->EntryAddr[0], &pAdapter->CurrentAddress[0], EAPOL);
-				}
-	        }
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
     	/* Length = EAP + WSC_Frame + Payload */
     	Length = sizeof(EAP_FRAME) + sizeof(WSC_FRAME) + Len;
@@ -5263,16 +4330,7 @@ VOID	WscSendMessage(
 	pEntry = MacTableLookup(pAdapter, &pWscControl->EntryAddr[0]);
 
 	if (pEntry)
-	{
-		
-		UCHAR i,sendMaxCount = 1;
-#ifdef SMART_MESH_HIDDEN_WPS
-		if(pEntry && pEntry->bHyperFiPeer)
-			sendMaxCount = 3;
-#endif /* SMART_MESH_HIDDEN_WPS */
-		for(i = 0; i < sendMaxCount; i++)
 		RTMPToWirelessSta(pAdapter, pEntry, Header802_3, sizeof(Header802_3), (PUCHAR)pOutBuffer, FrameLen, TRUE);
-	}
 	else
 		DBGPRINT(RT_DEBUG_WARN, ("pEntry is NULL\n"));
     	
@@ -5314,10 +4372,6 @@ VOID WscBuildBeaconIE(
 	if (CurOpMode == AP_MODE)
 		pWpsCtrl = &pAd->ApCfg.MBSSID[apidx & 0x0F].WscControl;
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-		pWpsCtrl = &pAd->StaCfg.WscControl;
-#endif /* CONFIG_STA_SUPPORT */
 
 	pReg = &pWpsCtrl->RegData;
  
@@ -5326,12 +4380,6 @@ VOID WscBuildBeaconIE(
 	ieHdr.elemId = 221;
 	ieHdr.length = 4;
 	ieHdr.oui[0] = 0x00; ieHdr.oui[1] = 0x50; ieHdr.oui[2] = 0xF2; 
-#ifdef IWSC_SUPPORT
-	if ((CurOpMode == STA_MODE) && 
-		(pAd->StaCfg.BssType == BSS_ADHOC))
-		ieHdr.oui[3] = 0x10;
-	else
-#endif /* IWSC_SUPPORT */
 	ieHdr.oui[3] = 0x04;
 
 	pData = (PUCHAR) &Data[0];
@@ -5372,27 +4420,6 @@ VOID WscBuildBeaconIE(
 
 		/* 5. Selected Registrar Config Methods */
 		tempVal = selRegCfgMethods;
-#ifdef IWSC_SUPPORT
-		if (CurOpMode == STA_MODE)
-		{
-			if (pAd->StaCfg.WscControl.WscMode == WSC_PIN_MODE)
-			{
-				tempVal &= 0x200F;
-			}
-			else
-			{
-				tempVal &= 0x02F0;
-			}
-			if (pAd->StaCfg.IWscInfo.bLimitedUI)
-			{
-				tempVal &= (~WSC_CONFMET_KEYPAD);
-			}
-			else
-			{
-				tempVal |= WSC_CONFMET_KEYPAD;
-			}
-		}
-#endif /* IWSC_SUPPORT */
 		tempVal = htons(tempVal);
 		templen = AppendWSCTLV(WSC_ID_SEL_REG_CFG_METHODS, pData, (UINT8 *)&tempVal, 0);
     	pData += templen;
@@ -5427,72 +4454,6 @@ VOID WscBuildBeaconIE(
 	pData += templen;
 	Len   += templen;
 
-#ifdef IWSC_SUPPORT
-	if ((pAd->StaCfg.BssType == BSS_ADHOC) &&
-		(CurOpMode == STA_MODE))
-	{
-		UCHAR respType;
-			
-		// Connection Type Flag ESS
-		templen = AppendWSCTLV(WSC_ID_CONN_TYPE, pData, (UINT8 *)&pReg->SelfInfo.ConnTypeFlags, 0);
-		pData += templen;
-		Len   += templen;
-
-#ifdef IWSC_TEST_SUPPORT
-		/*
-			This modification is for Broadcom test bed.
-			Broadcom test bed use same buffer to record IWSC IE from Beacon and Probe Response.
-			But the content of IWSC IE in Beacon is different from Probe Response.
-		*/
-		if ((pWpsCtrl->WscMode == WSC_SMPBC_MODE) &&
-			(pWpsCtrl->WscConfMode == WSC_REGISTRAR))
-		{
-			BOOLEAN bEntryAcceptable = FALSE;
-			BOOLEAN bRegistrationReady = TRUE;
-			PIWSC_INFO pIWscInfo = NULL;
-			
-			pIWscInfo = &pAd->StaCfg.IWscInfo;
-			if (pIWscInfo->bIWscEntryTimerRunning)
-				bEntryAcceptable = TRUE;
-
-			/* Entry Acceptable (only for IBSS) */
-			templen = AppendWSCTLV(WSC_ID_ENTRY_ACCEPTABLE, pData, (UINT8 *)&bEntryAcceptable, 0);
-			pData += templen;
-			Len   += templen;
-
-			if (pWpsCtrl->EapMsgRunning)
-				bRegistrationReady = FALSE;
-			
-			/* Registration Ready (only for IBSS) */
-			templen = AppendWSCTLV(WSC_ID_REGISTRATON_READY, pData, (UINT8 *)&bRegistrationReady, 0);
-			pData += templen;
-			Len   += templen;
-		}
-#endif /* IWSC_TEST_SUPPORT */		
-		/* IWSC IP Address Configuration */
-		tempVal = htons(pAd->StaCfg.IWscInfo.IpConfMethod);
-		templen = AppendWSCTLV(WSC_ID_IP_ADDR_CONF_METHOD, pData, (UINT8 *)&tempVal, 0);
-		pData += templen;
-		Len   += templen;			
-#ifdef IWSC_TEST_SUPPORT
-		/*
-			This modification is for Broadcom test bed.
-			Broadcom test bed use same buffer to record IWSC IE from Beacon and Probe Response.
-			But the content of IWSC IE in Beacon is different from Probe Response.
-		*/
-
-		/* Response Type WSC_ID_RESP_TYPE */
-		if (pAd->StaCfg.WscControl.WscConfMode == WSC_REGISTRAR)
-			respType = WSC_MSGTYPE_REGISTRAR;
-		else
-			respType = WSC_MSGTYPE_ENROLLEE_OPEN_8021X;			
-		templen = AppendWSCTLV(WSC_ID_RESP_TYPE, pData, (UINT8 *)&respType, 0);
-	   	pData += templen;
-	   	Len   += templen;
-#endif /* IWSC_TEST_SUPPORT */		
-
-	}
-#endif /* IWSC_SUPPORT */
 
 #ifdef WSC_V2_SUPPORT
 	if (pWpsCtrl->WscV2Info.bEnableWpsV2)
@@ -5528,14 +4489,6 @@ VOID WscBuildBeaconIE(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		memcpy(pAd->StaCfg.WpsIEBeacon.Value, &ieHdr, sizeof(WSC_IE_HEADER));
-		memcpy(pAd->StaCfg.WpsIEBeacon.Value + sizeof(WSC_IE_HEADER), Data, Len);
-		pAd->StaCfg.WpsIEBeacon.ValueLen = sizeof(WSC_IE_HEADER) + Len;
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	if (Data != NULL)
 		os_free_mem(NULL, Data);
@@ -5577,10 +4530,6 @@ VOID WscBuildProbeRespIE(
 	if (CurOpMode == AP_MODE)
 		pWpsCtrl = &pAd->ApCfg.MBSSID[apidx & 0x0F].WscControl;
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-		pWpsCtrl = &pAd->StaCfg.WscControl;
-#endif /* CONFIG_STA_SUPPORT */
 
 	pReg = &pWpsCtrl->RegData;
 
@@ -5590,12 +4539,6 @@ VOID WscBuildProbeRespIE(
 	ieHdr.elemId = 221;
 	ieHdr.length = 4;
 	ieHdr.oui[0] = 0x00; ieHdr.oui[1] = 0x50; ieHdr.oui[2] = 0xF2; 
-#ifdef IWSC_SUPPORT
-	if ((CurOpMode == STA_MODE) &&
-		(pAd->StaCfg.BssType == BSS_ADHOC))
-		ieHdr.oui[3] = 0x10;
-	else
-#endif /* IWSC_SUPPORT */
 	ieHdr.oui[3] = 0x04;
 
 	pData = (PUCHAR) &Data[0];
@@ -5635,42 +4578,11 @@ VOID WscBuildProbeRespIE(
     	Len   += templen;
 
 		/* 5. Selected Registrar Config Methods */
-#ifdef IWSC_SUPPORT
-		if ((CurOpMode == STA_MODE) && 
-			(pAd->StaCfg.IWscInfo.bSelRegStart == FALSE))
-		{
-			if (pWpsCtrl->WscMode == WSC_PIN_MODE)
-			{
-				selRegCfgMethods &= 0x200F;
-				if (pAd->StaCfg.IWscInfo.bLimitedUI)
-				{
-					selRegCfgMethods &= (~WSC_CONFMET_KEYPAD);
-				}
-				else
-				{
-					selRegCfgMethods |= WSC_CONFMET_KEYPAD;
-				}
-			}
-			else
-			{
-				selRegCfgMethods &= 0x02F0;
-			}
-		}
-#endif /* IWSC_SUPPORT */
 		tempVal = htons(selRegCfgMethods);
 		templen = AppendWSCTLV(WSC_ID_SEL_REG_CFG_METHODS, pData, (UINT8 *)&tempVal, 0);
     	pData += templen;
     	Len   += templen;
 
-#ifdef IWSC_SUPPORT
-		if ((CurOpMode == STA_MODE) && pAd->StaCfg.IWscInfo.bSelRegStart)
-		{
-			templen = AppendWSCTLV(WSC_ID_MAC_ADDR, pData, pAd->StaCfg.IWscInfo.RegMacAddr, 0);
-			pData += templen;
-			Len   += templen;
-			pAd->StaCfg.IWscInfo.bSelRegStart = FALSE;
-		}
-#endif /* IWSC_SUPPORT */
 	}
 
 	/* 6. Response Type WSC_ID_RESP_TYPE */
@@ -5762,47 +4674,6 @@ VOID WscBuildProbeRespIE(
 	pData += templen;
 	Len   += templen;
      
-#ifdef IWSC_SUPPORT
-	if ((pAd->StaCfg.BssType == BSS_ADHOC) &&
-		(CurOpMode == STA_MODE))
-	{
-		/* Connection Type Flag ESS */
-		templen = AppendWSCTLV(WSC_ID_CONN_TYPE, pData, (UINT8 *)&pReg->SelfInfo.ConnTypeFlags, 0);
-		pData += templen;
-		Len   += templen;
-
-		if ((pWpsCtrl->WscMode == WSC_SMPBC_MODE) &&
-			(pWpsCtrl->WscConfMode == WSC_REGISTRAR))
-		{
-			BOOLEAN bEntryAcceptable = FALSE;
-			BOOLEAN bRegistrationReady = TRUE;
-			PIWSC_INFO pIWscInfo = NULL;
-			
-			pIWscInfo = &pAd->StaCfg.IWscInfo;
-			if (pIWscInfo->bIWscEntryTimerRunning)
-				bEntryAcceptable = TRUE;
-
-			/* Entry Acceptable (only for IBSS) */
-			templen = AppendWSCTLV(WSC_ID_ENTRY_ACCEPTABLE, pData, (UINT8 *)&bEntryAcceptable, 0);
-			pData += templen;
-			Len   += templen;
-
-			if (pWpsCtrl->EapMsgRunning)
-				bRegistrationReady = FALSE;
-			
-			/* Registration Ready (only for IBSS) */
-			templen = AppendWSCTLV(WSC_ID_REGISTRATON_READY, pData, (UINT8 *)&bRegistrationReady, 0);
-			pData += templen;
-			Len   += templen;
-		}
-
-		/* IWSC IP Address Configuration */
-		tempVal = htons(pAd->StaCfg.IWscInfo.IpConfMethod);
-		templen = AppendWSCTLV(WSC_ID_IP_ADDR_CONF_METHOD, pData, (UINT8 *)&tempVal, 0);
-		pData += templen;
-		Len   += templen;
-	}
-#endif /* IWSC_SUPPORT */
 
 #ifdef WSC_V2_SUPPORT
 	if (pWpsCtrl->WscV2Info.bEnableWpsV2)
@@ -5842,14 +4713,6 @@ VOID WscBuildProbeRespIE(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		memcpy(pAd->StaCfg.WpsIEProbeResp.Value, &ieHdr, sizeof(WSC_IE_HEADER));
-		memcpy(pAd->StaCfg.WpsIEProbeResp.Value + sizeof(WSC_IE_HEADER), Data, Len);
-		pAd->StaCfg.WpsIEProbeResp.ValueLen = sizeof(WSC_IE_HEADER) + Len;
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	if (Data != NULL)
 		os_free_mem(NULL, Data);
@@ -5900,10 +4763,6 @@ VOID	WscSendEapFail(
 		CurOpMode = AP_MODE;
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		CurOpMode = STA_MODE;
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_AP_SUPPORT
 	if (CurOpMode == AP_MODE)
@@ -5915,15 +4774,6 @@ VOID	WscSendEapFail(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		MAKE_802_3_HEADER(Header802_3, 
-						  &pWscControl->EntryAddr[0],
-						  &pAd->CurrentAddress[0], 
-						  EAPOL);
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	/* Length, -1 type size, Eap-Fail doesn't need Type item */
 	Length = sizeof(EAP_FRAME) - sizeof(UCHAR);
@@ -6056,8 +4906,8 @@ VOID WscSelectedRegistrar(
 	IN  UCHAR	apidx)
 {
 	PUCHAR	pData;
-	/*INT		IsAPConfigured;*/
-	UCHAR   /*wsc_version, */wsc_sel_reg = 0;
+	INT		IsAPConfigured;
+	UCHAR   wsc_version, wsc_sel_reg = 0;
 	USHORT	wsc_dev_pass_id = 0, wsc_sel_reg_conf_mthd = 0;
 	USHORT	WscType, WscLen;
 	PUCHAR	pAuthorizedMACs = NULL;
@@ -6084,7 +4934,7 @@ VOID WscSelectedRegistrar(
 		switch (ntohs(WscType))
 		{
 			case WSC_ID_VERSION:
-				/*wsc_version = *pData;*/
+				wsc_version = *pData;
 				break;
 
 			case WSC_ID_SEL_REGISTRAR:
@@ -6128,7 +4978,7 @@ VOID WscSelectedRegistrar(
 		Length -= WscLen;
 	}
 
-	/*IsAPConfigured = pWscCtrl->WscConfStatus;*/
+	IsAPConfigured = pWscCtrl->WscConfStatus;
 
 	if (wsc_sel_reg == 0x01)
 	{
@@ -6231,11 +5081,6 @@ VOID WscBuildProbeReqIE(
 	ieHdr.elemId = 221;
 	ieHdr.length = 4;
 	ieHdr.oui[0] = 0x00; ieHdr.oui[1] = 0x50; ieHdr.oui[2] = 0xF2; 
-#ifdef IWSC_SUPPORT
-	if ((CurOpMode == STA_MODE) && (pAd->StaCfg.BssType == BSS_ADHOC))
-		ieHdr.oui[3] = 0x10;
-	else
-#endif // IWSC_SUPPORT //	
 	ieHdr.oui[3] = 0x04;
 
 	pData = (PUCHAR) &OutMsgBuf[0];
@@ -6304,20 +5149,6 @@ VOID WscBuildProbeReqIE(
 	}
 #endif /* APCLI_SUPPORT */
 
-#ifdef IWSC_SUPPORT
-	if ((CurOpMode == STA_MODE) && 
-		(pAd->StaCfg.BssType == BSS_ADHOC))
-	{
-		if (pAd->StaCfg.IWscInfo.bLimitedUI)
-		{
-			tempVal &= (~WSC_CONFMET_KEYPAD);
-		}
-		else
-		{
-			tempVal |= WSC_CONFMET_KEYPAD;
-		}
-	}
-#endif /* IWSC_SUPPORT */
 	
 	tempVal = cpu2be16(tempVal);
 	templen = AppendWSCTLV(WSC_ID_CONFIG_METHODS, pData, (UINT8 *)&tempVal, 0);
@@ -6357,22 +5188,6 @@ VOID WscBuildProbeReqIE(
 	pData += templen;
 	Len   += templen;
 
-#ifdef IWSC_SUPPORT
-	if ((pAd->StaCfg.BssType == BSS_ADHOC) &&
-		(CurOpMode == STA_MODE))
-	{
-		/* Connection Type Flag ESS */
-		templen = AppendWSCTLV(WSC_ID_CONN_TYPE, pData, (UINT8 *)&pReg->SelfInfo.ConnTypeFlags, 0);
-		pData += templen;
-		Len   += templen;
-
-		/* Connection Type Flag ESS */
-		tempVal = htons(pAd->StaCfg.IWscInfo.IpMethod);
-		templen = AppendWSCTLV(WSC_ID_IP_ADDR_CONF_METHOD, pData, (UINT8 *)&tempVal, 0);
-		pData += templen;
-		Len   += templen;
-	}
-#endif /* IWSC_SUPPORT */
 
 #ifdef WSC_V2_SUPPORT
 #ifdef APCLI_SUPPORT	
@@ -6537,8 +5352,6 @@ VOID WscBuildAssocReqIE(
 }
 #endif /* CONFIG_STA_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-#endif /* CONFIG_STA_SUPPORT */
 
 VOID WscProfileRetryTimeout(
 	IN PVOID SystemSpecific1,
@@ -6560,10 +5373,6 @@ VOID WscProfileRetryTimeout(
 	{
 		DBGPRINT(RT_DEBUG_TRACE, ("WscProfileRetryTimeout:: WSC profile retry timeout index: %d\n", pWscControl->WscProfile.ApplyProfileIdx));	
 
-#ifdef CONFIG_STA_SUPPORT
-		IF_DEV_CONFIG_OPMODE_ON_STA(pAdapter)
-			CurOpMode = STA_MODE;
-#endif /* CONFIG_STA_SUPPORT */
 #ifdef CONFIG_AP_SUPPORT
 		IF_DEV_CONFIG_OPMODE_ON_AP(pAdapter)
 			CurOpMode = AP_MODE;
@@ -6623,15 +5432,6 @@ VOID WscProfileRetryTimeout(
 			}
 #endif /* APCLI_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-			if (CurOpMode == STA_MODE)
-			{
-				WscWriteConfToPortCfg(pAdapter,
-									  pWscControl,
-									  &pWscControl->WscProfile.Profile[pWscControl->WscProfile.ApplyProfileIdx],
-									  TRUE);
-			}
-#endif /* CONFIG_STA_SUPPORT */
 
 			pAdapter->WriteWscCfgToDatFile = (pWscControl->EntryIfIdx & 0x0F);
 /*#ifdef KTHREAD_SUPPORT */
@@ -6642,9 +5442,6 @@ VOID WscProfileRetryTimeout(
 			RtmpOsTaskWakeUp(&(pAdapter->wscTask));
 			DBGPRINT(RT_DEBUG_TRACE, ("WscProfileRetryTimeout:: WSC profile retry index: %d\n", pWscControl->WscProfile.ApplyProfileIdx));
 		}
-#ifdef CONFIG_STA_SUPPORT
-		pAdapter->StaCfg.bAutoConnectByBssid = FALSE;
-#endif /* CONFIG_STA_SUPPORT */
 	}
 }
 
@@ -6859,19 +5656,9 @@ VOID WscStop(
 #ifdef CONFIG_AP_SUPPORT
 	IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 		CurOpMode = AP_MODE;
-    if (bFromApCli)
-		pWscControl->bConfiguredAP = FALSE;
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		CurOpMode = STA_MODE;
-#endif /* CONFIG_STA_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-		pWscControl->bConfiguredAP = FALSE;
-#endif /* CONFIG_STA_SUPPORT */
 
 	pWscUPnPInfo = &pWscControl->WscUPnPNodeInfo;
 	
@@ -6895,18 +5682,6 @@ VOID WscStop(
 	{
 		pWscControl->Wsc2MinsTimerRunning = FALSE;
 		RTMPCancelTimer(&pWscControl->Wsc2MinsTimer, &Cancelled);
-#ifdef CONFIG_AP_SUPPORT
-#ifdef SMART_MESH
-		pWscControl->bWscPBCAddrMode = FALSE;
-#ifdef SMART_MESH_HIDDEN_WPS
-        pWscControl->bRunningHiddenWPS = FALSE;
-#ifdef APCLI_SUPPORT
-        if (bFromApCli)
-            Set_HiddenWps_State(&pAd->ApCfg.ApCliTab[apidx].SmartMeshCfg, HIDDEN_WPS_STATE_STOP);
-#endif /* APCLI_SUPPORT */
-#endif /* SMART_MESH_HIDDEN_WPS */
-#endif /* SMART_MESH */
-#endif /* CONFIG_AP_SUPPORT */
 	}
 
 	if (pWscControl->WscUpdatePortCfgTimerRunning)
@@ -6918,6 +5693,11 @@ VOID WscStop(
 	RTMPCancelTimer(&pWscControl->EapolTimer, &Cancelled);
 	pWscControl->EapolTimerRunning = FALSE;
 #ifdef CONFIG_AP_SUPPORT
+	if (pWscControl->WscSetupLockTimerRunning)
+	{
+		pWscControl->WscSetupLockTimerRunning = FALSE;
+		RTMPCancelTimer(&pWscControl->WscSetupLockTimer, &Cancelled);
+	}
 	if ((pWscControl->EntryIfIdx & 0x0F)< pAd->ApCfg.BssidNum)
 	{
 	    pEntry = MacTableLookup(pAd, pWscControl->EntryAddr);
@@ -6958,16 +5738,6 @@ VOID WscStop(
 		RTMPCancelTimer(&pWscControl->WscPBCTimer, &Cancelled);
 	}
 	
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{		
-		pAd->MlmeAux.AutoReconnectSsidLen = pAd->MlmeAux.SsidLen;
-		NdisZeroMemory(&pAd->MlmeAux.AutoReconnectSsid[0], MAX_LEN_OF_SSID);
-		NdisMoveMemory(&pAd->MlmeAux.AutoReconnectSsid[0], &pAd->MlmeAux.Ssid[0], pAd->MlmeAux.SsidLen);
-		/* YF: Reset to default after active pbc mode */
-		pWscControl->RegData.SelfInfo.DevPwdId = cpu2be16(DEV_PASS_ID_PIN);
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef WSC_LED_SUPPORT
 	if (pWscControl->WscLEDTimerRunning)
@@ -7097,8 +5867,6 @@ VOID WscInit(
 	IN  UCHAR       	BssIndex)
 {
 	IN  PWSC_CTRL       pWscControl = NULL;
-#ifdef CONFIG_STA_SUPPORT
-#endif /* CONFIG_STA_SUPPORT */
 	UCHAR		CurOpMode = AP_MODE;
 
 #ifdef CONFIG_AP_SUPPORT	
@@ -7112,20 +5880,9 @@ VOID WscInit(
 		else
 #endif /* APCLI_SUPPORT */
 			pWscControl = &pAd->ApCfg.MBSSID[BssIndex & 0x0F].WscControl;
-
-        pWscControl->bFromApCli = bFromApCli;
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		{
-			pWscControl = &pAd->StaCfg.WscControl;
-			CurOpMode = STA_MODE;
-		}
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	if (pWscControl == NULL)
 		return;
@@ -7151,8 +5908,6 @@ VOID WscInit(
 	pWscControl->bWscLastOne = FALSE;
 	pWscControl->bWscFirstOne = FALSE;
 
-#ifdef CONFIG_STA_SUPPORT
-#endif /* CONFIG_STA_SUPPORT */
 
 	pWscControl->WscStatus = STATUS_WSC_IDLE;
 #ifdef CONFIG_AP_SUPPORT
@@ -7349,13 +6104,6 @@ void    WscWriteConfToPortCfg(
 
 	DBGPRINT(RT_DEBUG_TRACE, ("-----> WscWriteConfToPortCfg\n"));
     
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		if (pWscControl->EntryIfIdx == BSS0)
-		CurOpMode = STA_MODE;
-	}
-#endif // CONFIG_STA_SUPPORT //
 
 #ifdef CONFIG_AP_SUPPORT
 	if (CurOpMode == AP_MODE)
@@ -7375,22 +6123,6 @@ void    WscWriteConfToPortCfg(
 		}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-		if (CurOpMode == STA_MODE)
-		{
-			pAd->MlmeAux.AutoReconnectSsidLen = pCredential->SSID.SsidLength;
-			NdisZeroMemory(pAd->MlmeAux.AutoReconnectSsid, NDIS_802_11_LENGTH_SSID);
-			NdisMoveMemory(pAd->MlmeAux.AutoReconnectSsid, pCredential->SSID.Ssid, pAd->MlmeAux.AutoReconnectSsidLen);
-			pAd->MlmeAux.SsidLen = pCredential->SSID.SsidLength;
-			NdisZeroMemory(pAd->MlmeAux.Ssid, NDIS_802_11_LENGTH_SSID);
-			NdisMoveMemory(pAd->MlmeAux.Ssid, pCredential->SSID.Ssid, pAd->MlmeAux.SsidLen);
-			if (!NdisEqualMemory(pCredential->MacAddr, pAd->CurrentAddress, MAC_ADDR_LEN))
-			{
-				NdisZeroMemory(pAd->MlmeAux.Bssid, MAC_ADDR_LEN);
-				NdisMoveMemory(pAd->MlmeAux.Bssid, pCredential->MacAddr, MAC_ADDR_LEN);
-			}
-		}
-#endif /* CONFIG_STA_SUPPORT */
 
 		DBGPRINT(RT_DEBUG_TRACE, ("ra%d - AuthType: %u, EncrType: %u\n", CurApIdx, pCredential->AuthType, pCredential->EncrType));
 		if (pCredential->AuthType & (WSC_AUTHTYPE_WPAPSK | WSC_AUTHTYPE_WPA2PSK | WSC_AUTHTYPE_WPANONE))
@@ -7402,10 +6134,6 @@ void    WscWriteConfToPortCfg(
                                           pCredential->EncrType));
 				pCredential->EncrType = WSC_ENCRTYPE_TKIP;
 			}
-#ifdef CONFIG_STA_SUPPORT
-			if (CurOpMode == STA_MODE)
-				pAd->StaCfg.WpaState = SS_START;
-#endif /* CONFIG_STA_SUPPORT */
 #ifdef CONFIG_AP_SUPPORT
 #ifdef WSC_V2_SUPPORT
 			if ((CurOpMode == AP_MODE) && (pWscControl->WscV2Info.bEnableWpsV2))
@@ -7428,10 +6156,6 @@ void    WscWriteConfToPortCfg(
 				if (CurOpMode == AP_MODE)
 					pAd->ApCfg.MBSSID[CurApIdx].wdev.DefaultKeyId = 1;
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-				if (CurOpMode == STA_MODE)
-					pAd->StaCfg.wdev.DefaultKeyId = 0;
-#endif /* CONFIG_STA_SUPPORT */
 
 				if (pCredential->KeyLength >= 8 && pCredential->KeyLength <= 64)
 				{
@@ -7453,17 +6177,6 @@ void    WscWriteConfToPortCfg(
                                          RTMPMoveMemory(pAd->ApCfg.MBSSID[CurApIdx].WPAKeyString, pCredential->Key, pWscControl->WpaPskLen);						
 					}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-					if (CurOpMode == STA_MODE)
-					{
-						RTMPZeroMemory(pAd->StaCfg.WpaPassPhrase, 64);
-						RTMPMoveMemory(pAd->StaCfg.WpaPassPhrase, pCredential->Key, pWscControl->WpaPskLen);
-						pAd->StaCfg.WpaPassPhraseLen = pCredential->KeyLength;
-						pPMKBuf = pAd->StaCfg.PMK;
-						pSSIDStr = (PUCHAR)pCredential->SSID.Ssid;
-						ssidLen = pCredential->SSID.SsidLength;
-					}
-#endif /* CONFIG_STA_SUPPORT */
 					RT_CfgSetWPAPSKKey(pAd, pCredential->Key, pWscControl->WpaPskLen, pSSIDStr, ssidLen, pPMKBuf);
 					DBGPRINT(RT_DEBUG_TRACE, ("WpaPskLen = %d\n", pWscControl->WpaPskLen));
 				}
@@ -7485,10 +6198,6 @@ void    WscWriteConfToPortCfg(
 					if (CurOpMode == AP_MODE)
 						pAd->ApCfg.MBSSID[CurApIdx].wdev.DefaultKeyId = WepKeyId;
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT                
-					if (CurOpMode == STA_MODE)
-						pAd->StaCfg.wdev.DefaultKeyId = WepKeyId;
-#endif /* CONFIG_STA_SUPPORT */
 
 					 /* 5 or 13 ASCII characters */
 					/* 10 or 26 Hex characters */
@@ -7525,10 +6234,6 @@ void    WscWriteConfToPortCfg(
 					if (CurOpMode == AP_MODE)
 						pAd->ApCfg.MBSSID[CurApIdx].wdev.DefaultKeyId = 0;
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-					if (CurOpMode == STA_MODE)
-						pAd->StaCfg.wdev.DefaultKeyId = 0;
-#endif /* CONFIG_STA_SUPPORT */
 
 				}
 			}
@@ -7570,34 +6275,6 @@ void    WscWriteConfToPortCfg(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT	
-	if (CurOpMode == STA_MODE)
-	{
-		/*
-			Atheros WPS Testbed AP will put A-Band BSSID in credential of M7.
-			To prevent 2.4G only STA would fail to re-connect by BSSID, set profile retry timer here.
-		*/
-		if ((pAd->StaCfg.BssType == BSS_INFRA) &&
-			(pWscControl->WscDriverAutoConnect == 2) &&
-			(pWscControl->WscProfile.ProfileCnt >= 1))
-		{
-			pWscControl->WscProfileRetryTimerRunning = TRUE;
-			RTMPSetTimer(&pWscControl->WscProfileRetryTimer, WSC_PROFILE_RETRY_TIME_OUT);
-		}
-		
-#ifdef IWSC_SUPPORT
-		if ((pAd->StaCfg.BssType == BSS_ADHOC) && 
-			(pAd->StaCfg.IWscInfo.RegDepth != 0) &&
-			(pAd->StaCfg.IWscInfo.AvaSubMaskListCount != 0))
-		{
-			if ((pCredential->AvaIpv4SubmaskList[0] == 0) &&
-				(pCredential->AvaIpv4SubmaskList[1] == 0) &&
-				(pCredential->AvaIpv4SubmaskList[2] == 0))
-				pAd->StaCfg.IWscInfo.AvaSubMaskListCount = 0;
-		}
-#endif /* IWSC_SUPPORT */
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	DBGPRINT(RT_DEBUG_TRACE, ("<----- ra%d - WscWriteConfToPortCfg\n", CurApIdx));
 }
@@ -7638,16 +6315,6 @@ VOID	WscWriteSsidToDatFile(
 			}
 		}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-		if (CurOpMode == STA_MODE)
-		{
-			UINT profile_idx = pAd->StaCfg.WscControl.WscProfile.ApplyProfileIdx;
-			PWSC_CREDENTIAL pCredential = &pAd->StaCfg.WscControl.WscProfile.Profile[profile_idx];
-			NdisMoveMemory(pTempStr, "SSID=", strlen("SSID="));
-			offset = strlen(pTempStr);
-			NdisMoveMemory(pTempStr + offset, pCredential->SSID.Ssid, pCredential->SSID.SsidLength);
-		}
-#endif /* CONFIG_STA_SUPPORT */
 	}
 #ifdef CONFIG_AP_SUPPORT
 	else
@@ -7708,18 +6375,6 @@ VOID	WscWriteWpaPskToDatFile(
 			}
 		}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-		IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		{
-			pWscControl = &pAd->StaCfg.WscControl;
-			NdisMoveMemory(pTempStr, "WPAPSK=", strlen("WPAPSK="));
-			if (pWscControl->WpaPskLen)
-			{
-				offset = strlen(pTempStr);				
-				NdisMoveMemory(pTempStr + offset, pWscControl->WpaPsk, pWscControl->WpaPskLen);
-			}
-		}
-#endif /* CONFIG_STA_SUPPORT */
 	}
 #ifdef CONFIG_AP_SUPPORT
 	else
@@ -7878,15 +6533,6 @@ VOID    WscEapActionDisabled(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAdapter)
-	{
-		if (ADHOC_ON(pAdapter) && (pWscControl->WscConfMode & WSC_REGISTRAR))
-			WscSendMessage(pAdapter, WSC_OPCODE_NACK, WscData, DataLen, pWscControl, STA_MODE, EAP_CODE_REQ);
-		else
-			WscSendMessage(pAdapter, WSC_OPCODE_NACK, WscData, DataLen, pWscControl, STA_MODE, EAP_CODE_RSP);
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	if (WscData)
 		os_free_mem(NULL, WscData);
@@ -7987,40 +6633,6 @@ INT	WscSetAuthMode(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		struct wifi_dev *wdev = &pAd->StaCfg.wdev;
-		
-		if (strcmp(arg, "WEPAUTO") == 0)
-			wdev->AuthMode = Ndis802_11AuthModeAutoSwitch;
-		else if (strcmp(arg, "OPEN") == 0)
-			wdev->AuthMode = Ndis802_11AuthModeOpen;
-		else if (strcmp(arg, "SHARED") == 0)
-			wdev->AuthMode = Ndis802_11AuthModeShared;
-		else if (strcmp(arg, "WPAPSK") == 0)
-			wdev->AuthMode = Ndis802_11AuthModeWPAPSK;
-		else if (strcmp(arg, "WPANONE") == 0)
-			wdev->AuthMode = Ndis802_11AuthModeWPANone;
-		else if ((strcmp(arg, "WPA2PSK") == 0) || (strcmp(arg, "WPAPSKWPA2PSK") == 0))
-			wdev->AuthMode = Ndis802_11AuthModeWPA2PSK;    
-#ifdef WPA_SUPPLICANT_SUPPORT
-		else if (strcmp(arg, "WPA") == 0)
-			wdev->AuthMode = Ndis802_11AuthModeWPA;    
-		else if ((strcmp(arg, "WPA2") == 0) || (strcmp(arg, "WPA1WPA2") == 0))
-			wdev->AuthMode = Ndis802_11AuthModeWPA2;
-#endif /* WPA_SUPPLICANT_SUPPORT */
-		else
-			return FALSE;  
-
-		if ((pAd->StaCfg.BssType == BSS_ADHOC) && (wdev->AuthMode == Ndis802_11AuthModeWPAPSK))
-			wdev->AuthMode = Ndis802_11AuthModeWPANone;
-
-		wdev->PortSecured = WPA_802_1X_PORT_NOT_SECURED;
-
-		DBGPRINT(RT_DEBUG_TRACE, ("WscSetAuthMode::(AuthMode=%d)\n", wdev->AuthMode));
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	return TRUE;
 }
@@ -8062,92 +6674,10 @@ INT	WscSetEncrypType(
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		struct wifi_dev *wdev = &pAd->StaCfg.wdev;
-
-		if (strcmp(arg, "NONE") == 0)
-		{
-			if (wdev->AuthMode >= Ndis802_11AuthModeWPA)
-				return TRUE;    /* do nothing */
-            
-			wdev->WepStatus     = Ndis802_11WEPDisabled;
-			pAd->StaCfg.PairCipher    = Ndis802_11WEPDisabled;
-			pAd->StaCfg.GroupCipher   = Ndis802_11WEPDisabled;
-		}
-		else if (strcmp(arg, "WEP") == 0)
-		{
-			if (wdev->AuthMode >= Ndis802_11AuthModeWPA)
-				return TRUE;    /* do nothing */
-
-			wdev->WepStatus     = Ndis802_11WEPEnabled;
-			pAd->StaCfg.PairCipher    = Ndis802_11WEPEnabled;
-			pAd->StaCfg.GroupCipher   = Ndis802_11WEPEnabled;
-		}
-		else if (strcmp(arg, "TKIP") == 0)
-		{
-			if (wdev->AuthMode < Ndis802_11AuthModeWPA)
-				return TRUE;    /* do nothing */
-
-			wdev->WepStatus     = Ndis802_11TKIPEnable;
-			pAd->StaCfg.PairCipher    = Ndis802_11TKIPEnable;
-			pAd->StaCfg.GroupCipher   = Ndis802_11TKIPEnable;
-		}
-		else if ((strcmp(arg, "AES") == 0) || (strcmp(arg, "TKIPAES") == 0))
-		{
-			if (wdev->AuthMode < Ndis802_11AuthModeWPA)
-			return TRUE;    /* do nothing */
-
-			wdev->WepStatus     = Ndis802_11AESEnable;
-			pAd->StaCfg.PairCipher    = Ndis802_11AESEnable;
-			pAd->StaCfg.GroupCipher   = Ndis802_11AESEnable;
-		}
-		else
-			return FALSE;
-
-		DBGPRINT(RT_DEBUG_TRACE, ("WscSetEncrypType::(EncrypType=%d)\n", wdev->WepStatus));
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	return TRUE;
 }
 
-#ifdef CONFIG_STA_SUPPORT
-USHORT WscGetAuthTypeFromStr(PSTRING arg)
-{
-    if (rtstrcasecmp(arg, "OPEN") == TRUE)
-        return WSC_AUTHTYPE_OPEN;
-    else if (rtstrcasecmp(arg, "SHARED") == TRUE)
-        return WSC_AUTHTYPE_SHARED;
-    else if (rtstrcasecmp(arg, "WPAPSK") == TRUE)
-        return WSC_AUTHTYPE_WPAPSK;
-    else if (rtstrcasecmp(arg, "WPA2PSK") == TRUE)
-        return WSC_AUTHTYPE_WPA2PSK;
-#ifdef WPA_SUPPLICANT_SUPPORT
-    else if (rtstrcasecmp(arg, "WPA") == TRUE)
-        return WSC_AUTHTYPE_WPA;
-    else if (rtstrcasecmp(arg, "WPA2") == TRUE)
-        return WSC_AUTHTYPE_WPA2;
-#endif /* WPA_SUPPLICANT_SUPPORT */
-    else
-        return 0;
-}
-
-USHORT WscGetEncrypTypeFromStr(PSTRING arg)
-{
-    if (rtstrcasecmp(arg, "NONE") == TRUE)
-        return WSC_ENCRTYPE_NONE;
-    else if (rtstrcasecmp(arg, "WEP") == TRUE)
-        return WSC_ENCRTYPE_WEP;
-    else if (rtstrcasecmp(arg, "TKIP") == TRUE)
-        return WSC_ENCRTYPE_TKIP;
-    else if (rtstrcasecmp(arg, "AES") == TRUE)
-        return WSC_ENCRTYPE_AES;
-    else
-        return 0;
-}
-#endif /* CONFIG_STA_SUPPORT */
 
 /*
 	========================================================================
@@ -8271,13 +6801,6 @@ VOID	WscScanExec(
 	}
 #endif /* APCLI_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		pAd->StaCfg.bNotFirstScan = TRUE;
-		StaSiteSurvey(pAd, NULL, SCAN_WSC_ACTIVE);
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 }
 
@@ -8315,13 +6838,6 @@ BOOLEAN	WscPBCExec(
 	if (pWscControl == NULL)
 		return FALSE;
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		if (pWscControl->EntryIfIdx == BSS0)
-			CurOpMode = STA_MODE;
-	}
-#endif // CONFIG_STA_SUPPORT //
 
 	DBGPRINT(RT_DEBUG_OFF, ("-----> WscPBCExec !!!\n"));
 	
@@ -8350,13 +6866,6 @@ BOOLEAN	WscPBCExec(
 			DBGPRINT(RT_DEBUG_OFF, ("WscPBCExec --> AP list is %d, wait for next time\n", 
 							pWscControl->WscPBCBssCount));
 
-#ifdef CONFIG_STA_SUPPORT
-			/*
-				P2P PBC CLI doesn't need to check PBC overlapping, 
-				so we don't need to consider P2P case here.
-			*/
-			if (pAd->StaCfg.BssType == BSS_INFRA)
-#endif /* CONFIG_STA_SUPPORT */
 			{
 				/* 2.1. Set 1 second timer to invoke another scan */
 				RTMPSetTimer(&pWscControl->WscScanTimer, 1000);
@@ -8393,7 +6902,7 @@ BOOLEAN	WscPBCExec(
 
 			WscStop(pAd, 
 #ifdef CONFIG_AP_SUPPORT
-					TRUE,
+					FALSE,
 #endif /* CONFIG_AP_SUPPORT */
 					pWscControl);
 			pWscControl->WscConfMode = WSC_DISABLE;
@@ -8412,22 +6921,7 @@ BOOLEAN	WscPBCExec(
 
 	/* 3. Now we got the intend AP, Set the WSC state and enqueue the SSID connection command */
 	pAd->MlmeAux.CurrReqIsFromNdis = FALSE; 
-#ifdef CONFIG_STA_SUPPORT
-	if (pAd->Mlme.CntlMachine.CurrState != CNTL_IDLE)
-	{
-		RTMP_MLME_RESET_STATE_MACHINE(pAd);
-		DBGPRINT(RT_DEBUG_OFF, ("!!! WscPBCExec --> MLME busy, reset MLME state machine !!!\n"));
-	}
-#endif /* CONFIG_STA_SUPPORT */
 				
-#ifdef CONFIG_STA_SUPPORT
-	/* 4. Set WSC state to WSC_STATE_START */
-	if (CurOpMode == STA_MODE)
-	{
-		pWscControl->WscState = WSC_STATE_START;
-		pWscControl->WscStatus = STATUS_WSC_START_ASSOC;
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef WSC_LED_SUPPORT
 	/* The protocol is connecting to a partner. */
@@ -8443,11 +6937,24 @@ BOOLEAN	WscPBCExec(
 		NdisMoveMemory(pWscControl->RegData.SelfInfo.MacAddr,
 	                   pAd->ApCfg.ApCliTab[BSS0].wdev.if_addr,
 	                   MAC_ADDR_LEN);
+#ifdef WH_EZ_SETUP
+		if (IS_EZ_SETUP_ENABLED(&pAd->ApCfg.ApCliTab[BSS0].wdev)) {
+			struct wifi_dev *ap_wdev = &pAd->ApCfg.MBSSID[BSS0].wdev;
 
+			ez_send_delay_disconnect_for_pbc(ap_wdev);
+			ap_wdev->ez_driver_params.do_not_restart_interfaces = TRUE;
+		}
+#endif
 		// TODO: shiang-usw, check about this Channel setting here? Original it indicate to pAd->MlmeAux.Channel!
 		snprintf(ChStr, sizeof(ChStr), "%d", pAd->ApCfg.ApCliTab[BSS0].MlmeAux.Channel);
 		Set_Channel_Proc(pAd, ChStr);
-		
+#ifdef WH_EZ_SETUP
+		if (IS_EZ_SETUP_ENABLED(&pAd->ApCfg.ApCliTab[BSS0].wdev)) {
+			struct wifi_dev *ap_wdev = &pAd->ApCfg.MBSSID[BSS0].wdev;
+
+			ap_wdev->ez_driver_params.do_not_restart_interfaces = FALSE;
+		}
+#endif
 	    /* bring apcli interface down first */
 		if(pAd->ApCfg.ApCliTab[BSS0].Enable == TRUE)
 		{
@@ -8458,28 +6965,6 @@ BOOLEAN	WscPBCExec(
 	}
 #endif /* APCLI_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	/* Enqueue BSSID connection command */
-	if (CurOpMode == STA_MODE)
-	{
-		if (pAd->StaCfg.BssType == BSS_INFRA)
-		{
-			MlmeEnqueue(pAd, 
-					MLME_CNTL_STATE_MACHINE, 
-					OID_802_11_BSSID, 
-					sizeof(NDIS_802_11_MAC_ADDRESS),
-						(VOID *)&pWscControl->WscBssid[0], 0);
-		}
-		else
-		{
-			MlmeEnqueue(pAd,
-				MLME_CNTL_STATE_MACHINE,
-				OID_802_11_SSID,
-				sizeof(NDIS_802_11_SSID),
-				(VOID *)&pAd->StaCfg.WscControl.WscSsid, 0);
-		}
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	DBGPRINT(RT_DEBUG_OFF, ("<----- WscPBCExec !!!\n"));
 	return TRUE;
@@ -8501,10 +6986,6 @@ BOOLEAN WscBssWpsIESearchForPBC(
 	PWSC_IE				pWscIE;
 	UUID_BSSID_CH_INFO	TmpInfo;
 	UCHAR				zeros16[16]= {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
-#ifdef IWSC_SUPPORT
-	UINT8				RspType = 0;
-	BOOLEAN				bEntryAcceptable = FALSE;
-#endif // IWSC_SUPPORT //
 
 	pData   = pVar;
 	bFound  = FALSE;
@@ -8529,9 +7010,6 @@ BOOLEAN WscBssWpsIESearchForPBC(
 				/* Found IE with 0xdd */
 				/* check for WSC OUI -- 00 50 f2 04 */
 			if ((NdisEqualMemory(pEid->Octet, WPS_OUI, 4) == FALSE)
-#ifdef IWSC_SUPPORT
-				&& (NdisEqualMemory(pEid->Octet, IWSC_OUI, 4) == FALSE)
-#endif // IWSC_SUPPORT //
 				)
 				{
 					/* Set the offset and look for next IE */
@@ -8558,38 +7036,6 @@ BOOLEAN WscBssWpsIESearchForPBC(
 				DBGPRINT(RT_DEBUG_TRACE, ("bSelReg = %d\n", bSelReg));
 			}
 
-#ifdef IWSC_SUPPORT
-				if ((pAd->OpMode == OPMODE_STA) &&
-					(pAd->StaCfg.BssType == BSS_ADHOC))
-				{
-					if (be2cpu16(pWscIE->Type) == WSC_ID_RESP_TYPE)
-					{
-						RspType = pWscIE->Data[0];
-						if (RspType < WSC_MSGTYPE_REGISTRAR)
-						{
-							bFound = FALSE;
-							break;
-						}
-						TmpInfo.RspType = RspType;
-					}
-					if (be2cpu16(pWscIE->Type) == WSC_ID_MAC_ADDR)
-					{
-						UCHAR mac_addr[MAC_ADDR_LEN];
-						RTMPMoveMemory(mac_addr, (pData+4), MAC_ADDR_LEN);
-						if (NdisCmpMemory(pInBss->MacAddr, mac_addr, MAC_ADDR_LEN))
-						{
-							bFound = FALSE;
-							break;
-						}
-					}
-					if (be2cpu16(pWscIE->Type) == WSC_ID_ENTRY_ACCEPTABLE)
-					{
-						hex_dump("EntryAcceptable:", pData, 5);
-						bEntryAcceptable = pWscIE->Data[0];
-						DBGPRINT(RT_DEBUG_TRACE, ("bEntryAcceptable = %d\n", bEntryAcceptable));
-					}
-				}
-#endif /* IWSC_SUPPORT */
 
 				/* Check for device password ID, PBC = 0x0004, SMPBC = 0x0006 */
 				if (be2cpu16(pWscIE->Type) == WSC_ID_DEVICE_PWD_ID)
@@ -8640,14 +7086,6 @@ BOOLEAN WscBssWpsIESearchForPBC(
 				Len   -= (be2cpu16(pWscIE->Length) + 4);
 			}
 			
-#ifdef IWSC_SUPPORT
-		if ((pAd->StaCfg.BssType == BSS_ADHOC) && 
-			(pWscControl->WscMode == WSC_SMPBC_MODE) &&
-			(bEntryAcceptable == FALSE) && bFound)
-		{
-			bFound = FALSE;
-		}
-#endif /* IWSC_SUPPORT */
 		
 		if ((bFound == TRUE) && (bSelReg == TRUE))
 			{							
@@ -8790,33 +7228,13 @@ VOID WscPBCBssTableSort(
 	UUID_BSSID_CH_INFO	*ApUuidBssid = NULL;
 	BOOLEAN rv = FALSE;
 	UCHAR CurOpMode = AP_MODE;
-        BOOLEAN bNeedWpsIESearch = TRUE;
-#ifdef SMART_MESH
-	BOOLEAN bWscPBCAPFound = FALSE;
-#endif /* SMART_MESH */
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		if (pWscControl->EntryIfIdx == BSS0)
-			CurOpMode = STA_MODE;
-	}
-#endif // CONFIG_STA_SUPPORT //
+
 
 #ifdef APCLI_SUPPORT
 if (CurOpMode == AP_MODE)
-    {
 	pWscControl = &pAd->ApCfg.ApCliTab[BSS0].WscControl;
-#ifdef SMART_MESH_HIDDEN_WPS
-        if(pAd->ApCfg.ApCliTab[BSS0].SmartMeshCfg.bSupportHiddenWPS)
-            bNeedWpsIESearch = FALSE;
-#endif /* SMART_MESH_HIDDEN_WPS */
-    }
 #endif /* APCLI_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-if (CurOpMode == STA_MODE)
-	pWscControl = &pAd->StaCfg.WscControl;
-#endif /* CONFIG_STA_SUPPORT */
 
 	if (pWscControl == NULL)
 		return;
@@ -8829,39 +7247,17 @@ if (CurOpMode == STA_MODE)
 		return;
 	}
 
-	NdisZeroMemory(&ApUuidBssid[0], sizeof(UUID_BSSID_CH_INFO)*8);
+	NdisZeroMemory(&ApUuidBssid[0], sizeof(UUID_BSSID_CH_INFO));
 	pWscControl->WscPBCBssCount = 0;
 	for (i = 0; i < pAd->ScanTab.BssNr; i++) 
 	{
 		/* BSS entry for VarIE processing */
 		pInBss  = (BSS_ENTRY *) &pAd->ScanTab.BssEntry[i];
 
-#ifdef SMART_MESH
-        bWscPBCAPFound = FALSE;
-		if((pWscControl->WscMode == 2) && 
-		   (pWscControl->bWscPBCAddrMode == TRUE))
-		{
-			if(pWscControl->WscPBCBssCount == 1)
-				break;
-
-			if(MAC_ADDR_EQUAL(pWscControl->WscPBCAddr,pInBss->Bssid))     
-				bWscPBCAPFound = TRUE;
-
-			if(!bWscPBCAPFound)
-				continue;
-		}
-#endif /* SMART_MESH */
-
-        if(bNeedWpsIESearch)
-        {
 		/* 1. Check VarIE length */
 		if (pInBss->VarIELen == 0)
 			continue;
 
-#ifdef CONFIG_STA_SUPPORT
-		if ((CurOpMode == STA_MODE) && (pInBss->BssType != pAd->StaCfg.BssType))
-			continue;
-#endif /* CONFIG_STA_SUPPORT */
 
 		/* 2. Search for WSC IE - 0xdd xx 00 50 f2 04 */
 		rv = WscBssWpsIESearchForPBC(pAd, 
@@ -8880,24 +7276,6 @@ if (CurOpMode == STA_MODE)
 									pInBss->pVarIeFromProbRsp);
 		}
 	}
-        else
-        {      
-#ifdef SMART_MESH_HIDDEN_WPS
-            if(pInBss->bRunningHiddenWPS)
-            {
-                RTMPMoveMemory(ApUuidBssid[0].Bssid, pInBss->Bssid, MAC_ADDR_LEN);
-                RTMPMoveMemory(ApUuidBssid[0].Ssid, pInBss->Ssid, pInBss->SsidLen);
-                ApUuidBssid[0].SsidLen = pInBss->SsidLen;
-                ApUuidBssid[0].Channel = pInBss->Channel;
-		   
-                if((pWscControl->WscConfMode & WSC_ENROLLEE) && pInBss->bHiddenWPSRegistrar)
-                    pWscControl->WscPBCBssCount++;
-                else if((pWscControl->WscConfMode & WSC_REGISTRAR) && !pInBss->bHiddenWPSRegistrar)
-                    pWscControl->WscPBCBssCount++;
-            }
-#endif /* SMART_MESH_HIDDEN_WPS */
-        }
-	}
 
 	if (pWscControl->WscPBCBssCount == 1)
 	{
@@ -8906,28 +7284,22 @@ if (CurOpMode == STA_MODE)
 		pWscControl->WscSsid.SsidLength = ApUuidBssid[0].SsidLen;
 		RTMPZeroMemory(pWscControl->WscBssid, MAC_ADDR_LEN);
 		RTMPMoveMemory(pWscControl->WscBssid, ApUuidBssid[0].Bssid, MAC_ADDR_LEN);
-#ifdef CONFIG_STA_SUPPORT
-		RTMPZeroMemory(pWscControl->WscPeerMAC, MAC_ADDR_LEN);
-		RTMPMoveMemory(pWscControl->WscPeerMAC, ApUuidBssid[0].MacAddr, MAC_ADDR_LEN);
-		pAd->MlmeAux.Channel = ApUuidBssid[0].Channel;
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef APCLI_SUPPORT
 		if (CurOpMode == AP_MODE)
 		{
+			NdisZeroMemory(pAd->ApCfg.ApCliTab[BSS0].CfgSsid, MAX_LEN_OF_SSID);
+			NdisMoveMemory(pAd->ApCfg.ApCliTab[BSS0].CfgSsid, ApUuidBssid[0].Ssid, ApUuidBssid[0].SsidLen);
+			pAd->ApCfg.ApCliTab[BSS0].CfgSsidLen = (UCHAR)ApUuidBssid[0].SsidLen;
 			pAd->ApCfg.ApCliTab[BSS0].MlmeAux.Channel = ApUuidBssid[0].Channel;
 		}
 #endif /* APCLI_SUPPORT */
+
 	}
 
 	if (ApUuidBssid != NULL)
 		os_free_mem(NULL, ApUuidBssid);
 
-#ifdef IWSC_SUPPORT
-	if (pWscControl->WscMode == WSC_SMPBC_MODE)
-		DBGPRINT(RT_DEBUG_OFF, ("WscPBCBssTableSort : Total %d SMPBC Registrar Found\n", pWscControl->WscPBCBssCount));
-	else
-#endif /* IWSC_SUPPORT */
 	DBGPRINT(RT_DEBUG_OFF, ("WscPBCBssTableSort : Total %d PBC Registrar Found\n", pWscControl->WscPBCBssCount));
 }
 
@@ -9000,13 +7372,6 @@ VOID	WscCreateProfileFromCfg(
     PWSC_CREDENTIAL pCredential = NULL;
 	UCHAR			CurOpMode = AP_MODE;
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		if (pWscControl->EntryIfIdx == BSS0)
-			CurOpMode = STA_MODE;
-	}
-#endif // CONFIG_STA_SUPPORT //
 
 #ifdef CONFIG_AP_SUPPORT
 	if (CurOpMode == AP_MODE)
@@ -9042,7 +7407,6 @@ VOID	WscCreateProfileFromCfg(
 						authType = WSC_AUTHTYPE_WPA2PSK;					
 						encyType = WSC_ENCRTYPE_AES;				
 						break;				
-					case WPAPSKWPA2PSKTKIPAES:
 					default:					
 						authType = (WSC_AUTHTYPE_WPAPSK | WSC_AUTHTYPE_WPA2PSK);
 						encyType = (WSC_ENCRTYPE_TKIP | WSC_ENCRTYPE_AES);
@@ -9069,7 +7433,7 @@ VOID	WscCreateProfileFromCfg(
 			WepKeyId = pAd->ApCfg.MBSSID[apidx].wdev.DefaultKeyId;
 		}
 #ifdef APCLI_SUPPORT    
-		else if ((OpMode & 0x0F) == AP_CLIENT_MODE)
+		else if (OpMode == AP_CLIENT_MODE)
 		{
 			apidx = apidx & 0x0F;
 			authType = WscGetAuthType(pAd->ApCfg.ApCliTab[apidx].wdev.AuthMode);
@@ -9079,14 +7443,6 @@ VOID	WscCreateProfileFromCfg(
 #endif /* APCLI_SUPPORT */
 	}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		authType = WscGetAuthType(pAd->StaCfg.wdev.AuthMode);
-		encyType = WscGetEncryType(pAd->StaCfg.wdev.WepStatus);
-		WepKeyId = pAd->StaCfg.wdev.DefaultKeyId;
-	}
-#endif /* CONFIG_STA_SUPPORT */    
 
 	DBGPRINT(RT_DEBUG_TRACE, ("-----> WscGetDefaultProfileForM8\n"));
 
@@ -9100,37 +7456,11 @@ VOID	WscCreateProfileFromCfg(
 	/* NewKey, NewKeyIndex for M8 */
 	if ((WSC_SCSTATE_UNCONFIGURED == pWscControl->WscConfStatus) &&
 		((((OpMode & 0x0F) == AP_MODE)
-#ifdef CONFIG_STA_SUPPORT
-		  || (((OpMode & 0x0F) == STA_MODE) && (pAd->StaCfg.BssType == BSS_ADHOC))
-#endif /* CONFIG_STA_SUPPORT */
 		  ) && (OpMode & REGISTRAR_ACTION)))
 	{
 		pCredential->KeyIndex = 1;
 		if ((OpMode & 0x0F) == STA_MODE)
 		{
-#ifdef IWSC_TEST_SUPPORT
-			if (pAd->StaCfg.IWscInfo.IWscDefaultSecurity == 1)
-			{
-				authType = WSC_AUTHTYPE_OPEN;
-				encyType = WSC_ENCRTYPE_NONE;
-				pCredential->KeyLength = 0;
-				NdisZeroMemory(pCredential->Key, 64);
-			}
-			else if (pAd->StaCfg.IWscInfo.IWscDefaultSecurity == 2)
-			{
-				UCHAR	idx;
-				CHAR	tempRandomByte;
-				authType = WSC_AUTHTYPE_OPEN;
-				encyType = WSC_ENCRTYPE_WEP;
-				for(idx = 0; idx < 13; idx++)
-				{
-					tempRandomByte = RandomByte(pAd)%94+33;
-					sprintf((PSTRING) pCredential->Key+idx, "%c", tempRandomByte);					
-				}
-				pCredential->KeyLength = 13;
-			}
-			else
-#endif // IWSC_TEST_SUPPORT //
 			{
 				WscGenRandomKey(pAd, pWscControl, pCredential->Key, &pCredential->KeyLength);
 				authType = WSC_AUTHTYPE_WPA2PSK;
@@ -9162,7 +7492,7 @@ VOID	WscCreateProfileFromCfg(
 				}
 #ifdef CONFIG_AP_SUPPORT
 #ifdef APCLI_SUPPORT
-				else if (((OpMode & 0x0F) == AP_CLIENT_MODE) && (pAd->ApCfg.ApCliTab[apidx].SharedKey[WepKeyId].KeyLen) && 
+				else if ((OpMode == AP_CLIENT_MODE) && (pAd->ApCfg.ApCliTab[apidx].SharedKey[WepKeyId].KeyLen) && 
 												(CurOpMode == AP_MODE))
 				{
 					INT i;
@@ -9179,7 +7509,9 @@ VOID	WscCreateProfileFromCfg(
 			case WSC_ENCRTYPE_AES:
 			case (WSC_ENCRTYPE_AES | WSC_ENCRTYPE_TKIP):
 				pCredential->KeyLength = pWscControl->WpaPskLen;
-				memcpy(pCredential->Key, pWscControl->WpaPsk, pWscControl->WpaPskLen);
+				memcpy(pCredential->Key, 
+				pWscControl->WpaPsk, 
+				pWscControl->WpaPskLen);
 				break;
 		}
 	}
@@ -9207,26 +7539,15 @@ VOID	WscCreateProfileFromCfg(
 			}
 		}
 #ifdef APCLI_SUPPORT    
-		else if ((OpMode & 0x0F) == AP_CLIENT_MODE)
+		else if (OpMode == AP_CLIENT_MODE)
 		{
 			NdisMoveMemory(pCredential->MacAddr, APCLI_ROOT_BSSID_GET(pAd, pAd->ApCfg.ApCliTab[apidx].MacTabWCID), 6);
-			NdisMoveMemory(pCredential->SSID.Ssid, pAd->ApCfg.ApCliTab[apidx].CfgSsid, pAd->ApCfg.ApCliTab[apidx].CfgSsidLen);
-			pCredential->SSID.SsidLength = pAd->ApCfg.ApCliTab[apidx].CfgSsidLen;
+			NdisMoveMemory(pCredential->SSID.Ssid, pAd->ApCfg.ApCliTab[apidx].Ssid, pAd->ApCfg.ApCliTab[apidx].SsidLen);
+			pCredential->SSID.SsidLength = pAd->ApCfg.ApCliTab[apidx].SsidLen;
 		}
 #endif /* APCLI_SUPPORT */
 	}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		if (pAd->StaCfg.BssType == BSS_INFRA)
-			NdisMoveMemory(pCredential->MacAddr, pAd->CommonCfg.Bssid, 6);
-		else
-			NdisMoveMemory(pCredential->MacAddr, pAd->CurrentAddress, 6);
-		NdisMoveMemory(pCredential->SSID.Ssid, pAd->CommonCfg.Ssid, pAd->CommonCfg.SsidLen);
-		pCredential->SSID.SsidLength = pAd->CommonCfg.SsidLen;
-	}
-#endif /* CONFIG_STA_SUPPORT */
     
 #ifdef WSC_V2_SUPPORT
 	if (pWscControl->WscV2Info.bEnableWpsV2 && (OpMode & REGISTRAR_ACTION))
@@ -9262,8 +7583,7 @@ void    WscWriteConfToApCliCfg(
 		NdisMoveMemory(pApCliTab->CfgSsid, pCredential->SSID.Ssid, pCredential->SSID.SsidLength);
 		pApCliTab->CfgSsidLen = pCredential->SSID.SsidLength;
 
-        DBGPRINT(RT_DEBUG_TRACE, ("SSID: %s AuthType: %d, EncrType: %d\n", pCredential->SSID.Ssid,
-                pCredential->AuthType, pCredential->EncrType));
+		DBGPRINT(RT_DEBUG_TRACE, ("AuthType: %d, EncrType: %d\n", pCredential->AuthType, pCredential->EncrType));
 		if ((pCredential->AuthType == WSC_AUTHTYPE_WPAPSK) || 
 			(pCredential->AuthType == WSC_AUTHTYPE_WPA2PSK))
 		{
@@ -9288,10 +7608,10 @@ void    WscWriteConfToApCliCfg(
 	                {
 	                    pWscControl->WpaPskLen = (INT) pCredential->KeyLength;
 							NdisZeroMemory(pWscControl->WpaPsk, 64);
-					NdisMoveMemory(pWscControl->WpaPsk, pCredential->Key, pCredential->KeyLength);
-					RT_CfgSetWPAPSKKey(pAd, (PSTRING) pWscControl->WpaPsk, pWscControl->WpaPskLen, 
-    									(PUCHAR)pApCliTab->Ssid, pApCliTab->SsidLen, pApCliTab->PMK);
-                    
+							NdisMoveMemory(pWscControl->WpaPsk, pCredential->Key, pWscControl->WpaPskLen);
+							RT_CfgSetWPAPSKKey(pAd, (PSTRING) pCredential->Key, pWscControl->WpaPskLen, 
+										(PUCHAR)pApCliTab->Ssid, pApCliTab->SsidLen, 
+										pApCliTab->PMK);
 	                    DBGPRINT(RT_DEBUG_TRACE, ("WpaPskLen = %d\n", pWscControl->WpaPskLen));
 	                }
 	                else
@@ -9317,7 +7637,8 @@ void    WscWriteConfToApCliCfg(
 						if (WepKeyLen == 5 || WepKeyLen == 13)
 						{
 							pApCliTab->SharedKey[WepKeyId].KeyLen = WepKeyLen;
-							memcpy(pApCliTab->SharedKey[WepKeyId].Key, pCredential->Key,WepKeyLen);
+							memcpy(pApCliTab->SharedKey[WepKeyId].Key, 
+									pCredential->Key,WepKeyLen);
 							if (WepKeyLen == 5)
 								pApCliTab->SharedKey[WepKeyId].CipherAlg = CIPHER_WEP64;
 							else
@@ -9399,12 +7720,6 @@ VOID   WpsSmProcess(
 	}
 #endif // CONFIG_AP_SUPPORT //
 
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		CurOpMode = STA_MODE;
-	}
-#endif // CONFIG_STA_SUPPORT //
 
 	if (CurOpMode == 0xFF)
 	{
@@ -9433,10 +7748,6 @@ VOID   WpsSmProcess(
 			pWpsCtrl = &pAd->ApCfg.MBSSID[apidx].WscControl;
 	}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-		pWpsCtrl = &pAd->StaCfg.WscControl;
-#endif /* CONFIG_STA_SUPPORT */
 	
 	if((Elem->MsgType == WSC_EAPOL_UPNP_MSG) && (Elem->MsgLen > HeaderLen))
 	{	/*The WSC msg from UPnP daemon */
@@ -9651,19 +7962,6 @@ VOID   WpsSmProcess(
 }
 
 #ifdef CONFIG_AP_SUPPORT
-
-#define WSC_SINGLE_TRIGGER_APPNAME  "unknown"
-
-#ifdef SDK_GOAHEAD_HTTPD
-#undef WSC_SINGLE_TRIGGER_APPNAME
-#define WSC_SINGLE_TRIGGER_APPNAME  "goahead"
-#endif /* SDK_GOAHEAD_HTTPD */
-
-#ifdef SDK_USER_LIGHTY
-#undef WSC_SINGLE_TRIGGER_APPNAME
-#define WSC_SINGLE_TRIGGER_APPNAME  "nvram_daemon"
-#endif /* SDK_USER_LIGHTY */
-
 INT	WscGetConfWithoutTrigger(
 	IN	PRTMP_ADAPTER	pAd,
 	IN  PWSC_CTRL       pWscControl,
@@ -9671,6 +7969,7 @@ INT	WscGetConfWithoutTrigger(
 {
 	INT                 WscMode;
 	INT                 IsAPConfigured;
+	PWSC_UPNP_NODE_INFO pWscUPnPNodeInfo;
 	UCHAR		apIdx;
 
 #ifdef LINUX
@@ -9678,32 +7977,22 @@ INT	WscGetConfWithoutTrigger(
 /* +++  added by YYHuang@Ralink, 08/03/12 */
 /*
  Notify user space application that WPS procedure will begin.
- Signal
-    ra0: SIGXFSZ
-    rai0: SIGWINCH
 */
     {
+#define WSC_SINGLE_TRIGGER_APPNAME  "goahead"
+
         struct task_struct *p;
-        
-        DBGPRINT(RT_DEBUG_TRACE, ("%s - WSC_SINGLE_TRIGGER_APPNAME: %s\n", 
-        		__FUNCTION__, WSC_SINGLE_TRIGGER_APPNAME));
-        
-        rcu_read_lock();
+        read_lock(&tasklist_lock);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,21)
-		for_each_process(p)
+	for_each_process(p)
 #else
-		for_each_task(p)
+	for_each_task(p)
 #endif
-		{
+	{
             if(!strcmp(p->comm, WSC_SINGLE_TRIGGER_APPNAME))
-            {
-            	if (pAd->dev_idx == 0)
-                	send_sig(SIGXFSZ, p, 0);
-                else
-                	send_sig(SIGWINCH, p, 0);
-            }
+                send_sig(SIGXFSZ, p, 0);
         }
-        rcu_read_unlock();
+        read_unlock(&tasklist_lock);
     }
 /* ---  added by YYHuang@Ralink, 08/03/12 */
 #endif /* RTMP_RBUS_SUPPORT */
@@ -9714,6 +8003,7 @@ INT	WscGetConfWithoutTrigger(
 	apIdx = (pWscControl->EntryIfIdx & 0x0F);
 
     IsAPConfigured = pWscControl->WscConfStatus;
+    pWscUPnPNodeInfo = &pWscControl->WscUPnPNodeInfo;
 
     if (pWscControl->WscConfMode == WSC_DISABLE)
     {
@@ -9729,13 +8019,6 @@ INT	WscGetConfWithoutTrigger(
 		WscMode = DEV_PASS_ID_PIN;
 	else
 		WscMode = DEV_PASS_ID_PBC;
-    
-#ifdef WSC_AP_SUPPORT
-#ifdef SMART_MESH_HIDDEN_WPS
-    if(pAd->ApCfg.MBSSID[apIdx].SmartMeshCfg.bSupportHiddenWPS)
-        pWscControl->bRunningHiddenWPS = TRUE;
-#endif /* SMART_MESH_HIDDEN_WPS */
-#endif /* WSC_AP_SUPPORT */
     
 	WscBuildBeaconIE(pAd, IsAPConfigured, TRUE, WscMode, pWscControl->WscConfigMethods, (pWscControl->EntryIfIdx & 0x0F), NULL, 0, AP_MODE);
 	WscBuildProbeRespIE(pAd, WSC_MSGTYPE_AP_WLAN_MGR, IsAPConfigured, TRUE, WscMode, pWscControl->WscConfigMethods, pWscControl->EntryIfIdx, NULL, 0, AP_MODE);
@@ -9767,11 +8050,6 @@ VOID WscSendNACK(
     BOOLEAN Cancelled;
 	UCHAR CurOpMode = AP_MODE;
 
-#ifdef CONFIG_STA_SUPPORT
-	if ((pAdapter->OpMode == OPMODE_STA)
-		&& (pWscControl->EntryIfIdx == BSS0))
-		CurOpMode = STA_MODE;
-#endif /* CONFIG_STA_SUPPORT */
 
 	os_alloc_mem(NULL, (UCHAR **)&pWscData, WSC_MAX_DATA_LEN);
 	if (pWscData == NULL)
@@ -9795,15 +8073,6 @@ VOID WscSendNACK(
     }
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		if (ADHOC_ON(pAdapter) && (pWscControl->WscConfMode & WSC_REGISTRAR))
-			WscSendMessage(pAdapter, WSC_OPCODE_NACK, pWscData, DataLen, pWscControl, STA_MODE, EAP_CODE_REQ);
-		else
-			WscSendMessage(pAdapter, WSC_OPCODE_NACK, pWscData, DataLen, pWscControl, STA_MODE, EAP_CODE_RSP);
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
     RTMPCancelTimer(&pWscControl->EapolTimer, &Cancelled);
     pWscControl->EapolTimerRunning = FALSE;
@@ -9825,9 +8094,6 @@ VOID WscCheckWpsIeFromWpsAP(
 	USHORT				DevicePasswordID;
 		
 	if (NdisEqualMemory(pEid->Octet, WPS_OUI, 4)
-#ifdef IWSC_SUPPORT
-		|| NdisEqualMemory(pEid->Octet, IWSC_OUI, 4)
-#endif // IWSC_SUPPORT //
 		)
 	{
 		pData = (PUCHAR) pEid->Octet + 4;
@@ -9859,8 +8125,6 @@ VOID WscCheckWpsIeFromWpsAP(
 				}
 			}
 			
-#ifdef CONFIG_STA_SUPPORT
-#endif /* CONFIG_STA_SUPPORT */
 			
 			/* Set the offset and look for PBC information */
 			/* Since Type and Length are both short type, we need to offset 4, not 2 */
@@ -9873,152 +8137,9 @@ VOID WscCheckWpsIeFromWpsAP(
 }
 #endif /* WSC_INCLUDED */
 
-#ifdef CONFIG_STA_SUPPORT
-VOID WscLinkDown(
-	IN	PRTMP_ADAPTER	pAd)
-{
-	if (INFRA_ON(pAd) && OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED))
-	{
-		MLME_DISASSOC_REQ_STRUCT   DisassocReq;
-		DBGPRINT(RT_DEBUG_TRACE, ("WscLinkDown(): Disassociate with current WPS AP...\n"));
-		DisassocParmFill(pAd, &DisassocReq, pAd->CommonCfg.Bssid, REASON_DISASSOC_STA_LEAVING);
-		MlmeEnqueue(pAd, ASSOC_STATE_MACHINE, MT2_MLME_DISASSOC_REQ, 
-					sizeof(MLME_DISASSOC_REQ_STRUCT), &DisassocReq, 0);
-		pAd->Mlme.CntlMachine.CurrState = CNTL_WAIT_DISASSOC;
-		pAd->MlmeAux.CurrReqIsFromNdis = TRUE;
-		RTMP_MLME_HANDLER(pAd);
-	}
-	
-	if (pAd->StaCfg.WscControl.WscConfMode != WSC_DISABLE)
-	{		
-#ifdef WSC_LED_SUPPORT
-		UCHAR WPSLEDStatus;
-
-		/* The protocol is connecting to a partner. */
-		WPSLEDStatus = LED_WPS_IN_PROCESS;
-		RTMPSetLED(pAd, WPSLEDStatus);
-#endif /* WSC_LED_SUPPORT */
-
-#ifdef IWSC_SUPPORT
-		/*
-			We need to send EAPOL_Start again to trigger WPS process
-		*/
-		if (pAd->StaCfg.BssType == BSS_ADHOC)
-		{
-			pAd->StaCfg.IWscInfo.bSendEapolStart = FALSE;
-			pAd->StaCfg.WscControl.WscState = WSC_STATE_LINK_UP;
-			pAd->StaCfg.WscControl.WscStatus = STATUS_WSC_LINK_UP;
-			WscSendEapolStart(pAd, pAd->StaCfg.WscControl.WscPeerMAC, STA_MODE);
-		}
-		else
-#endif /* IWSC_SUPPORT */
-		pAd->StaCfg.WscControl.WscState = WSC_STATE_START;
-	}
-	else
-	{
-
-		pAd->bConfigChanged = TRUE;
-		pAd->StaCfg.WscControl.bWscTrigger = FALSE;
-
-		if (pAd->StaCfg.BssType == BSS_INFRA)
-		{
-			BssTableDeleteEntry(&pAd->ScanTab, pAd->CommonCfg.Bssid, pAd->CommonCfg.Channel);
-			pAd->MlmeAux.SsidBssTab.BssNr = 0;
-			MlmeEnqueue(pAd, 
-						MLME_CNTL_STATE_MACHINE, 
-						OID_802_11_BSSID,
-						MAC_ADDR_LEN,
-						pAd->MlmeAux.Bssid, 0);
-
-			RTMP_MLME_HANDLER(pAd);
-		} 
-#ifdef IWSC_SUPPORT
-		else /* BSS_ADHOC */
-		{
-			NDIS_802_11_SSID	Ssid;
-			if (pAd->StaCfg.IWscInfo.bReStart)
-			{
-				pAd->StaCfg.bNotFirstScan = FALSE;
-				pAd->StaCfg.bAutoConnectByBssid = FALSE;
-				pAd->StaCfg.IWscInfo.bReStart = FALSE;
-				pAd->StaCfg.IWscInfo.bDoNotChangeBSSID = TRUE;
-
-				LinkDown(pAd, FALSE);
-				OPSTATUS_CLEAR_FLAG(pAd, fOP_STATUS_MEDIA_STATE_CONNECTED);
-				RTMP_IndicateMediaState(pAd, NdisMediaStateDisconnected);
-	            pAd->ExtraInfo = GENERAL_LINK_DOWN;
-
-				if (pAd->StaCfg.WscControl.WscStatus != STATUS_WSC_CONFIGURED)
-				{
-					Ssid.SsidLength = pAd->CommonCfg.SsidLen;
-					NdisZeroMemory(Ssid.Ssid, MAX_LEN_OF_SSID);
-					NdisMoveMemory(Ssid.Ssid, pAd->CommonCfg.Ssid, pAd->CommonCfg.SsidLen);
-				}
-				else
-				{
-					Ssid.SsidLength = pAd->MlmeAux.SsidLen;
-					NdisZeroMemory(Ssid.Ssid, MAX_LEN_OF_SSID);
-					NdisMoveMemory(Ssid.Ssid, pAd->MlmeAux.Ssid, Ssid.SsidLength);
-				}
-				MlmeEnqueue(pAd, 
-	                    MLME_CNTL_STATE_MACHINE, 
-	                    OID_802_11_SSID,
-	                    sizeof(NDIS_802_11_SSID),
-	                    (VOID *)&Ssid, 0);			
-				RTMP_MLME_HANDLER(pAd);
-			}		
-			MlmeEnqueue(pAd, IWSC_STATE_MACHINE, IWSC_MT2_MLME_STOP, 0, NULL, 0);
-			RTMP_MLME_HANDLER(pAd);
-		}
-#endif /* IWSC_SUPPORT */
-	}
-	pAd->StaCfg.WscControl.RegData.ReComputePke = 1;
-	/* YF: Reset to default after active pbc mode */
-		if (!pAd->StaCfg.WscControl.Wsc2MinsTimerRunning)
-			pAd->StaCfg.WscControl.RegData.SelfInfo.DevPwdId = cpu2be16(DEV_PASS_ID_PIN);
-	
-}
-
-ULONG WscSearchWpsApBySSID(
-	IN PRTMP_ADAPTER	pAd,	
-	IN PUCHAR	 		pSsid,
-	IN UCHAR	 		SsidLen,
-	IN INT		 		WscMode)
-{
-	UCHAR 		i;
-	USHORT		DesiredDPID;
-	BSS_ENTRY 	*pBss;
-	PWSC_CTRL	pWscControl = &pAd->StaCfg.WscControl;
-
-	if (WscMode == WSC_PBC_MODE)
-		DesiredDPID = DEV_PASS_ID_PBC;
-	else
-		DesiredDPID = DEV_PASS_ID_PIN;
-
-	for (i = 0; i < pAd->ScanTab.BssNr; i++) 
-	{
-		pBss = &pAd->ScanTab.BssEntry[i];
-		if (SSID_EQUAL(pSsid, SsidLen, pBss->Ssid, pBss->SsidLen) &&
-			pBss->WpsAP &&
-			((pBss->WscDPIDFromWpsAP == DesiredDPID) || (DesiredDPID == DEV_PASS_ID_PIN)))
-		{
-			if ((pWscControl->WpsApBand == PREFERRED_WPS_AP_PHY_TYPE_5_G_FIRST) &&
-				(pBss->Channel <= 14))
-				continue;
-			else if ((pWscControl->WpsApBand == PREFERRED_WPS_AP_PHY_TYPE_2DOT4_G_FIRST) &&
-					 (pBss->Channel > 14))
-				continue;
-			else
-				return (ULONG)i;
-		}
-	}
-	return (ULONG)BSS_NOT_FOUND;
-}
-#endif /* CONFIG_STA_SUPPORT */
 
 VOID WscPBCSessionOverlapCheck(
-	IN  PRTMP_ADAPTER 	pAd,
-	IN  PWSC_CTRL    pWscControl)
+	IN  PRTMP_ADAPTER 	pAd)
 {
 	ULONG	now;
 	PWSC_STA_PBC_PROBE_INFO	pWscStaPbcProbeInfo = &pAd->CommonCfg.WscStaPbcProbeInfo;
@@ -10031,20 +8152,13 @@ VOID WscPBCSessionOverlapCheck(
 		for (i = 0; i < MAX_PBC_STA_TABLE_SIZE; i++)
 		{
 			NdisGetSystemUpTime(&now);
-			if (pWscStaPbcProbeInfo->Valid[i])
+			if (pWscStaPbcProbeInfo->Valid[i] && 
+				RTMP_TIME_AFTER(now, pWscStaPbcProbeInfo->ReciveTime[i] + 120*OS_HZ))
 			{
-				if(
-#ifdef SMART_MESH
-					(pWscControl->bWscPBCAddrMode && 
-					!MAC_ADDR_EQUAL(pWscControl->WscPBCAddr,pWscStaPbcProbeInfo->StaMacAddr[i])) ||
-#endif /* SMART_MESH */
-					RTMP_TIME_AFTER(now, pWscStaPbcProbeInfo->ReciveTime[i] + 120*OS_HZ))
-				{
-					NdisZeroMemory(&(pWscStaPbcProbeInfo->StaMacAddr[i][0]), MAC_ADDR_LEN);
-					pWscStaPbcProbeInfo->ReciveTime[i] = 0;
-					pWscStaPbcProbeInfo->Valid[i] = FALSE;
-					pWscStaPbcProbeInfo->WscPBCStaProbeCount--;
-				}
+				NdisZeroMemory(&(pWscStaPbcProbeInfo->StaMacAddr[i][0]), MAC_ADDR_LEN);
+				pWscStaPbcProbeInfo->ReciveTime[i] = 0;
+				pWscStaPbcProbeInfo->Valid[i] = FALSE;
+				pWscStaPbcProbeInfo->WscPBCStaProbeCount--;
 			}
 		}
 		
@@ -10074,7 +8188,7 @@ VOID WscPBC_DPID_FromSTA(
 	{
 		for (tab_idx = 0; tab_idx < MAX_PBC_STA_TABLE_SIZE; tab_idx++)
 		{
-			if (MAC_ADDR_EQUAL(pMacAddr, pWscStaPbcProbeInfo->StaMacAddr[tab_idx]))
+			if (NdisEqualMemory(pMacAddr, pWscStaPbcProbeInfo->StaMacAddr[tab_idx], MAC_ADDR_LEN))
 			{
 				pWscStaPbcProbeInfo->ReciveTime[tab_idx] = now;
 				return;
@@ -10084,7 +8198,7 @@ VOID WscPBC_DPID_FromSTA(
 		for (tab_idx = 0; tab_idx < MAX_PBC_STA_TABLE_SIZE; tab_idx++)
 		{
 			if (RTMP_TIME_AFTER(now, pWscStaPbcProbeInfo->ReciveTime[tab_idx] + 120*OS_HZ) || 
-				MAC_ADDR_EQUAL(pWscStaPbcProbeInfo->StaMacAddr[tab_idx], &ZERO_MAC_ADDR[0]))
+				NdisEqualMemory(pWscStaPbcProbeInfo->StaMacAddr[tab_idx], &ZERO_MAC_ADDR[0], MAC_ADDR_LEN))
 			{
 				if (pWscStaPbcProbeInfo->Valid[tab_idx] == FALSE)
 				{
@@ -10095,7 +8209,7 @@ VOID WscPBC_DPID_FromSTA(
 				else
 				{
 					pWscStaPbcProbeInfo->ReciveTime[tab_idx] = now;
-					COPY_MAC_ADDR(pWscStaPbcProbeInfo->StaMacAddr[tab_idx], pMacAddr);
+					NdisMoveMemory(pWscStaPbcProbeInfo->StaMacAddr[tab_idx], pMacAddr, MAC_ADDR_LEN);
 					return;
 				}				
 			}
@@ -10107,7 +8221,7 @@ VOID WscPBC_DPID_FromSTA(
 		pWscStaPbcProbeInfo->WscPBCStaProbeCount++;
 		pWscStaPbcProbeInfo->ReciveTime[Index] = now;
 		pWscStaPbcProbeInfo->Valid[Index] = TRUE;
-		COPY_MAC_ADDR(pWscStaPbcProbeInfo->StaMacAddr[Index], pMacAddr);
+		NdisMoveMemory(pWscStaPbcProbeInfo->StaMacAddr[Index], pMacAddr, MAC_ADDR_LEN);
 	}
 }
 
@@ -10154,21 +8268,6 @@ VOID WscWriteConfToDatFile(RTMP_ADAPTER *pAd, UCHAR CurOpMode)
 	}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	if (CurOpMode == STA_MODE)
-	{
-		pWscControl = &pAd->StaCfg.WscControl;
-#ifdef RTMP_RBUS_SUPPORT
-		if (pAd->infType == RTMP_DEV_INF_RBUS)
-			fileName = STA_PROFILE_PATH_RBUS;
-		else
-#endif /* RTMP_RBUS_SUPPORT */
-			fileName = STA_PROFILE_PATH;
-
-		snprintf(WepKeyName, sizeof(WepKeyName), "Key%dStr=", pAd->StaCfg.wdev.DefaultKeyId+1);
-		snprintf(WepKeyFormatName, sizeof(WepKeyFormatName), "Key%dType=", pAd->StaCfg.wdev.DefaultKeyId+1);
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	RtmpOSFSInfoChange(&osFSInfo, TRUE);
 
@@ -10251,16 +8350,6 @@ VOID WscWriteConfToDatFile(RTMP_ADAPTER *pAd, UCHAR CurOpMode)
 
 					WscWriteSsidToDatFile(pAd, pTempStr, bNewFormat, CurOpMode);
 				}
-#ifdef CONFIG_STA_SUPPORT
-				else if (strncmp(pTempStr, "NetworkType=", strlen("NetworkType=")) == 0)
-				{
-					NdisZeroMemory(pTempStr, WSC_WR_FILE_MAX_BUF);					
-					if (pAd->StaCfg.BssType == BSS_ADHOC)
-						snprintf(pTempStr, WSC_WR_FILE_MAX_BUF, "NetworkType=Adhoc");
-					else
-						snprintf(pTempStr, WSC_WR_FILE_MAX_BUF, "NetworkType=Infra");
-				}
-#endif /* CONFIG_STA_SUPPORT */
 				else if (strncmp(pTempStr, "AuthMode=", strlen("AuthMode=")) == 0)
 				{
 					NdisZeroMemory(pTempStr, WSC_WR_FILE_MAX_BUF);
@@ -10280,13 +8369,6 @@ VOID WscWriteConfToDatFile(RTMP_ADAPTER *pAd, UCHAR CurOpMode)
 						}
 					}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-					if (CurOpMode == STA_MODE)
-					{
-						USHORT auth_flag = WscGetAuthType(pAd->StaCfg.wdev.AuthMode);
-						snprintf(pTempStr, WSC_WR_FILE_MAX_BUF, "%s%s", pTempStr, WscGetAuthTypeStr(auth_flag));
-					}
-#endif /* CONFIG_STA_SUPPORT */
 				}
 			else if (strncmp(pTempStr, "EncrypType=", strlen("EncrypType=")) == 0)
 				{
@@ -10304,13 +8386,6 @@ VOID WscWriteConfToDatFile(RTMP_ADAPTER *pAd, UCHAR CurOpMode)
 						}
 					}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-					if (CurOpMode == STA_MODE)
-					{
-						USHORT encrypt_flag = WscGetEncryType(pAd->StaCfg.wdev.WepStatus);
-						snprintf(pTempStr, WSC_WR_FILE_MAX_BUF, "%s%s", pTempStr, WscGetEncryTypeStr(encrypt_flag));
-					}
-#endif /* CONFIG_STA_SUPPORT */
 				}    
 				else if ((strncmp(pTempStr, "WPAPSK=", strlen("WPAPSK=")) == 0) || 
 						(strncmp(pTempStr, "WPAPSK1=", strlen("WPAPSK1=")) == 0) ||
@@ -10336,9 +8411,6 @@ VOID WscWriteConfToDatFile(RTMP_ADAPTER *pAd, UCHAR CurOpMode)
 								snprintf(pTempStr, WSC_WR_FILE_MAX_BUF, "%s;%d", pTempStr, pWscControl->WscConfMode);
 						}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-						snprintf(pTempStr, WSC_WR_FILE_MAX_BUF, "%s%d", pTempStr, pWscControl->WscConfMode);
-#endif /* CONFIG_STA_SUPPORT */
 				}
 				else if (strncmp(pTempStr, "WscConfStatus=", strlen("WscConfStatus=")) == 0)
 				{
@@ -10353,9 +8425,6 @@ VOID WscWriteConfToDatFile(RTMP_ADAPTER *pAd, UCHAR CurOpMode)
 								snprintf(pTempStr, WSC_WR_FILE_MAX_BUF, "%s;%d", pTempStr, pWscControl->WscConfStatus);
 						}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-						snprintf(pTempStr, WSC_WR_FILE_MAX_BUF, "%s%d", pTempStr, pWscControl->WscConfStatus);
-#endif /* CONFIG_STA_SUPPORT */
 				}
 				else if (strncmp(pTempStr, "DefaultKeyID=", strlen("DefaultKeyID=")) == 0)
 				{
@@ -10373,10 +8442,6 @@ VOID WscWriteConfToDatFile(RTMP_ADAPTER *pAd, UCHAR CurOpMode)
 						}
 					}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-					if (CurOpMode == STA_MODE)
-						snprintf(pTempStr, WSC_WR_FILE_MAX_BUF, "%s%d", pTempStr, pAd->StaCfg.wdev.DefaultKeyId+1);
-#endif /* CONFIG_STA_SUPPORT */
 				}
 #ifdef CONFIG_AP_SUPPORT
 				else if ((strncmp(pTempStr, WepKeyFormatName, strlen(WepKeyFormatName)) == 0) &&
@@ -10446,42 +8511,6 @@ VOID WscWriteConfToDatFile(RTMP_ADAPTER *pAd, UCHAR CurOpMode)
 				}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-				else if (rtstrstr(pTempStr, (PSTRING) WepKeyFormatName) &&  (CurOpMode == STA_MODE))
-				{
-					pCredentail = &pWscControl->WscProfile.Profile[pWscControl->WscProfile.ApplyProfileIdx];
-					if (pAd->StaCfg.wdev.WepStatus == Ndis802_11WEPEnabled)
-					{
-						NdisZeroMemory(pTempStr, WSC_WR_FILE_MAX_BUF);
-						snprintf(pTempStr, WSC_WR_FILE_MAX_BUF, "%s0", WepKeyFormatName); /* Hex */
-					}
-				}
-				else if (rtstrstr(pTempStr, (PSTRING) WepKeyName) &&  (CurOpMode == STA_MODE))
-				{
-						pCredentail = &pWscControl->WscProfile.Profile[pWscControl->WscProfile.ApplyProfileIdx];
-					if (pAd->StaCfg.wdev.WepStatus == Ndis802_11WEPEnabled)
-					{
-						NdisZeroMemory(pTempStr, WSC_WR_FILE_MAX_BUF);
-						NdisMoveMemory(pTempStr, WepKeyName, strlen(WepKeyName));
-						tempStrLen = strlen(pTempStr);
-						if (pCredentail->KeyLength)
-						{
-							if ((pCredentail->KeyLength == 5) ||
-								(pCredentail->KeyLength == 13))
-							{
-								int jjj=0;
-								for (jjj=0; jjj<pCredentail->KeyLength; jjj++)
-									snprintf(pTempStr, WSC_WR_FILE_MAX_BUF, "%s%02x", pTempStr, pCredentail->Key[jjj]);
-							}
-							else if ((pCredentail->KeyLength == 10) ||
-								(pCredentail->KeyLength == 26))
-							{
-								NdisMoveMemory(pTempStr + tempStrLen, pCredentail->Key, pCredentail->KeyLength);
-							}
-						}
-					}
-				}
-#endif /* CONFIG_STA_SUPPORT */
 
 				RtmpOSFileWrite(file_w, pTempStr, strlen(pTempStr));
 				RtmpOSFileWrite(file_w, "\n", 1);
@@ -10882,12 +8911,6 @@ static INT wsc_write_dat_file_thread (
 				CurOpMode = AP_MODE;
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-			IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-				CurOpMode = STA_MODE;
-			if (pAd->WriteWscCfgToDatFile != BSS0)
-				CurOpMode = AP_MODE;
-#endif /* CONFIG_STA_SUPPORT */
 
 			WscWriteConfToDatFile(pAd, CurOpMode);
 
@@ -10960,12 +8983,6 @@ BOOLEAN WscThreadExit(RTMP_ADAPTER *pAd)
 				pWpsCtrl->pWscTxBuf = NULL;
 			}
 #ifdef WSC_V2_SUPPORT
-			if (pWpsCtrl->WscSetupLockTimerRunning)
-			{
-				BOOLEAN Cancelled;
-				pWpsCtrl->WscSetupLockTimerRunning = FALSE;
-				RTMPCancelTimer(&pWpsCtrl->WscSetupLockTimer, &Cancelled);
-			}
 			if (pWpsCtrl->WscV2Info.ExtraTlv.pTlvData)
 			{
 				os_free_mem(NULL, pWpsCtrl->WscV2Info.ExtraTlv.pTlvData);
@@ -10997,35 +9014,6 @@ BOOLEAN WscThreadExit(RTMP_ADAPTER *pAd)
 #endif // APCLI_SUPPORT //
 	}	
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-	{
-		WscStop(pAd,
-#ifdef CONFIG_AP_SUPPORT
-				FALSE,
-#endif // CONFIG_AP_SUPPORT //
-				&pAd->StaCfg.WscControl);
-		pAd->StaCfg.WscControl.WscRxBufLen = 0;
-		if (pAd->StaCfg.WscControl.pWscRxBuf)
-		{
-			os_free_mem(pAd, pAd->StaCfg.WscControl.pWscRxBuf);
-			pAd->StaCfg.WscControl.pWscRxBuf = NULL;
-		}
-		pAd->StaCfg.WscControl.WscTxBufLen = 0;
-		if (pAd->StaCfg.WscControl.pWscTxBuf)
-		{
-			os_free_mem(pAd, pAd->StaCfg.WscControl.pWscTxBuf);
-			pAd->StaCfg.WscControl.pWscTxBuf = NULL;
-		}
-		WscClearPeerList(&pAd->StaCfg.WscControl.WscPeerList);
-		NdisFreeSpinLock(&pAd->StaCfg.WscControl.WscPeerListSemLock);
-
-#ifdef IWSC_SUPPORT
-		WscClearPeerList(&pAd->StaCfg.WscControl.WscConfiguredPeerList);
-		NdisFreeSpinLock(&pAd->StaCfg.WscControl.WscConfiguredPeerListSemLock);
-#endif /* IWSC_SUPPORT */
-	}
-#endif /* CONFIG_STA_SUPPORT */
 
 	/* WSC hardware push button function 0811 */
 	WSC_HDR_BTN_Stop(pAd);	
@@ -11163,15 +9151,6 @@ VOID WSC_HDR_BTN_CheckHandler(
 			}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-			IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-			{
-				pObj->ioctl_if = 0;
-				Set_WscConfMode_Proc(pAd, (PUCHAR)"1"); /* 1:  */
-				Set_WscMode_Proc(pAd, (PUCHAR)"2"); /* 2: PBC */
-				Set_WscGetConf_Proc(pAd, (PUCHAR)"1"); /* 1: Trigger */
-			}
-#endif /* CONFIG_STA_SUPPORT */
 			return;
 		}
 
@@ -11244,9 +9223,6 @@ BOOLEAN WscAPHasSecuritySetting(
 #ifdef CONFIG_AP_SUPPORT
 	currentIdx = (pWscControl->EntryIfIdx & 0x0F);
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	currentIdx = pWscControl->WscProfile.ApplyProfileIdx;
-#endif /* CONFIG_STA_SUPPORT */
 
 	switch (pWscControl->WscProfile.Profile[currentIdx].EncrType)
 	{
@@ -11417,7 +9393,7 @@ VOID WscUpdatePortCfgTimeout(
 	pMbss = &pAd->ApCfg.MBSSID[pWscControl->EntryIfIdx & 0x0F];
 	if (WscGetAuthMode(pCredential->AuthType) == pMbss->wdev.AuthMode &&
 		WscGetWepStatus(pCredential->EncrType) == pMbss->wdev.WepStatus &&
-		NdisEqualMemory(pMbss->Ssid, pCredential->SSID.Ssid, pCredential->SSID.SsidLength) &&
+		NdisEqualMemory(pMbss->Ssid, pCredential->SSID.Ssid, pMbss->SsidLen) &&
 		NdisEqualMemory(pWscControl->WpaPsk, pCredential->Key, pCredential->KeyLength))
 	{
 		return;
@@ -11514,12 +9490,6 @@ VOID WscCheckPeerDPID(
 					RTMP_SEM_UNLOCK(&pWscCtrl->WscPeerListSemLock);
 				}
 			}
-#ifdef IWSC_SUPPORT
-			else if (DevicePasswordID == DEV_PASS_ID_SMPBC)
-			{
-				IWSC_AddSmpbcEnrollee(pAd, Fr->Hdr.Addr2);
-			}
-#endif /* IWSC_SUPPORT */
 			else {
 				DBGPRINT(RT_DEBUG_TRACE, ("%s : DevicePasswordID = 0x%04x\n",
 							__FUNCTION__, DevicePasswordID));
@@ -11527,39 +9497,6 @@ VOID WscCheckPeerDPID(
 			break;
 		}
 		
-#ifdef IWSC_SUPPORT
-		if (pAd->StaCfg.BssType == BSS_ADHOC)
-		{
-			pWscCtrl = &pAd->StaCfg.WscControl;
-
-			if ((be2cpu16(pWscIE->Type) == WSC_ID_CONFIG_METHODS) &&
-				(pWscCtrl->WscConfMode == WSC_REGISTRAR) &&
-				(pWscCtrl->bWscTrigger == TRUE))
-			{
-				USHORT PeerConfigMethod = 0;
-				PWSC_PEER_ENTRY pWscPeerEntry = NULL;
-				RTMP_SEM_LOCK(&pWscCtrl->WscConfiguredPeerListSemLock);
-				pWscPeerEntry = WscFindPeerEntry(&pWscCtrl->WscConfiguredPeerList, Fr->Hdr.Addr2);
-				if (pWscPeerEntry == NULL)
-				{
-					NdisMoveMemory(&PeerConfigMethod, pData + 4, sizeof(PeerConfigMethod));
-					PeerConfigMethod = be2cpu16(PeerConfigMethod);
-					if (pWscCtrl->WscMode == WSC_PIN_MODE)
-					{
-						NdisMoveMemory(pWscCtrl->WscPeerMAC, Fr->Hdr.Addr2, MAC_ADDR_LEN);
-						NdisMoveMemory(pWscCtrl->EntryAddr, Fr->Hdr.Addr2, MAC_ADDR_LEN);
-					}
-					MlmeEnqueue(pAd, IWSC_STATE_MACHINE, IWSC_MT2_PEER_PROBE_REQ, sizeof(USHORT), &PeerConfigMethod, 0);
-					RTMP_MLME_HANDLER(pAd);
-					DBGPRINT(RT_DEBUG_TRACE, ("%s(): Add this peer: %02x:%02x:%02x:%02x:%02x:%02x\n",
-						__FUNCTION__, PRINT_MAC(Fr->Hdr.Addr2)));	
-				}
-				RTMP_SEM_UNLOCK(&pWscCtrl->WscConfiguredPeerListSemLock);
-				DBGPRINT(RT_DEBUG_TRACE, ("%s() : PeerConfigMethod = 0x%04x\n", 
-							__FUNCTION__, PeerConfigMethod));
-			}
-		}
-#endif /* IWSC_SUPPORT */
 		
 		/* Set the offset and look for PBC information*/
 		/* Since Type and Length are both short type, we need to offset 4, not 2*/
@@ -11788,47 +9725,6 @@ VOID	WscCheckPinAttackCount(
 
 #endif // CONFIG_AP_SUPPORT //
 
-#ifdef CONFIG_STA_SUPPORT
-INT WscStaShowPeerList(
-	IN  PRTMP_ADAPTER	pAd,
-	IN	PSTRING			arg)
-{
-	PWSC_CTRL 			pWscControl = NULL;
-	PWSC_PEER_ENTRY 	pPeerEntry = NULL;
-	PLIST_ENTRY			pListEntry = NULL;
-	PLIST_HEADER		pWscEnList = NULL;
-
-	pWscControl = &pAd->StaCfg.WscControl;
-	pWscEnList = &pWscControl->WscPeerList;
-
-	RTMP_SEM_LOCK(&pWscControl->WscPeerListSemLock);
-	if (pWscEnList->size != 0)
-	{
-		RTMP_SEM_UNLOCK(&pWscControl->WscPeerListSemLock);
-		WscMaintainPeerList(pAd, pWscControl);
-		RTMP_SEM_LOCK(&pWscControl->WscPeerListSemLock);
-		pListEntry = pWscEnList->pHead;
-		pPeerEntry = (PWSC_PEER_ENTRY)pListEntry;
-		while (pPeerEntry != NULL)
-		{
-			printk("MAC:%02x:%02x:%02x:%02x:%02x:%02x\tReveive Time:%lu\n", 					
-						pPeerEntry->mac_addr[0],
-						pPeerEntry->mac_addr[1],
-						pPeerEntry->mac_addr[2],
-						pPeerEntry->mac_addr[3],
-						pPeerEntry->mac_addr[4],
-						pPeerEntry->mac_addr[5],
-						pPeerEntry->receive_time);
-			pListEntry = pListEntry->pNext;
-			pPeerEntry = (PWSC_PEER_ENTRY)pListEntry;
-		}
-	}
-	RTMP_SEM_UNLOCK(&pWscControl->WscPeerListSemLock);
-	printk("\n");
-	
-	return TRUE;
-}
-#endif // CONFIG_STA_SUPPORT //
 
 VOID	WscMaintainPeerList(
 	IN  PRTMP_ADAPTER	pAd,
@@ -11943,3 +9839,4 @@ BOOLEAN WscGetDataFromPeerByTag(
 }
 
 #endif /* WSC_INCLUDED */
+

@@ -30,33 +30,6 @@ MultiplicationShiftFactor RateMultiplicationShiftFactor[224];
 #endif
 
 
-INT SetManualTxOPThreshold(RTMP_ADAPTER *pAd, PSTRING arg)
-{
-    pAd->CommonCfg.ManualTxopThreshold = (UCHAR) simple_strtol(arg, 0, 10);
-	DBGPRINT(RT_DEBUG_OFF, ("CURRENT: Set ManualTxOP TP Threshold = %lu (Mbps)\n", 
-		pAd->CommonCfg.ManualTxopThreshold));
-
-    return TRUE;
-}
-
-
-INT SetManualTxOPUpBound(RTMP_ADAPTER *pAd, PSTRING arg)
-{
-    pAd->CommonCfg.ManualTxopUpBound = (UCHAR) simple_strtol(arg, 0, 10);
-	DBGPRINT(RT_DEBUG_OFF, ("CURRENT: Set ManualTxOP Traffic Upper Bound = %d (Ratio)\n", 
-		pAd->CommonCfg.ManualTxopUpBound));
-
-    return TRUE;
-}
-
-INT SetManualTxOPLowBound(RTMP_ADAPTER *pAd, PSTRING arg)
-{
-    pAd->CommonCfg.ManualTxopLowBound = (UCHAR) simple_strtol(arg, 0, 10);
-    DBGPRINT(RT_DEBUG_OFF, ("CURRENT: Set ManualTxOP Traffic Low Bound = %d (Ratio)\n",
-		pAd->CommonCfg.ManualTxopLowBound));
-
-    return TRUE;
-}
 
 /*
     ==========================================================================
@@ -709,19 +682,7 @@ INT	Set_TxPower_Proc(
 			pAd->CommonCfg.TxPowerPercentage = TxPower;
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-		IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		{
-			pAd->CommonCfg.TxPowerDefault = TxPower;
-			pAd->CommonCfg.TxPowerPercentage = pAd->CommonCfg.TxPowerDefault;
-		}
-#endif /* CONFIG_STA_SUPPORT */
 		success = TRUE;
-#ifdef MT76x2
-		if (IS_MT76x2(pAd)) {
-			mt76x2_update_tx_power_percentage(pAd);
-		}
-#endif
 	}
 	else
 		success = FALSE;
@@ -730,7 +691,6 @@ INT	Set_TxPower_Proc(
 
 	return success;
 }
-
 /* 
     ==========================================================================
     Description:
@@ -2623,7 +2583,7 @@ PSTRING GetAuthMode(CHAR auth)
         		3.) UI needs to prepare at least 4096bytes to get the results
     ==========================================================================
 */
-#define	LINE_LEN	(4+33+20+23+9+12+7+3)	/* Channel+SSID+Bssid+Security+Signal+WiressMode+ExtCh+NetworkType*/
+#define	LINE_LEN	(4+33+20+23+9+7+7+3)	/* Channel+SSID+Bssid+Security+Signal+WiressMode+ExtCh+NetworkType*/
 #ifdef AIRPLAY_SUPPORT
 #define IS_UNICODE_SSID_LEN  (4)
 #endif /* AIRPLAY_SUPPORT */
@@ -2669,7 +2629,7 @@ VOID	RTMPCommSiteSurveyData(
 #endif /* AIRPLAY_SUPPORT */
 		
 		sprintf(Ssid, "0x");
-		for (idx = 0; (idx < 15) && (idx < pBss->SsidLen); idx++)
+		for (idx = 0; (idx < MAX_LEN_OF_SSID) && (idx < pBss->SsidLen); idx++)
 			sprintf(Ssid + 2 + (idx*2), "%02X", (UCHAR)pBss->Ssid[idx]);
 	}
 		sprintf(msg+strlen(msg),"%-33s", Ssid);
@@ -2813,19 +2773,19 @@ VOID	RTMPCommSiteSurveyData(
 		wireless_mode = NetworkTypeInUseSanity(pBss);
 		if (wireless_mode == Ndis802_11FH ||
 			wireless_mode == Ndis802_11DS)
-			sprintf(msg+strlen(msg),"%-12s", "11b");
+			sprintf(msg+strlen(msg),"%-7s", "11b");
 		else if (wireless_mode == Ndis802_11OFDM5)
-			sprintf(msg+strlen(msg),"%-12s", "11a");
+			sprintf(msg+strlen(msg),"%-7s", "11a");
 		else if (wireless_mode == Ndis802_11OFDM5_N)
-			sprintf(msg+strlen(msg),"%-12s", "11a/n");
+			sprintf(msg+strlen(msg),"%-7s", "11a/n");
 		else if (wireless_mode == Ndis802_11OFDM5_AC)
-			sprintf(msg+strlen(msg),"%-12s", "11a/n/ac");
+			sprintf(msg+strlen(msg),"%-7s", "11a/n/ac");
 		else if (wireless_mode == Ndis802_11OFDM24)
-			sprintf(msg+strlen(msg),"%-12s", "11b/g");
+			sprintf(msg+strlen(msg),"%-7s", "11b/g");
 		else if (wireless_mode == Ndis802_11OFDM24_N)
-			sprintf(msg+strlen(msg),"%-12s", "11b/g/n");
+			sprintf(msg+strlen(msg),"%-7s", "11b/g/n");
 		else
-			sprintf(msg+strlen(msg),"%-12s", "unknow");
+			sprintf(msg+strlen(msg),"%-7s", "unknow");
 
 		/* Ext Channel*/
 		if (pBss->AddHtInfoLen > 0)
@@ -3114,7 +3074,6 @@ VOID RTMPIoctlGetSiteSurvey(
 	INT         max_len = LINE_LEN;		
 	BSS_ENTRY *pBss;
 	UINT32 TotalLen, BufLen = IW_SCAN_MAX_DATA;
-	BSS_TABLE *pScanTab;
 #ifdef AIRPLAY_SUPPORT
 	UCHAR TargetSsid[MAX_LEN_OF_SSID+1];
 	UCHAR TargetSsidLen = 0;
@@ -3179,7 +3138,7 @@ VOID RTMPIoctlGetSiteSurvey(
 	sprintf(msg+strlen(msg),"%-4s%-33s%-4s%-20s%-23s%-9s%-7s%-7s%-3s\n",
 	    "Ch", "SSID", "UN", "BSSID", "Security", "Signal(%)", "W-Mode", " ExtCH"," NT");
 #else
-	sprintf(msg+strlen(msg),"%-4s%-33s%-20s%-23s%-9s%-12s%-7s%-3s\n",
+	sprintf(msg+strlen(msg),"%-4s%-33s%-20s%-23s%-9s%-7s%-7s%-3s\n",
 	    "Ch", "SSID", "BSSID", "Security", "Signal(%)", "W-Mode", " ExtCH"," NT");	
 #endif /* AIRPLAY_SUPPORT */
 #ifdef CUSTOMER_DCC_FEATURE
@@ -3204,9 +3163,6 @@ VOID RTMPIoctlGetSiteSurvey(
 
 	while ((ScanRunning(pAdapter) == TRUE) && (WaitCnt++ < 200))
 		OS_WAIT(500);	
-
-	pScanTab = &pAdapter->ScanTab;
-	BssTableSortByRssi(pScanTab,FALSE);
 
 	for(i=0; i<pAdapter->ScanTab.BssNr ;i++)
 	{
@@ -6278,7 +6234,7 @@ INT Show_MacTable_Proc(RTMP_ADAPTER *pAd, PSTRING arg)
 			DataRate=0;
 			RtmpDrvRateGet(pAd, pEntry->HTPhyMode.field.MODE, pEntry->HTPhyMode.field.ShortGI,
 		                   pEntry->HTPhyMode.field.BW, pEntry->HTPhyMode.field.MCS,
-		                   newRateGetAntenna(pEntry->MaxHTPhyMode.field.MCS, pEntry->HTPhyMode.field.MODE),&DataRate);
+		                   newRateGetAntenna(pEntry->MaxHTPhyMode.field.MCS),&DataRate);
 			DataRate /= 500000;
 			DataRate /= 2;
 			
@@ -6423,7 +6379,7 @@ INT show_stainfo_proc(RTMP_ADAPTER *pAd, PSTRING arg)
 	DataRate=0;
     RtmpDrvRateGet(pAd, pEntry->HTPhyMode.field.MODE, pEntry->HTPhyMode.field.ShortGI,
                       pEntry->HTPhyMode.field.BW, pEntry->HTPhyMode.field.MCS,
-                      newRateGetAntenna(pEntry->MaxHTPhyMode.field.MCS, pEntry->HTPhyMode.field.MODE), &DataRate);
+                      newRateGetAntenna(pEntry->MaxHTPhyMode.field.MCS), &DataRate);
 	DataRate /= 500000;
 	DataRate /= 2;
 	
@@ -6962,6 +6918,76 @@ VOID GetMultShiftFactorIndex(
 	return;
 }
 
+void  getRate(HTTRANSMIT_SETTING HTSetting, ULONG* fLastTxRxRate)
+{
+	UINT8					Antenna = 0;
+	UINT8					MCS = HTSetting.field.MCS;
+	
+	int rate_count = sizeof(MCSMappingRateTable)/sizeof(int);
+	int rate_index = 0;
+	int value = 0;
+
+#ifdef DOT11_VHT_AC
+	if (HTSetting.field.MODE >= MODE_VHT)
+	{
+		MCS = HTSetting.field.MCS & 0xf;
+		Antenna = (HTSetting.field.MCS>>4) + 1;
+	   if (HTSetting.field.BW == BW_20) {
+			   rate_index = 112 + ((Antenna - 1) * 10) +
+					   ((UCHAR)HTSetting.field.ShortGI * 160) +
+					   ((UCHAR)MCS);
+	   }
+	   else if (HTSetting.field.BW == BW_40) {
+			   rate_index = 152 + ((Antenna - 1) * 10) +
+					   ((UCHAR)HTSetting.field.ShortGI * 160) +
+					   ((UCHAR)MCS);
+	   }
+	   else if (HTSetting.field.BW == BW_80) {
+			   rate_index = 192 + ((Antenna - 1) * 10) +
+					   ((UCHAR)HTSetting.field.ShortGI * 160) +
+					   ((UCHAR)MCS);
+	   }
+	}
+	else
+#endif /* DOT11_VHT_AC */
+#ifdef DOT11_N_SUPPORT
+	if (HTSetting.field.MODE >= MODE_HTMIX)
+	{
+		MCS = HTSetting.field.MCS;
+		if ((HTSetting.field.MODE == MODE_HTMIX) 
+		|| (HTSetting.field.MODE == MODE_HTGREENFIELD)) {
+			Antenna = (MCS >> 3)+1;
+		}
+		/* map back to 1SS MCS , multiply by antenna numbers later */
+		if(MCS > 7)
+			MCS %= 8;
+		rate_index = 16 + ((UCHAR)HTSetting.field.BW *24) + ((UCHAR)HTSetting.field.ShortGI *48) + ((UCHAR)MCS);
+	}
+	else
+#endif /* DOT11_N_SUPPORT */
+	if (HTSetting.field.MODE == MODE_OFDM)
+		rate_index = (UCHAR)(HTSetting.field.MCS) + 4;
+	else if (HTSetting.field.MODE == MODE_CCK)
+		rate_index = (UCHAR)(HTSetting.field.MCS);
+
+	if (rate_index < 0)
+		rate_index = 0;
+
+	if (rate_index >= rate_count)
+		rate_index = rate_count-1;
+	if(HTSetting.field.MODE != MODE_VHT)
+		value = (MCSMappingRateTable[rate_index] * 5)/10;
+	else
+		value =  MCSMappingRateTable[rate_index];		
+	
+#if defined(DOT11_VHT_AC) || defined(DOT11_N_SUPPORT)
+	if (HTSetting.field.MODE >= MODE_HTMIX && HTSetting.field.MODE < MODE_VHT)
+		value *= Antenna;
+#endif /* DOT11_VHT_AC */
+
+	*fLastTxRxRate=(ULONG)value;
+	return;
+}
 VOID  InitRateMultiplicationAndShiftFactor(
 	IN	PRTMP_ADAPTER	pAd)
 {
@@ -7025,17 +7051,6 @@ VOID  InitRateMultiplicationAndShiftFactor(
 }
 #endif
 
-void  getRate(HTTRANSMIT_SETTING HTSetting, UINT32* fLastTxRxRate)
-
-{
-	VOID *pAd = NULL;
-	RtmpDrvRateGet(pAd, HTSetting.field.MODE,HTSetting.field.ShortGI,
-		            HTSetting.field.BW,HTSetting.field.MCS,
-		            newRateGetAntenna(HTSetting.field.MCS, HTSetting.field.MODE), fLastTxRxRate);
-	*(fLastTxRxRate) /= 500000;
-	*(fLastTxRxRate) /= 2;
-	return;
-}
 
 
 #ifdef TXBF_SUPPORT
@@ -7280,13 +7295,13 @@ INT	mt76x2_Set_ITxBfCal_Proc(
     IN  PSTRING         arg)
 {
 	int calFunction = simple_strtol(arg, 0, 10);
-	int calParams[2], idx;
+	int calParams[2];
 	int ret;
 	UINT value32, r27Value = 0, r173Value = 0;
 	ITXBF_PHASE_PARAMS phaseParams;
 	UCHAR divPhase[2] = {0}, phaseValues[2] = {0};
 	UCHAR channel = pAd->CommonCfg.Channel;
-    UCHAR LoPhase;
+        UCHAR LoPhase;
 
 #ifdef RALINK_ATE
 	if (ATE_ON(pAd))
@@ -7295,7 +7310,7 @@ INT	mt76x2_Set_ITxBfCal_Proc(
 
 	ret = iCalcCalibration(pAd, calParams, 0);
 
-    DBGPRINT(RT_DEBUG_TRACE, ("######### DebugKK[3],ProfiePhase= 0x%02x\n", calParams[0]));
+    DBGPRINT(RT_DEBUG_TRACE, ("ITxBfCal Result_case1 = [0x%02x]\n", calParams[0]));
 
 	if (ret < 0) {
 		if (ret == -3)
@@ -7311,35 +7326,42 @@ INT	mt76x2_Set_ITxBfCal_Proc(
 	/* Update BBP R176 and EEPROM for Ant 0 and 2 */
 	switch (calFunction)
 	{
-		case 0:  //Verification Flow 
+		case 0:
 
 	 		phaseValues[0] = calParams[0];
+#ifdef MT76x2
+			if (channel <= 14)
+			{
+				ITxBFLoPhaseCalibrationStartUp(pAd, FALSE, &LoPhase);
+				printk("Before LoPhase = 0x%x\n", LoPhase);
+                                DBGPRINT(RT_DEBUG_TRACE, ("============== mt76x2_Set_ITxBfCal_Proc() ===============\n"
+                                                         "*****Before LoPhase = 0x%x\n", LoPhase));
+				LoPhase = ABS_One(LoPhase);
 			
-			DBGPRINT(RT_DEBUG_TRACE, ("ITxBfCal Result_case0 = [0x%02x]\n", phaseValues[0]));
+				if (LoPhase > 0x20 && LoPhase < 0x60)
+				{
+					phaseValues[0] = phaseValues[0] + 0x80;
+				}
+
+				printk("After LoPhase = 0x%x\n", LoPhase);
+                                DBGPRINT(RT_DEBUG_TRACE, ("*****After LoPhase = 0x%x\n"
+                                     "============== mt76x2_Set_ITxBfCal_Proc() ===============\n", LoPhase));
+			}
+#endif
+			
+			DBGPRINT(RT_DEBUG_OFF, ("ITxBfCal Result_case0 = [0x%02x]\n", phaseValues[0]));
 #ifdef RALINK_ATE
 			pAd->ate.calParams[0] = (UCHAR)phaseValues[0];
-            
-			/* Update EEPROM */
-			ITxBFGetEEPROM(pAd, &phaseParams, 0, 0, 0);
 
-            idx = ate_txbf_get_chan_idx(pAd, channel, 1);
-
-            if(idx >=0)               
-                phaseParams.E1aPhaseErr[idx] = pAd->ate.calParams[0];
-
-            pAd->iBFPhaseErrorBackup = pAd->ate.calParams[0];
-
-			ITxBFSetEEPROM(pAd, &phaseParams, 0, 0, 0);
-            
 			/* Double check */
 			DBGPRINT((calFunction==0? RT_DEBUG_OFF: RT_DEBUG_WARN),
-					("ITxBfCal Verify Result in ATE = [0x%02x], Channel= %d\n", pAd->ate.calParams[0], channel));
+					("ITxBfCal Verify Result in ATE = [0x%02x]\n", pAd->ate.calParams[0]));
 #endif /* RALINK_ATE */
 			break;
 
 		case 1:
 			/* Display result */
-			//DBGPRINT(RT_DEBUG_OFF, ("ITxBfCal Result_case1 = [0x%02x]\n", calParams[0]));
+			DBGPRINT(RT_DEBUG_OFF, ("ITxBfCal Result_case1 = [0x%02x]\n", calParams[0]));
 #ifdef RALINK_ATE
 			pAd->ate.calParams[0] = (UCHAR)calParams[0];
 
@@ -7361,8 +7383,20 @@ INT	mt76x2_Set_ITxBfCal_Proc(
 			RTMP_IO_WRITE32(pAd, TXBE_R13, calParams[0]);
 
 			/* Remove Divider phase */
+				
             // restore back up divPhase calibrated result 
-            phaseValues[0] = calParams[0] - (pAd->divPhaseBackup[0]);                     
+            phaseValues[0] = calParams[0] - (pAd->divPhaseBackup[0]);
+            DBGPRINT(RT_DEBUG_TRACE, ("============== CASE 1 ===============\n"));
+                        DBGPRINT(RT_DEBUG_TRACE, ("divPhaseYY[0] = 0x%02x\n", pAd->divPhaseBackup[0]));
+
+#ifdef MT76x2
+			if (channel <= 14)
+			{
+				ITxBFLoPhaseCalibrationStartUp(pAd, TRUE, &LoPhase); 
+                             			
+                                DBGPRINT(RT_DEBUG_OFF, ("*****case1 LoPhase = 0x%x\n", LoPhase));
+			}
+#endif
 
 			DBGPRINT(RT_DEBUG_OFF, (
 				    "%s : \n"
@@ -7371,20 +7405,43 @@ INT	mt76x2_Set_ITxBfCal_Proc(
 			        __FUNCTION__, calParams[0], phaseValues[0]));
 
 			/* Update EEPROM */
-			ITxBFGetEEPROM(pAd, &phaseParams, 0, 0, 0);
+			ITxBFGetEEPROM(pAd, &phaseParams, 0, 0);
 
-            idx = ate_txbf_get_chan_idx(pAd, channel, 1);
+			/* Only allow calibration on specific channels */
+			if (channel == 1) {
+				phaseParams.E1gBeg = phaseValues[0];
+			}
+			else if (channel == 14) {
+				phaseParams.E1gEnd = phaseValues[0];
+			}
+			else if (channel == 36) {
+				phaseParams.E1aLowBeg = phaseValues[0];
+			}
+			else if (channel == 64) {
+				phaseParams.E1aLowEnd = phaseValues[0];
+			}
+			else if (channel == 100) {
+				phaseParams.E1aMidBeg = phaseValues[0];
+			}
+			else if (channel == 120) {
+				phaseParams.E1aMidMid = phaseValues[0];
+			}
+			else if (channel == 140) {
+				phaseParams.E1aMidEnd = phaseValues[0];
+			}
+			else if (channel == 149) {
+				phaseParams.E1aHighBeg = phaseValues[0];
+			}
+			else if (channel == 173) {
+				phaseParams.E1aHighEnd = phaseValues[0];
+			}
+			else {
+				DBGPRINT(RT_DEBUG_OFF,
+						("Invalid channel: %d\nMust calibrate channel 1, 14, 36, 64, 100, 128, 132 or 165", channel) );
+				return FALSE;
+			}
 
-            if(idx >=0)               
-                phaseParams.E1aPhase[idx] = phaseValues[0];
-
-			ITxBFSetEEPROM(pAd, &phaseParams, 0, 0, 0);
-
-            DBGPRINT(RT_DEBUG_TRACE, (
-                 " ============================================================ \n"
-                 " Save Resphase to efuse[%d], value = 0x%x\n"
-                 " ============================================================ \n", 
-                 idx, phaseValues[0]));
+			ITxBFSetEEPROM(pAd, &phaseParams, 0, 0);
 
 			DBGPRINT(RT_DEBUG_WARN, ("Set_ITxBfCal_Proc: Calibration Parameters updated\n"));
 
@@ -7395,7 +7452,6 @@ INT	mt76x2_Set_ITxBfCal_Proc(
 
 	return TRUE;
 }
-
 #endif // MT76x2
 
 
@@ -7793,24 +7849,77 @@ INT	Set_ITxBfEn_Proc(
 	Default iBF calibrated channel number is 5 channel,
 	if Set_ITxBf_Set_Mode_Proc = 2 , then iBF will use 13 channel interpolation mode 	
 */
-INT Set_ITxBf_Calib_Mode_Proc(
-    RTMP_ADAPTER *pAd, 
-    PSTRING arg)
-{    
-    UCHAR iBFmode; 
-    iBFmode = simple_strtol(arg, 0, 10);
 
-    if ((iBFmode == 1)||(iBFmode == 2))
-    {
-	    pAd->CommonCfg.ITxBfCalibMode = iBFmode;      
-        return TRUE;
-    }
-
-    return FALSE;
-}
 #endif /* TXBF_SUPPORT */
 
+INT Set_Auto_BW4080_Proc(RTMP_ADAPTER *pAd, PSTRING arg)
+{
+	pAd->CommonCfg.AutoBW4080 = (UCHAR) simple_strtol(arg, 0, 10);
+	DBGPRINT(RT_DEBUG_OFF, ("CURRENT: Set AutoBW4080 = %d \n", pAd->CommonCfg.AutoBW4080));
 
+	return TRUE;
+}
+
+INT	Set_ETxBfEnCond_ApCliProc(
+	IN	PRTMP_ADAPTER	pAd, 
+	IN	PSTRING			arg)
+{
+	UCHAR i, enableETxBf;
+	MAC_TABLE_ENTRY		*pEntry;
+	UINT8	byteValue;
+
+	enableETxBf = simple_strtol(arg, 0, 10);
+
+	if (enableETxBf > 1)
+		return FALSE;
+
+	pAd->CommonCfg.ETxBfEnCond = enableETxBf && (pAd->Antenna.field.TxPath > 1);
+	pAd->CommonCfg.RegTransmitSetting.field.TxBF = enableETxBf==0? 0: 1;
+
+	setETxBFCap(pAd, &pAd->CommonCfg.HtCapability.TxBFCap);
+#ifdef VHT_TXBF_SUPPORT
+	setVHTETxBFCap(pAd, &pAd->CommonCfg.vht_cap_ie.vht_cap);
+#endif
+	rtmp_asic_set_bf(pAd);
+
+	if (enableETxBf) 
+	{
+		RTMP_IO_WRITE32(pAd,PFMU_R54, 0x150); // Solve the MCS8 and MCS9 TP degradation when PN on
+	}	
+	else
+	{
+		RTMP_IO_WRITE32(pAd,PFMU_R54, 0x100);
+	}
+
+
+	for (i=0; i<MAX_LEN_OF_MAC_TABLE; i++)
+	{
+		pEntry = &pAd->MacTab.Content[i];
+		if (IS_ENTRY_APCLI(pEntry))
+		{
+#ifdef VHT_TXBF_SUPPORT
+			if (WMODE_CAP_AC(pAd->CommonCfg.PhyMode) &&
+				(pAd->CommonCfg.Channel > 14))
+				pEntry->eTxBfEnCond = clientSupportsVHTETxBF(pAd, &pEntry->vht_cap_ie.vht_cap) ? enableETxBf: 0;
+			else
+#endif
+				pEntry->eTxBfEnCond = clientSupportsETxBF(pAd, &pEntry->HTCapability.TxBFCap)? enableETxBf: 0;
+
+            pEntry->eTxBfEnCond = TRUE; // Debug
+			pEntry->bfState = READY_FOR_SNDG0;
+			pEntry->HTPhyMode.field.eTxBF = pEntry->eTxBfEnCond;
+			pEntry->phyETxBf = pEntry->eTxBfEnCond;
+#ifdef MCS_LUT_SUPPORT
+			asic_mcs_lut_update(pAd, pEntry);
+#endif /* MCS_LUT_SUPPORT */
+		}
+
+		DBGPRINT(RT_DEBUG_TRACE, ("Set ETxBfEn=%d, Final ETxBF status =%d!\n",
+					enableETxBf , pEntry->eTxBfEnCond));
+	}
+
+	return TRUE;	
+}
 #ifdef VHT_TXBF_SUPPORT
 /*
 	The VhtNDPA sounding inupt string format should be xx:xx:xx:xx:xx:xx-d,

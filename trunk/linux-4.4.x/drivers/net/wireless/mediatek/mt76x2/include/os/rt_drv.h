@@ -46,11 +46,6 @@
 #endif /* WSC_AP_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef WSC_STA_SUPPORT
-#define STA_WSC_INCLUDED
-#endif /* WSC_STA_SUPPORT */
-#endif /* CONFIG_STA_SUPPORT */
 
 #if defined(WSC_AP_SUPPORT) || defined(WSC_STA_SUPPORT)
 #define WSC_INCLUDED
@@ -87,23 +82,6 @@ typedef VOID	pregs;
 #endif /* CONFIG_AP_SUPPORT */
 
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef RTMP_MAC_PCI
-#define STA_PROFILE_PATH			"/etc/Wireless/RT2860STA/RT2860STA.dat"
-#define STA_DRIVER_VERSION			"3.0.0.0"
-#ifdef MULTIPLE_CARD_SUPPORT
-#define CARD_INFO_PATH			"/etc/Wireless/RT2860STA/RT2860STACard.dat"
-#endif /* MULTIPLE_CARD_SUPPORT */
-#endif /* RTMP_MAC_PCI */
-
-
-#ifdef RTMP_RBUS_SUPPORT
-#define RTMP_FIRMWARE_FILE_NAME		"/etc_ro/Wireless/RT2860STA/RT2860STA.bin"
-#define PROFILE_PATH			"/etc/Wireless/RT2860i.dat"
-#define STA_PROFILE_PATH_RBUS	"/etc/Wireless/RT2860/RT2860.dat"
-#define RT2880_STA_DRIVER_VERSION		"1.0.0.0"
-#endif /* RTMP_RBUS_SUPPORT */
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef SINGLE_SKU_V2
 #define SINGLE_SKU_TABLE_FILE_NAME	"/etc/Wireless/RT2870STA/SingleSKU.dat"
@@ -173,13 +151,6 @@ typedef char 				* PNDIS_BUFFER;
 /***********************************************************************************
  *	Ralink Specific network related constant definitions
  ***********************************************************************************/
-#ifdef CONFIG_STA_SUPPORT
-#define NDIS_PACKET_TYPE_DIRECTED		0
-#define NDIS_PACKET_TYPE_MULTICAST		1
-#define NDIS_PACKET_TYPE_BROADCAST		2
-#define NDIS_PACKET_TYPE_ALL_MULTICAST	3
-#define NDIS_PACKET_TYPE_PROMISCUOUS	4
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef DOT11_VHT_AC
 #ifdef NOISE_TEST_ADJUST
@@ -191,13 +162,6 @@ typedef char 				* PNDIS_BUFFER;
 #define MAX_PACKETS_IN_QUEUE				(512)
 #endif /* DOT11_VHT_AC */
 
-
-#ifdef DATA_QUEUE_RESERVE
-/*
-	This value must small than MAX_PACKETS_IN_QUEUE
-*/
-#define FIFO_RSV_FOR_HIGH_PRIORITY 	64
-#endif /* DATA_QUEUE_RESERVE */
 
 /***********************************************************************************
  *	OS signaling related constant definitions
@@ -334,7 +298,6 @@ struct os_cookie {
 	RTMP_NET_TASK_STRUCT	ac3_dma_done_task;
 	RTMP_NET_TASK_STRUCT	hcca_dma_done_task;
 	RTMP_NET_TASK_STRUCT	tbtt_task;
-	RTMP_NET_TASK_STRUCT	pretbtt_task;
 
 #ifdef RTMP_MAC_PCI
 	RTMP_NET_TASK_STRUCT	fifo_statistic_full_task;
@@ -422,10 +385,10 @@ do{                                   \
 	printk Fmt;					\
 }
 #else
-#define DBGPRINT(Level, Fmt)		do{}while(0)
-#define DBGPRINT_RAW(Level, Fmt)	do{}while(0)
-#define DBGPRINT_S(Status, Fmt)		do{}while(0)
-#define DBGPRINT_ERR(Fmt)		do{}while(0)
+#define DBGPRINT(Level, Fmt)
+#define DBGPRINT_RAW(Level, Fmt)
+#define DBGPRINT_S(Status, Fmt)
+#define DBGPRINT_ERR(Fmt)
 #endif
 
 #undef  ASSERT
@@ -441,11 +404,7 @@ do{                                   \
 #define ASSERT(x)
 #endif /* DBG */
 
-#ifdef DBG
 void hex_dump(char *str, unsigned char *pSrcBufVA, unsigned int SrcBufLen);
-#else
-#define hex_dump(x,y,z)
-#endif /* DBG */
 
 
 /*********************************************************************************************************
@@ -469,7 +428,9 @@ void linux_pci_unmap_single(void *handle, ra_dma_addr_t dma_addr, size_t size, i
 	linux_pci_map_single(_handle, _ptr, _size, _sd_idx, _dir)
 	
 #define PCI_UNMAP_SINGLE(_pAd, _ptr, _size, _dir)						\
-	linux_pci_unmap_single(((POS_COOKIE)(_pAd->OS_Cookie))->pci_dev, _ptr, _size, _dir)
+	if ((_pAd->infType) == RTMP_DEV_INF_RBUS){linux_pci_unmap_single(NULL , _ptr, _size, _dir);}	\
+	else {linux_pci_unmap_single(((POS_COOKIE)(_pAd->OS_Cookie))->pci_dev, _ptr, _size, _dir);}
+	/*linux_pci_unmap_single(((POS_COOKIE)(_pAd->OS_Cookie))->pci_dev, _ptr, _size, _dir)*/
 
 #define PCI_ALLOC_CONSISTENT(_pci_dev, _size, _ptr)							\
 	pci_alloc_consistent(_pci_dev, _size, _ptr)
@@ -841,9 +802,6 @@ extern int (*ra_classifier_hook_rx) (struct sk_buff *skb, unsigned long cycle);
 #ifdef CONFIG_AP_SUPPORT
 #define EEPROM_BIN_FILE_NAME  "/etc/Wireless/RT2860AP/e2p.bin"
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-#define EEPROM_BIN_FILE_NAME  "/etc/Wireless/RT2860STA/e2p.bin"
-#endif /* CONFIG_STA_SUPPORT */
 #endif /* RTMP_MAC_PCI */
 
 

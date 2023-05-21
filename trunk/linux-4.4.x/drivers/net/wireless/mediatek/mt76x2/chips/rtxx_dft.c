@@ -190,39 +190,6 @@ static VOID RxSensitivityTuning(RTMP_ADAPTER *pAd)
 }
 
 
-#ifdef CONFIG_STA_SUPPORT
-static UCHAR ChipAGCAdjust(
-	IN PRTMP_ADAPTER		pAd,
-	IN CHAR					Rssi,
-	IN UCHAR				OrigR66Value)
-{
-	UCHAR R66 = OrigR66Value;
-	CHAR lanGain = GET_LNA_GAIN(pAd);
-	
-	if (pAd->LatchRfRegs.Channel <= 14)
-	{	/*BG band*/
-		R66 = 0x2E + lanGain;
-		if (Rssi > RSSI_FOR_MID_LOW_SENSIBILITY)
-			R66 += 0x10;
-	}
-	else
-	{	/*A band*/
-		if (pAd->CommonCfg.BBPCurrentBW == BW_20)
-			R66 = 0x32 + (lanGain * 5) / 3;
-		else
-			R66 = 0x3A + (lanGain * 5) / 3;
-
-		if (Rssi > RSSI_FOR_MID_LOW_SENSIBILITY)
-				R66 += 0x10;
-	}
-
-	if (OrigR66Value != R66)
-		bbp_set_agc(pAd, R66, RX_CHAIN_ALL);
-
-
-	return R66;
-}
-#endif /* CONFIG_STA_SUPPORT */
 
 
 static VOID ChipBBPAdjust(RTMP_ADAPTER *pAd)
@@ -342,11 +309,6 @@ static VOID AsicAntennaDefaultReset(
 VOID NetDevNickNameInit(
 	IN PRTMP_ADAPTER		pAd)
 {
-#ifdef CONFIG_STA_SUPPORT
-#ifdef RTMP_MAC_PCI
-		snprintf((PSTRING) pAd->nickname, sizeof(pAd->nickname), "RT2860STA");
-#endif /* RTMP_MAC_PCI */
-#endif /* CONFIG_STA_SUPPORT */
 }
 
 
@@ -394,9 +356,6 @@ VOID RTxx_default_Init(RTMP_ADAPTER *pAd)
 	RtmpChipBcnInit(pAd);
 
 	pChipOps->RxSensitivityTuning = RxSensitivityTuning;
-#ifdef CONFIG_STA_SUPPORT
-	pChipOps->ChipAGCAdjust = ChipAGCAdjust;
-#endif /* CONFIG_STA_SUPPORT */
 	pChipOps->ChipBBPAdjust = ChipBBPAdjust;
 	pChipOps->ChipSwitchChannel = Default_ChipSwitchChannel;
 

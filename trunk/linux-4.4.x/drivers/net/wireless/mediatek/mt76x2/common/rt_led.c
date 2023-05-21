@@ -586,9 +586,6 @@ VOID RTMPSetLEDStatus(
 #ifdef CONFIG_AP_SUPPORT
 	pWscControl = &pAd->ApCfg.MBSSID[MAIN_MBSSID].WscControl;
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-	pWscControl = &pAd->StaCfg.WscControl;
-#endif /* CONFIG_STA_SUPPORT */
 #endif /* WSC_LED_SUPPORT */
 #endif /* WSC_INCLUDED */
 
@@ -608,15 +605,13 @@ VOID RTMPSetLEDStatus(
 
 	LedMode = LED_MODE(pAd);
 
-#ifdef MT76x2
 	if (IS_MT76x2(pAd)) {
 		if (LedMode < 0 || Status < 0 || LedMode > 15 || Status > 11)
 			return;
 
 		led_cmd = LED_Array[LedMode][Status];
 	}
-#endif
-
+	
 	switch (Status)
 	{
 		case LED_LINK_DOWN:
@@ -835,7 +830,6 @@ VOID RTMPSetLEDStatus(
 			break;
 	}
 
-#ifdef MT76x2
 	if (IS_MT76x2(pAd)) {
 		if (led_cmd != -1) {
 			/* 
@@ -848,9 +842,7 @@ VOID RTMPSetLEDStatus(
 			else
 				andes_led_op(pAd, 2, led_cmd);
 		}
-	} else
-#endif
-	{
+	} else {
 		if (MCUCmd) {
 			AsicSendCommandToMcu(pAd, MCUCmd, 0xff, LedMode, LinkStatus, FALSE);
 			DBGPRINT(RT_DEBUG_TRACE, ("%s: MCUCmd:0x%x, LED Mode:0x%x, LinkStatus:0x%x\n", __FUNCTION__, MCUCmd, LedMode, LinkStatus)); 
@@ -1054,11 +1046,7 @@ void RTMPInitLEDMode(IN RTMP_ADAPTER *pAd)
 		pLedCntl->LedPolarity = 0xA9F8;
 #endif /* RTMP_MAC_PCI */
 	}
-
-	/* override disabled LED control */
-	if (pLedCntl->MCULedCntl.word == 0)
-		pLedCntl->MCULedCntl.word = 0x01;
-
+	
 	AsicSendCommandToMcu(pAd, MCU_SET_LED_AG_CFG, 0xff, (UCHAR)pLedCntl->LedAGCfg, (UCHAR)(pLedCntl->LedAGCfg >> 8), FALSE);
 	AsicSendCommandToMcu(pAd, MCU_SET_LED_ACT_CFG, 0xff, (UCHAR)pLedCntl->LedACTCfg, (UCHAR)(pLedCntl->LedACTCfg >> 8), FALSE);
 	AsicSendCommandToMcu(pAd, MCU_SET_LED_POLARITY, 0xff, (UCHAR)pLedCntl->LedPolarity, (UCHAR)(pLedCntl->LedPolarity >> 8), FALSE);

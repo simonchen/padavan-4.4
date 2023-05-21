@@ -201,10 +201,6 @@ VOID CFG80211DRV_DisableApInterface(PRTMP_ADAPTER pAd)
 
 	OPSTATUS_CLEAR_FLAG(pAd, fOP_AP_STATUS_MEDIA_STATE_CONNECTED);
 	RTMP_IndicateMediaState(pAd, NdisMediaStateDisconnected);
-#ifdef CONFIG_STA_SUPPORT
-	/* re-assoc to STA's wdev */
-	RTMP_OS_NETDEV_SET_WDEV(pAd->net_dev, &pAd->StaCfg.wdev);
-#endif /*CONFIG_STA_SUPPORT*/
 }
 
 VOID CFG80211_UpdateBeacon(
@@ -532,10 +528,6 @@ VOID CFG80211DRV_RtsThresholdAdd(
 	
 		if((threshold > 0) && (threshold <= MAX_RTS_THRESHOLD))
 			pAd->CommonCfg.RtsThreshold  = (USHORT)threshold;
-#ifdef CONFIG_STA_SUPPORT
-		else if (threshold== 0)
-			pAd->CommonCfg.RtsThreshold = MAX_RTS_THRESHOLD;
-#endif /* CONFIG_STA_SUPPORT */
 }
 
 
@@ -563,15 +555,6 @@ VOID CFG80211DRV_FragThresholdAdd(
 			pAd->CommonCfg.FragmentThreshold = (USHORT)threshold;
 		}
 
-#ifdef CONFIG_STA_SUPPORT
-		IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		{
-			if (pAd->CommonCfg.FragmentThreshold == MAX_FRAG_THRESHOLD)
-				pAd->CommonCfg.bUseZeroToDisableFragment = TRUE;
-			else
-				pAd->CommonCfg.bUseZeroToDisableFragment = FALSE;
-		}
-#endif /* CONFIG_STA_SUPPORT */		
 }
 
 

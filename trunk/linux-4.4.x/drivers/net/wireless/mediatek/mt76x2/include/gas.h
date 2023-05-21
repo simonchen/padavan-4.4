@@ -83,12 +83,6 @@ typedef struct _GAS_PEER_ENTRY {
 	BOOLEAN GASRspBufferingTimerRunning;
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-	RALINK_TIMER_STRUCT GASResponseTimer;
-	BOOLEAN GASResponseTimerRunning;
-	RALINK_TIMER_STRUCT GASCBDelayTimer;
-	BOOLEAN GASCBDelayTimerRunning;
-#endif /* CONFIG_STA_SUPPORT */
 	UCHAR GASRspFragNum;
 	UCHAR CurrentGASFragNum;
 	UINT32 AllocResource;
@@ -113,32 +107,6 @@ typedef struct GNU_PACKED _GAS_EVENT_DATA {
 	UCHAR PeerMACAddr[MAC_ADDR_LEN];
 	UINT16 EventType;
 	union{
-#ifdef CONFIG_STA_SUPPORT
-		struct {
-			UCHAR DialogToken;	
-			UCHAR AdvertisementProID;
-			UINT16 QueryReqLen;
-			UCHAR QueryReq[0];
-		} GNU_PACKED GAS_REQ_DATA;
-		struct {
-			UINT16 StatusCode;
-			UCHAR AdvertisementProID;
-			UINT16 QueryRspLen;
-			UCHAR QueryRsp[0];
-		} GNU_PACKED PEER_GAS_RSP_DATA;
-		struct {
-			UCHAR DialogToken;
-		} GNU_PACKED PEER_GAS_RSP_MORE_DATA;
-		struct {
-			UINT16 StatusCode;
-			UCHAR AdvertisementProID;
-			UINT16 QueryRspLen;
-			UCHAR QueryRsp[0];
-		} GNU_PACKED GAS_CB_RSP_DATA;
-		struct {
-			UCHAR DialogToken;
-		} GNU_PACKED GAS_CB_RSP_MORE_DATA;
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_AP_SUPPORT
 		struct {
@@ -197,19 +165,6 @@ VOID SendGASRsp(
 
 VOID GASCtrlExit(IN PRTMP_ADAPTER pAd);
 
-#ifdef CONFIG_STA_SUPPORT
-VOID ReceiveGASInitRsp(
-	IN PRTMP_ADAPTER pAd, 
-	IN MLME_QUEUE_ELEM *Elem);
-
-VOID ReceiveGASCBRsp(
-	IN PRTMP_ADAPTER pAd, 
-	IN MLME_QUEUE_ELEM *Elem);
-
-void SendAnqpRspEvent(void *net_dev, const char *peer_mac_addr,
-				u16 status, const char *anqp_rsp, u16 anqp_rsp_len);
-
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_AP_SUPPORT
 DECLARE_TIMER_FUNCTION(PostReplyTimeout); 

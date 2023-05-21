@@ -99,11 +99,6 @@
 #endif /* WSC_AP_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-#ifdef WSC_STA_SUPPORT
-#define STA_WSC_INCLUDED
-#endif /* WSC_STA_SUPPORT */
-#endif /* CONFIG_STA_SUPPORT */
 
 #if defined(WSC_AP_SUPPORT) || defined(WSC_STA_SUPPORT)
 #define WSC_INCLUDED
@@ -125,42 +120,56 @@ typedef struct usb_ctrlrequest devctrlrequest;
  *	Profile related sections
  ***********************************************************************************/
 #ifdef CONFIG_AP_SUPPORT
-
 #ifdef RTMP_MAC_PCI
- #define AP_PROFILE_PATH_RBUS		"/etc/Wireless/RT2860/RT2860AP.dat"
-#if (CONFIG_RT_FIRST_CARD == 7602 || CONFIG_RT_FIRST_CARD == 7612 || CONFIG_RT_FIRST_CARD == 7620)
- #define AP_PROFILE_PATH		"/etc/Wireless/RT2860/RT2860AP.dat"
- #define SINGLE_SKU_TABLE_FILE_NAME	"/etc/Wireless/RT2860/SingleSKU.dat"
- #define CARD_INFO_PATH			"/etc/Wireless/RT2860/RT2860APCard.dat"
+#if CONFIG_RT_SECOND_IF_RF_OFFSET == 0x48000
+#if defined(CONFIG_SUPPORT_OPENWRT)
+#define AP_PROFILE_PATH			"/etc/wireless/mt7612e/mt7612e.dat"
 #else
- #define AP_PROFILE_PATH		"/etc/Wireless/iNIC/iNIC_ap.dat"
- #define SINGLE_SKU_TABLE_FILE_NAME	"/etc/Wireless/iNIC/SingleSKU.dat"
- #define CARD_INFO_PATH			"/etc/Wireless/iNIC/RT2860APCard.dat"
+#define AP_PROFILE_PATH			"/etc/Wireless/iNIC/iNIC_ap.dat"
+#endif /* CONFIG_SUPPORT_OPENWRT */
+#define AP_RTMP_FIRMWARE_FILE_NAME "/etc_ro/Wireless/iNIC/RT2860AP.bin"
+#ifdef SINGLE_SKU_V2
+#if defined(CONFIG_SUPPORT_OPENWRT)
+#define SINGLE_SKU_TABLE_FILE_NAME	"/etc/Wireless/mt7612/SingleSKU.dat"
+#else
+#define SINGLE_SKU_TABLE_FILE_NAME	"/etc_ro/Wireless/iNIC/SingleSKU.dat"
+#endif  /* CONFIG_SUPPORT_OPENWRT */
+#endif /* SINGLE_SKU_V2 */
+#else
+#if defined(CONFIG_SUPPORT_OPENWRT)
+#define AP_PROFILE_PATH	        "/etc/wireless/mt7612e/mt7612e.dat"
+#else
+#define AP_PROFILE_PATH         "/etc/Wireless/RT2860/RT2860.dat"
+#endif /* CONFIG_SUPPORT_OPENWRT */
+#define AP_RTMP_FIRMWARE_FILE_NAME "/etc/Wireless/RT2860AP/RT2860AP.bin"
+#ifdef SINGLE_SKU_V2
+#if defined(CONFIG_SUPPORT_OPENWRT)
+#define SINGLE_SKU_TABLE_FILE_NAME	"/etc/Wireless/mt7602/SingleSKU.dat"
+#else
+#define SINGLE_SKU_TABLE_FILE_NAME	"/etc/Wireless/RT2860AP/SingleSKU.dat"
+#endif  /* CONFIG_SUPPORT_OPENWRT */
+#endif /* SINGLE_SKU_V2 */
 #endif
-#define AP_DRIVER_VERSION		"3.0.5.0"
+
+
+#define AP_DRIVER_VERSION			"3.0.4.0.P3.20161201"
+#ifdef MULTIPLE_CARD_SUPPORT
+#define CARD_INFO_PATH			"/etc/Wireless/RT2860AP/RT2860APCard.dat"
+#endif /* MULTIPLE_CARD_SUPPORT */
 #endif /* RTMP_MAC_PCI */
+
+
+#ifdef RTMP_RBUS_SUPPORT
+/* This used for rbus-based chip, maybe we can integrate it together. */
+#define RTMP_FIRMWARE_FILE_NAME		"/etc_ro/Wireless/RT2860AP/RT2860AP.bin"
+#define PROFILE_PATH			"/etc/Wireless/RT2860i.dat"
+#define AP_PROFILE_PATH_RBUS		"/etc/Wireless/RT2860/RT2860.dat"
+#define RT2880_AP_DRIVER_VERSION	"1.0.0.0"
+#endif /* RTMP_RBUS_SUPPORT */
 
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
 
-#ifdef RTMP_MAC_PCI
- #define STA_PROFILE_PATH_RBUS		"/etc/Wireless/RT2860/RT2860STA.dat"
-#if (CONFIG_RT_FIRST_CARD == 7602 || CONFIG_RT_FIRST_CARD == 7612 || CONFIG_RT_FIRST_CARD == 7620)
- #define STA_PROFILE_PATH		"/etc/Wireless/RT2860/RT2860STA.dat"
- #define SINGLE_SKU_TABLE_FILE_NAME	"/etc/Wireless/RT2860/SingleSKU.dat"
- #define CARD_INFO_PATH			"/etc/Wireless/RT2860/RT2860STACard.dat"
-#else
- #define STA_PROFILE_PATH		"/etc/Wireless/iNIC/iNIC_sta.dat"
- #define SINGLE_SKU_TABLE_FILE_NAME	"/etc/Wireless/iNIC/SingleSKU.dat"
- #define CARD_INFO_PATH			"/etc/Wireless/iNIC/RT2860STACard.dat"
-#endif
-#define STA_DRIVER_VERSION		"3.0.1.0"
-#endif /* RTMP_MAC_PCI */
-
-extern const struct iw_handler_def rt28xx_iw_handler_def;
-
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef CONFIG_APSTA_MIXED_SUPPORT
 extern	const struct iw_handler_def rt28xx_ap_iw_handler_def;
@@ -274,13 +283,6 @@ struct iw_statistics *rt28xx_get_wireless_stats(
 /***********************************************************************************
  *	Ralink Specific network related constant definitions
  ***********************************************************************************/
-#ifdef CONFIG_STA_SUPPORT
-#define NDIS_PACKET_TYPE_DIRECTED		0
-#define NDIS_PACKET_TYPE_MULTICAST		1
-#define NDIS_PACKET_TYPE_BROADCAST		2
-#define NDIS_PACKET_TYPE_ALL_MULTICAST	3
-#define NDIS_PACKET_TYPE_PROMISCUOUS	4
-#endif /* CONFIG_STA_SUPPORT */
 
 #ifdef DOT11_VHT_AC
 #ifdef NOISE_TEST_ADJUST
@@ -292,13 +294,6 @@ struct iw_statistics *rt28xx_get_wireless_stats(
 #define MAX_PACKETS_IN_QUEUE				(512)
 #endif /* DOT11_VHT_AC */
 
-
-#ifdef DATA_QUEUE_RESERVE
-/*
-	This value must small than MAX_PACKETS_IN_QUEUE
-*/
-#define FIFO_RSV_FOR_HIGH_PRIORITY 	64
-#endif /* DATA_QUEUE_RESERVE */
 
 #ifdef CONFIG_RA_HW_NAT_WIFI_NEW_ARCH
 #define RT_MOD_HNAT_DEREG(_net_dev) \
@@ -324,12 +319,22 @@ do { \
  ***********************************************************************************/
 typedef struct file* RTMP_OS_FD;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 typedef struct _OS_FS_INFO_
 {
-	uid_t		fsuid;
-	gid_t		fsgid;
+	kuid_t				fsuid;
+	kgid_t				fsgid;
 	mm_segment_t	fs;
 } OS_FS_INFO;
+#else
+typedef struct _OS_FS_INFO_
+{
+	int				fsuid;
+	int				fsgid;
+	mm_segment_t	fs;
+} OS_FS_INFO;
+
+#endif
 
 #define IS_FILE_OPEN_ERR(_fd) 	((_fd == NULL) || IS_ERR((_fd)))
 
@@ -373,7 +378,6 @@ typedef spinlock_t			OS_NDIS_SPIN_LOCK;
 #define OS_IRQ_LOCK(__lock, __irqflags)			\
 {													\
 	__irqflags = 0;									\
-	typecheck(unsigned long, __irqflags);				\
 	spin_lock_irqsave((spinlock_t *)(__lock), __irqflags);			\
 }
 
@@ -385,7 +389,6 @@ typedef spinlock_t			OS_NDIS_SPIN_LOCK;
 #define OS_IRQ_LOCK(__lock, __irqflags)			\
 {												\
 	__irqflags = 0;								\
-	typecheck(unsigned long, __irqflags);				\
 	spin_lock_bh((spinlock_t *)(__lock));		\
 }
 
@@ -541,7 +544,7 @@ do { \
 #define	THREAD_PID_INIT_VALUE	NULL
 /* TODO: Use this IOCTL carefully when linux kernel version larger than 2.6.27, because the PID only correct when the user space task do this ioctl itself. */
 /*#define RTMP_GET_OS_PID(_x, _y)    _x = get_task_pid(current, PIDTYPE_PID); */
-#define RT_GET_OS_PID(_x, _y)		do{rcu_read_lock(); _x=current->pids[PIDTYPE_PID].pid; rcu_read_unlock();}while(0)
+#define RT_GET_OS_PID(_x, _y)		do{rcu_read_lock(); _x=(ULONG)current->pids[PIDTYPE_PID].pid; rcu_read_unlock();}while(0)
 #ifdef OS_ABL_FUNC_SUPPORT
 #define RTMP_GET_OS_PID(_a, _b)			RtmpOsGetPid(&_a, _b)
 #else
@@ -662,7 +665,6 @@ struct os_cookie {
 	RTMP_NET_TASK_STRUCT ac3_dma_done_task;
 	RTMP_NET_TASK_STRUCT hcca_dma_done_task;
 	RTMP_NET_TASK_STRUCT tbtt_task;
-	RTMP_NET_TASK_STRUCT pretbtt_task;
 
 #ifdef RTMP_MAC_PCI
 	RTMP_NET_TASK_STRUCT fifo_statistic_full_task;
@@ -751,10 +753,10 @@ do{                                   \
 	printk Fmt;					\
 }
 #else
-#define DBGPRINT(Level, Fmt)		do{}while(0)
-#define DBGPRINT_RAW(Level, Fmt)	do{}while(0)
-#define DBGPRINT_S(Status, Fmt)		do{}while(0)
-#define DBGPRINT_ERR(Fmt)		do{}while(0)
+#define DBGPRINT(Level, Fmt)
+#define DBGPRINT_RAW(Level, Fmt)
+#define DBGPRINT_S(Status, Fmt)
+#define DBGPRINT_ERR(Fmt)
 #endif
 
 #undef  ASSERT
@@ -770,11 +772,7 @@ do{                                   \
 #define ASSERT(x)
 #endif /* DBG */
 
-#ifdef DBG
 void hex_dump(char *str, unsigned char *pSrcBufVA, unsigned int SrcBufLen);
-#else
-#define hex_dump(x,y,z)
-#endif /* DBG */
 
 
 /*********************************************************************************************************
@@ -800,16 +798,17 @@ void linux_pci_unmap_single(void *handle, ra_dma_addr_t dma_addr, size_t size, i
 #define PCI_FREE_CONSISTENT(_pci_dev, _size, _virtual_addr, _physical_addr) \
 	pci_free_consistent(_pci_dev, _size, _virtual_addr, _physical_addr)
 
-#ifdef VENDOR_FEATURE2_SUPPORT
-#define DEV_ALLOC_SKB(_pAd, _Pkt, _length)	\
-	_Pkt = dev_alloc_skb(_length);			\
-	if (_Pkt != NULL) {MEM_DBG_PKT_ALLOC_INC(_Pkt);};
-#else
-
-#define DEV_ALLOC_SKB(_pAd, _Pkt, _length)	\
-	_Pkt = dev_alloc_skb(_length);
-#endif /* VENDOR_FEATURE2_SUPPORT */
-
+#ifndef NET_SKB_PAD
+#define NET_SKB_PAD	32
+#endif
+#define DEV_ALLOC_SKB(_pAd,_Pkt, _length)		\
+	do {\
+		_Pkt = alloc_skb(_length + NET_SKB_PAD, GFP_ATOMIC);		\
+		if (_Pkt != NULL) {							\
+			skb_reserve(_Pkt, NET_SKB_PAD);		\
+			MEM_DBG_PKT_ALLOC_INC(_Pkt);	\
+		};	\
+	} while (0)
 /*#define PCI_MAP_SINGLE(_handle, _ptr, _size, _dir) (ULONG)0 */
 /*#define PCI_UNMAP_SINGLE(_handle, _ptr, _size, _dir) */
 
@@ -1077,6 +1076,9 @@ do{ \
 #define GET_OS_PKT_END(_pkt) \
 		(RTPKT_TO_OSPKT(_pkt)->end)
 
+#define SET_OS_PKT_MAC_HEADER(_pkt) \
+		(skb_reset_mac_header(RTPKT_TO_OSPKT(_pkt)))
+
 #define GET_OS_PKT_NETDEV(_pkt) \
 		(RTPKT_TO_OSPKT(_pkt)->dev)
 #define SET_OS_PKT_NETDEV(_pkt, _pNetDev)	\
@@ -1151,16 +1153,16 @@ do{ \
  *	Other function prototypes definitions
  ***********************************************************************************/
 
-#if defined (CONFIG_RA_HW_NAT) || defined (CONFIG_RA_HW_NAT_MODULE)
+#ifdef CONFIG_RAETH
 #if !defined(CONFIG_RA_NAT_NONE)
+extern int (*ra_sw_nat_hook_tx)(VOID *skb);
 extern int (*ra_sw_nat_hook_rx)(VOID *skb);
-extern int (*ra_sw_nat_hook_tx)(VOID *skb, int gmac_no);
-#endif
 #ifdef CONFIG_RA_HW_NAT_WIFI_NEW_ARCH
 extern void (*ppe_dev_register_hook)(VOID *dev);
 extern void (*ppe_dev_unregister_hook)(VOID *dev);
 #endif
 #endif
+#endif /* CONFIG_RAETH */
 
 #if defined (CONFIG_WIFI_PKT_FWD)
 struct APCLI_BRIDGE_LEARNING_MAPPING_STRUCT {
@@ -1198,10 +1200,14 @@ extern void (*wf_fwd_insert_bridge_mapping_hook) (struct sk_buff *skb);
 extern void (*wf_fwd_insert_repeater_mapping_hook) (void *adapter, void *lock, void *cli_mapping, void *map_mapping, void *ifAddr_mapping);
 extern int (*wf_fwd_search_mapping_table_hook) (struct sk_buff *skb, struct APCLI_BRIDGE_LEARNING_MAPPING_STRUCT **tbl_entry);
 extern void (*wf_fwd_delete_entry_inform_hook) (unsigned char *addr);
-extern void (*wf_fwd_add_entry_inform_hook) (unsigned char *addr);
-
-#endif /* CONFIG_WIFI_PKT_FWD */
-
+extern void (*wf_fwd_add_entry_inform_hook)(unsigned char *addr);
+extern BOOLEAN (*wf_fwd_needed_hook) (void);
+#endif/* CONFIG_WIFI_PKT_FWD */
+#ifdef WH_EZ_SETUP
+#if defined(CONFIG_WIFI_PKT_FWD) || defined(CONFIG_WIFI_PKT_FWD_MODULE)
+extern void (*wf_fwd_set_easy_setup_mode)(unsigned int easy_setup_mode);
+#endif
+#endif
 void RTMP_GetCurrentSystemTime(LARGE_INTEGER *time);
 int rt28xx_packet_xmit(VOID *skb);
 
@@ -1562,20 +1568,11 @@ extern int rausb_control_msg(VOID *dev,
 #define ATEDBGPRINT DBGPRINT
 #ifdef RTMP_MAC_PCI
 #ifdef CONFIG_AP_SUPPORT
-#ifndef CONFIG_STA_SUPPORT /* avoid wrong usage when enabling P2P_SUPPORT */
 #define EEPROM_BIN_FILE_NAME  "/etc/Wireless/RT2860AP/e2p.bin"
-#endif /* CONFIG_STA_SUPPORT */
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-#define EEPROM_BIN_FILE_NAME  "/etc/Wireless/RT2860STA/e2p.bin"
-#endif /* CONFIG_STA_SUPPORT */
 #endif /* RTMP_MAC_PCI */
 
 
-#ifdef RTMP_RBUS_SUPPORT
-int __init rt2880_module_init(void);
-VOID __exit rt2880_module_exit(void);
-#endif /* RTMP_RBUS_SUPPORT */
 
 #endif /* RALINK_ATE */
 
@@ -1603,7 +1600,6 @@ VOID __exit rt2880_module_exit(void);
 #endif /* RTMP_RBUS_SUPPORT */
 
 #endif /* MULTI_INF_SUPPORT */
-
 
 #define RA_WEXT 	0
 #define RA_NETLINK  	1

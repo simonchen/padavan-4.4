@@ -29,9 +29,6 @@
 #include "action.h"
 
 extern UCHAR  ZeroSsid[32];
-#ifdef IWSC_SUPPORT
-extern UCHAR  IWSC_ACTION_OUI[];
-#endif // IWSC_SUPPORT //
 
 static VOID ReservedAction(
 	IN PRTMP_ADAPTER pAd, 
@@ -104,6 +101,9 @@ VOID ActionStateMachineInit(
 	StateMachineSetAction(S, ACT_IDLE, WNM_CATEGORY_BSS_TRANSITION, (STATE_MACHINE_FUNC)WNM_Action);
 #endif /* DOT11V_WNM_SUPPORT */
 
+#ifdef CONFIG_DOT11V_WNM
+	StateMachineSetAction(S, ACT_IDLE, CATEGORY_WNM, (STATE_MACHINE_FUNC)PeerWNMAction); 
+#endif /* CONFIG_DOT11V_WNM */
 }
 
 
@@ -117,7 +117,7 @@ VOID MlmeADDBAAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 	ULONG Idx;
 	FRAME_ADDBA_REQ Frame;
 	ULONG FrameLen;
-	/*BA_ORI_ENTRY *pBAEntry = NULL;*/
+	BA_ORI_ENTRY *pBAEntry = NULL;
 	MAC_TABLE_ENTRY *pEntry = NULL;
 	struct wifi_dev *wdev;
 
@@ -147,7 +147,7 @@ VOID MlmeADDBAAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 		} 
 		else
 		{
-			/*pBAEntry =&pAd->BATable.BAOriEntry[Idx];*/
+			pBAEntry =&pAd->BATable.BAOriEntry[Idx];
 		}
 
 #ifdef APCLI_SUPPORT
@@ -223,6 +223,7 @@ VOID MlmeDELBAAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 {
 	MLME_DELBA_REQ_STRUCT *pInfo;
 	PUCHAR pOutBuffer = NULL, pOutBuffer2 = NULL;
+	ULONG Idx;
 	FRAME_DELBA_REQ Frame;
 	ULONG FrameLen;
 	FRAME_BAR FrameBar;
@@ -262,6 +263,7 @@ VOID MlmeDELBAAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 		}
 
 		wdev = pEntry->wdev;
+		Idx = pEntry->BAOriWcidArray[pInfo->TID];
 #ifdef APCLI_SUPPORT
 #ifdef MAC_REPEATER_SUPPORT
 		if (IS_ENTRY_APCLI(pEntry) && pEntry->bReptCli)
@@ -312,22 +314,6 @@ VOID MlmeDELBAAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 							pEntry->wdev->bssid);
 		}
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-		IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-		{
-			if (ADHOC_ON(pAd)
-#ifdef QOS_DLS_SUPPORT
-				|| (IS_ENTRY_DLS(pEntry))
-#endif /* QOS_DLS_SUPPORT */
-#ifdef DOT11Z_TDLS_SUPPORT
-				|| (IS_ENTRY_TDLS(pEntry))
-#endif /* DOT11Z_TDLS_SUPPORT */
-				)
-				ActHeaderInit(pAd, &Frame.Hdr, pEntry->Addr, pAd->StaCfg.wdev.if_addr, pAd->StaCfg.wdev.bssid);
-			else
-				ActHeaderInit(pAd, &Frame.Hdr, pEntry->Addr, pAd->StaCfg.wdev.if_addr, pAd->StaCfg.wdev.bssid);
-		}
-#endif /* CONFIG_STA_SUPPORT */
 
 		Frame.Category = CATEGORY_BA;
 		Frame.Action = DELBA;
@@ -431,10 +417,6 @@ VOID PeerDLSAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 			IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 				APPeerDlsReqAction(pAd, Elem);
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-			IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-			PeerDlsReqAction(pAd, Elem);
-#endif /* CONFIG_STA_SUPPORT */
 			break;
 
 		case ACTION_DLS_RESPONSE:
@@ -442,10 +424,6 @@ VOID PeerDLSAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 			IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 				APPeerDlsRspAction(pAd, Elem);
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-			IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-			PeerDlsRspAction(pAd, Elem);
-#endif /* CONFIG_STA_SUPPORT */
 			break;
 
 		case ACTION_DLS_TEARDOWN:
@@ -453,10 +431,6 @@ VOID PeerDLSAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 			IF_DEV_CONFIG_OPMODE_ON_AP(pAd)
 				APPeerDlsTearDownAction(pAd, Elem);
 #endif /* CONFIG_AP_SUPPORT */
-#ifdef CONFIG_STA_SUPPORT
-			IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-			PeerDlsTearDownAction(pAd, Elem);
-#endif /* CONFIG_STA_SUPPORT */
 			break;
 	}
 }
@@ -488,6 +462,19 @@ VOID PeerBAAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 #ifdef DOT11N_DRAFT3
 #ifdef CONFIG_AP_SUPPORT
 extern UCHAR get_regulatory_class(IN PRTMP_ADAPTER pAd);
+
+VOID ApPublicAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem) 
+{
+	UCHAR	Action = Elem->Msg[LENGTH_802_11+1];
+	BSS_2040_COEXIST_IE	 BssCoexist;
+	
+	/* Format as in IEEE 7.4.7.2*/
+	if (Action == ACTION_BSS_2040_COEXIST)
+	{
+		BssCoexist.word = Elem->Msg[LENGTH_802_11+2];
+	}
+}
+
 
 VOID SendBSS2040CoexistMgmtAction(
 	IN RTMP_ADAPTER *pAd,
@@ -550,95 +537,6 @@ VOID SendBSS2040CoexistMgmtAction(
 #endif /* CONFIG_AP_SUPPORT */
 
 
-#ifdef CONFIG_STA_SUPPORT
-VOID StaPublicAction(RTMP_ADAPTER *pAd, BSS_2040_COEXIST_IE *pBssCoexIE)
-{
-	MLME_SCAN_REQ_STRUCT ScanReq;
-
-	DBGPRINT(RT_DEBUG_TRACE,("ACTION - StaPeerPublicAction  Bss2040Coexist = %x\n", *((PUCHAR)pBssCoexIE)));
-
-	/* AP asks Station to return a 20/40 BSS Coexistence mgmt frame.  So we first starts a scan, then send back 20/40 BSS Coexistence mgmt frame */
-	if ((pBssCoexIE->field.InfoReq == 1) && (OPSTATUS_TEST_FLAG(pAd, fOP_STATUS_SCAN_2040)))
-	{
-		/* Clear record first.  After scan , will update those bit and send back to transmiter.*/
-		pAd->CommonCfg.BSSCoexist2040.field.InfoReq = 1;
-		pAd->CommonCfg.BSSCoexist2040.field.Intolerant40 = 0;
-		pAd->CommonCfg.BSSCoexist2040.field.BSS20WidthReq = 0;
-		/* Clear Trigger event table*/
-		TriEventInit(pAd);
-		/* Fill out stuff for scan request  and kick to scan*/
-		ScanParmFill(pAd, &ScanReq, ZeroSsid, 0, BSS_ANY, SCAN_2040_BSS_COEXIST);
-		MlmeEnqueue(pAd, SYNC_STATE_MACHINE, MT2_MLME_SCAN_REQ, sizeof(MLME_SCAN_REQ_STRUCT), &ScanReq, 0);
-		pAd->Mlme.CntlMachine.CurrState = CNTL_WAIT_OID_LIST_SCAN;
-		RTMP_MLME_HANDLER(pAd);
-	}
-}
-
-VOID UpdateBssScanParm(
-	IN	PRTMP_ADAPTER	pAd,
-	IN	OVERLAP_BSS_SCAN_IE	APBssScan) 
-{									 
-	pAd->CommonCfg.Dot11BssWidthChanTranDelayFactor = le2cpu16(APBssScan.DelayFactor); /*APBssScan.DelayFactor[1] * 256 + APBssScan.DelayFactor[0];*/
-	/* out of range defined in MIB... So fall back to default value.*/
-	if ((pAd->CommonCfg.Dot11BssWidthChanTranDelayFactor <5) || (pAd->CommonCfg.Dot11BssWidthChanTranDelayFactor > 100))
-	{
-		/*DBGPRINT(RT_DEBUG_ERROR,("ACT - UpdateBssScanParm( Dot11BssWidthChanTranDelayFactor out of range !!!!)  \n"));*/
-		pAd->CommonCfg.Dot11BssWidthChanTranDelayFactor = 5;
-	}
-
-	pAd->CommonCfg.Dot11BssWidthTriggerScanInt = le2cpu16(APBssScan.TriggerScanInt); /*APBssScan.TriggerScanInt[1] * 256 + APBssScan.TriggerScanInt[0];*/
-	/* out of range defined in MIB... So fall back to default value.*/
-	if ((pAd->CommonCfg.Dot11BssWidthTriggerScanInt < 10) ||(pAd->CommonCfg.Dot11BssWidthTriggerScanInt > 900))
-	{
-		/*DBGPRINT(RT_DEBUG_ERROR,("ACT - UpdateBssScanParm( Dot11BssWidthTriggerScanInt out of range !!!!)  \n"));*/
-		pAd->CommonCfg.Dot11BssWidthTriggerScanInt = 900;
-	}
-		
-	pAd->CommonCfg.Dot11OBssScanPassiveDwell = le2cpu16(APBssScan.ScanPassiveDwell); /*APBssScan.ScanPassiveDwell[1] * 256 + APBssScan.ScanPassiveDwell[0];*/
-	/* out of range defined in MIB... So fall back to default value.*/
-	if ((pAd->CommonCfg.Dot11OBssScanPassiveDwell < 5) ||(pAd->CommonCfg.Dot11OBssScanPassiveDwell > 1000))
-	{
-		/*DBGPRINT(RT_DEBUG_ERROR,("ACT - UpdateBssScanParm( Dot11OBssScanPassiveDwell out of range !!!!)  \n"));*/
-		pAd->CommonCfg.Dot11OBssScanPassiveDwell = 20;
-	}
-	
-	pAd->CommonCfg.Dot11OBssScanActiveDwell = le2cpu16(APBssScan.ScanActiveDwell); /*APBssScan.ScanActiveDwell[1] * 256 + APBssScan.ScanActiveDwell[0];*/
-	/* out of range defined in MIB... So fall back to default value.*/
-	if ((pAd->CommonCfg.Dot11OBssScanActiveDwell < 10) ||(pAd->CommonCfg.Dot11OBssScanActiveDwell > 1000))
-	{
-		/*DBGPRINT(RT_DEBUG_ERROR,("ACT - UpdateBssScanParm( Dot11OBssScanActiveDwell out of range !!!!)  \n"));*/
-		pAd->CommonCfg.Dot11OBssScanActiveDwell = 10;
-	}
-
-	pAd->CommonCfg.Dot11OBssScanPassiveTotalPerChannel = le2cpu16(APBssScan.PassiveTalPerChannel); /*APBssScan.PassiveTalPerChannel[1] * 256 + APBssScan.PassiveTalPerChannel[0];*/
-	/* out of range defined in MIB... So fall back to default value.*/
-	if ((pAd->CommonCfg.Dot11OBssScanPassiveTotalPerChannel < 200) ||(pAd->CommonCfg.Dot11OBssScanPassiveTotalPerChannel > 10000))
-	{
-		/*DBGPRINT(RT_DEBUG_ERROR,("ACT - UpdateBssScanParm( Dot11OBssScanPassiveTotalPerChannel out of range !!!!)  \n"));*/
-		pAd->CommonCfg.Dot11OBssScanPassiveTotalPerChannel = 200;
-	}
-	
-	pAd->CommonCfg.Dot11OBssScanActiveTotalPerChannel = le2cpu16(APBssScan.ActiveTalPerChannel); /*APBssScan.ActiveTalPerChannel[1] * 256 + APBssScan.ActiveTalPerChannel[0];*/
-	/* out of range defined in MIB... So fall back to default value.*/
-	if ((pAd->CommonCfg.Dot11OBssScanActiveTotalPerChannel < 20) ||(pAd->CommonCfg.Dot11OBssScanActiveTotalPerChannel > 10000))
-	{
-		/*DBGPRINT(RT_DEBUG_ERROR,("ACT - UpdateBssScanParm( Dot11OBssScanActiveTotalPerChannel out of range !!!!)  \n"));*/
-		pAd->CommonCfg.Dot11OBssScanActiveTotalPerChannel = 20;
-	}
-
-	pAd->CommonCfg.Dot11OBssScanActivityThre = le2cpu16(APBssScan.ScanActThre); /*APBssScan.ScanActThre[1] * 256 + APBssScan.ScanActThre[0];*/
-	/* out of range defined in MIB... So fall back to default value.*/
-	if (pAd->CommonCfg.Dot11OBssScanActivityThre > 100)
-	{
-		/*DBGPRINT(RT_DEBUG_ERROR,("ACT - UpdateBssScanParm( Dot11OBssScanActivityThre out of range !!!!)  \n"));*/
-		pAd->CommonCfg.Dot11OBssScanActivityThre = 25;
-	}
-
-	pAd->CommonCfg.Dot11BssWidthChanTranDelay = (pAd->CommonCfg.Dot11BssWidthTriggerScanInt * pAd->CommonCfg.Dot11BssWidthChanTranDelayFactor);
-	/*DBGPRINT(RT_DEBUG_LOUD,("ACT - UpdateBssScanParm( Dot11BssWidthTriggerScanInt = %d )  \n", pAd->CommonCfg.Dot11BssWidthTriggerScanInt));*/
-}
-
-#endif /* CONFIG_STA_SUPPORT */
 
 #if defined(CONFIG_STA_SUPPORT) || defined(APCLI_SUPPORT)
 
@@ -724,13 +622,13 @@ VOID Update2040CoexistFrameAndNotify(
 	IN    UCHAR  Wcid,
 	IN	BOOLEAN	bAddIntolerantCha) 
 {
-	/*BSS_2040_COEXIST_IE		OldValue;*/
+	BSS_2040_COEXIST_IE		OldValue;
 
 	DBGPRINT(RT_DEBUG_ERROR,("%s(): ACT -BSSCoexist2040 = %x. EventANo = %d. \n",
 				__FUNCTION__, pAd->CommonCfg.BSSCoexist2040.word,
 				pAd->CommonCfg.TriggerEventTab.EventANo));
 
-	/*OldValue.word = pAd->CommonCfg.BSSCoexist2040.word;*/
+	OldValue.word = pAd->CommonCfg.BSSCoexist2040.word;
 	/* Reset value.*/
 	pAd->CommonCfg.BSSCoexist2040.word = 0;
 
@@ -908,21 +806,6 @@ VOID ChannelSwitchAction(
 					__FUNCTION__, (rf_bw == BW_40 ? 40 : 20),
 					pAd->CommonCfg.Channel, 
 					pAd->CommonCfg.CentralChannel));
-#ifdef SMART_MESH_MONITOR
-		{
-			struct nsmpif_drvevnt_buf drvevnt;
-			drvevnt.data.channel_change.type = NSMPIF_DRVEVNT_CHANNEL_CHANGE;
-			drvevnt.data.channel_change.channel = pAd->CommonCfg.Channel;
-			NdisZeroMemory(drvevnt.data.channel_change.op_channels,sizeof(drvevnt.data.channel_change.op_channels));
-			drvevnt.data.channel_change.op_channels[0] = pAd->CommonCfg.Channel;
-#ifdef DOT11_N_SUPPORT
-			if(rf_bw == BW_40)
-				drvevnt.data.channel_change.op_channels[1] = N_GetSecondaryChannel(pAd);
-#endif /* DOT11_N_SUPPORT */
-			RtmpOSWrielessEventSend(pAd->net_dev, RT_WLAN_EVENT_CUSTOM,NSMPIF_DRVEVNT_CHANNEL_CHANGE,
-									NULL, (PUCHAR)&drvevnt.data.channel_change, sizeof(drvevnt.data.channel_change));
-		}
-#endif /* SMART_MESH_MONITOR */
 	}
 }
 #endif /* DOT11N_DRAFT3 */
@@ -937,9 +820,6 @@ VOID PeerPublicAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 	if (!HotSpotEnable(pAd, Elem, ACTION_STATE_MESSAGES))
 #endif
 	if ((Elem->Wcid >= MAX_LEN_OF_MAC_TABLE)
-#ifdef DOT11Z_TDLS_SUPPORT
-		&& (Action != ACTION_TDLS_DISCOVERY_RSP)
-#endif // DOT11Z_TDLS_SUPPORT //
 		)
 		return;
 
@@ -993,7 +873,11 @@ VOID PeerPublicAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 					BOOLEAN		bNeedFallBack = FALSE;
 									
 					/*ApPublicAction(pAd, Elem);*/
-					if ((pBssCoexistIe->field.BSS20WidthReq ==1) || (pBssCoexistIe->field.Intolerant40 == 1))
+					if (pAd->CommonCfg.RegTransmitSetting.field.BW == BW_20)
+					{
+						DBGPRINT(RT_DEBUG_TRACE, ("BSS_2040_COEXIST: BW=%d, bBssCoexEnable=%d!\n", pAd->CommonCfg.RegTransmitSetting.field.BW, pAd->CommonCfg.bBssCoexEnable));
+					}
+					else if ((pBssCoexistIe->field.BSS20WidthReq ==1) || (pBssCoexistIe->field.Intolerant40 == 1))
 					{	
 						bNeedFallBack = TRUE;
 
@@ -1063,14 +947,20 @@ VOID PeerPublicAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 							pAd->CommonCfg.Bss2040CoexistFlag |= BSS_2040_COEXIST_TIMER_FIRED;
 							/* More 5 sec for the scan report of STAs.*/
 							RTMPSetTimer(&pAd->CommonCfg.Bss2040CoexistTimer,  (pAd->CommonCfg.Dot11BssWidthChanTranDelay + 5) * 1000);
-
-						}
-						else
-						{
+						} else {
 							DBGPRINT(RT_DEBUG_TRACE, ("Already fallback to 20MHz, Extend the timeout of Bss2040CoexistTimer!\n"));
 							/* More 5 sec for the scan report of STAs.*/
 							RTMPModTimer(&pAd->CommonCfg.Bss2040CoexistTimer, (pAd->CommonCfg.Dot11BssWidthChanTranDelay + 5) * 1000);
 						}
+#ifdef WH_EZ_SETUP
+						apidx = pAd->MacTab.Content[Elem->Wcid].apidx;
+						if (IS_ADPTR_EZ_SETUP_ENABLED(pAd)) {
+							EZ_DEBUG(DBG_CAT_MLME, DBG_SUBCAT_ALL, EZ_DBG_LVL_ERROR,
+								("Fallback thru ACTION_BSS_2040_COEXIST\n"));
+							ez_set_ap_fallback_context(&pAd->ApCfg.MBSSID[apidx].wdev, TRUE,
+								pAd->CommonCfg.Channel);
+						}
+#endif /* WH_EZ_SETUP */
 
 						apidx = pAd->MacTab.Content[Elem->Wcid].apidx;
 						for (apidx = 0; apidx < pAd->ApCfg.BssidNum; apidx++)
@@ -1084,15 +974,6 @@ VOID PeerPublicAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 				}
 #endif /* CONFIG_AP_SUPPORT */
 
-#ifdef CONFIG_STA_SUPPORT
-				IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
-				{
-					if (INFRA_ON(pAd))
-					{
-						StaPublicAction(pAd, pBssCoexistIe);
-					}
-				}
-#endif /* CONFIG_STA_SUPPORT */
 			}
 			break;
 #endif /* DOT11N_DRAFT3 */
@@ -1111,29 +992,27 @@ VOID PeerPublicAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 			break;
 #endif
 		case ACTION_WIFI_DIRECT:
-#ifdef IWSC_SUPPORT
-			if ((pAd->StaCfg.BssType == BSS_ADHOC) &&
-				NdisEqualMemory(&(Elem->Msg[LENGTH_802_11+2]), IWSC_ACTION_OUI, 4)) 
-			{
-				MlmeEnqueue(pAd, IWSC_STATE_MACHINE, IWSC_MT2_PEER_ACTION_FRAME, Elem->MsgLen, Elem->Msg, 0);
-				RTMP_MLME_HANDLER(pAd);
-				break;
-			}
-#endif // IWSC_SUPPORT //
 
-			break;
-
-#ifdef DOT11Z_TDLS_SUPPORT
-		case ACTION_TDLS_DISCOVERY_RSP:
-			IF_DEV_CONFIG_OPMODE_ON_STA(pAd)
+#ifdef WH_EZ_SETUP
 			{
-				if (INFRA_ON(pAd))
-				{
-					TDLS_DiscoveryRspPublicAction(pAd, Elem, Elem->Msg, Elem->MsgLen);
+				if (IS_ADPTR_EZ_SETUP_ENABLED(pAd)) {
+					if (!VALID_UCAST_ENTRY_WCID(pAd, Elem->Wcid)) {
+						DBGPRINT(RT_DEBUG_ERROR,
+							("%s, Wrong Wcid:%d !!! need to check the root cause!!!!",
+									__func__, Elem->Wcid));
+						return;
+					}
+					if (NdisEqualMemory(&(Elem->Msg[LENGTH_802_11+2]), mtk_oui,
+						MTK_OUI_LEN)) {
+						ez_process_action_frame(pAd, Elem);
+						break;
+					}
 				}
 			}
+#endif /* WH_EZ_SETUP */
+
 			break;
-#endif // DOT11Z_TDLS_SUPPORT //
+
 
 		default:
 			break;
@@ -1251,17 +1130,6 @@ VOID PeerHTAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 	{
 		case NOTIFY_BW_ACTION:
 			DBGPRINT(RT_DEBUG_TRACE,("ACTION - HT Notify Channel bandwidth action----> \n"));
-#ifdef CONFIG_STA_SUPPORT
-			if(pAd->StaActive.SupportedPhyInfo.bHtEnable == FALSE)
-			{
-				/* Note, this is to patch DIR-1353 AP. When the AP set to Wep, it will use legacy mode. But AP still keeps */
-				/* sending BW_Notify Action frame, and cause us to linkup and linkdown. */
-				/* In legacy mode, don't need to parse HT action frame.*/
-				DBGPRINT(RT_DEBUG_TRACE,("ACTION -Ignore HT Notify Channel BW when link as legacy mode. BW = %d---> \n", 
-								Elem->Msg[LENGTH_802_11+2] ));
-				break;
-			}
-#endif /* CONFIG_STA_SUPPORT */
 
 			if (Elem->Msg[LENGTH_802_11+2] == 0)	/* 7.4.8.2. if value is 1, keep the same as supported channel bandwidth. */
 				pEntry->HTPhyMode.field.BW = 0;
@@ -1340,6 +1208,45 @@ VOID PeerVHTAction(RTMP_ADAPTER *pAd, MLME_QUEUE_ELEM *Elem)
 #endif /* DOT11_VHT_AC */
 
 
+/*
+	==========================================================================
+	Description:
+		Retry sending ADDBA Reqest.
+		
+	IRQL = DISPATCH_LEVEL
+	
+	Parametrs:
+	p8023Header: if this is already 802.3 format, p8023Header is NULL
+	
+	Return	: TRUE if put into rx reordering buffer, shouldn't indicaterxhere.
+				FALSE , then continue indicaterx at this moment.
+	==========================================================================
+ */
+VOID ORIBATimerTimeout(RTMP_ADAPTER *pAd) 
+{
+	MAC_TABLE_ENTRY *pEntry;
+	INT i, total;
+	UCHAR TID;
+
+#ifdef RALINK_ATE
+	if (ATE_ON(pAd))
+		return;
+#endif /* RALINK_ATE */
+
+	total = pAd->MacTab.Size * NUM_OF_TID;
+
+	for (i = 1; ((i <MAX_LEN_OF_BA_ORI_TABLE) && (total > 0)) ; i++)
+	{
+		if  (pAd->BATable.BAOriEntry[i].ORI_BA_Status == Originator_Done)
+		{
+			pEntry = &pAd->MacTab.Content[pAd->BATable.BAOriEntry[i].Wcid];
+			TID = pAd->BATable.BAOriEntry[i].TID;
+
+			ASSERT(pAd->BATable.BAOriEntry[i].Wcid < MAX_LEN_OF_MAC_TABLE);
+		}
+		total --;
+	}
+}
 
 
 VOID SendRefreshBAR(RTMP_ADAPTER *pAd, MAC_TABLE_ENTRY *pEntry) 
@@ -1405,6 +1312,19 @@ VOID SendRefreshBAR(RTMP_ADAPTER *pAd, MAC_TABLE_ENTRY *pEntry)
 	}
 }
 #endif /* DOT11_N_SUPPORT */
+
+
+UCHAR get_channel_set_num(UCHAR *ChannelSet)
+{
+	int index = 0;
+
+	if (ChannelSet == NULL)
+		return 0;
+
+	while (ChannelSet[index] != 0)index++;
+
+	return index;
+}
 
 
 VOID ActHeaderInit(
