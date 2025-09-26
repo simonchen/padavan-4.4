@@ -10,7 +10,7 @@ download_test:
 	( if [ ! -d $(THISDIR)/$(SRC_NAME) ]; then \
 		git clone https://github.com/rozhuk-im/msd_lite.git ; \
 		cd $(SRC_NAME) ; \
-		git reset --hard c5b876ae64b3470632abaed6fe340469bb7d0293 \
+		git reset --hard c5b876ae64b3470632abaed6fe340469bb7d0293 ; \
 		git submodule update --init --recursive ; \
 		patch -p1 -i ../msd_lite.diff ; \
 	fi )
