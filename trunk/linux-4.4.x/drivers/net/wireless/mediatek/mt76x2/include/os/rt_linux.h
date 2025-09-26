@@ -588,11 +588,11 @@ typedef void (*TIMER_FUNCTION)(unsigned long);
 {	\
 	if (in_interrupt()) \
 	{\
-		RtmpusecDelay(_time * 250);\
+		RtmpusecDelay(_time * 1000);\
 	}else	\
 	{\
 		int _i; \
-		long _loop = ((_time)/(250/OS_HZ)) > 0 ? ((_time)/(250/OS_HZ)) : 1;\
+		long _loop = ((_time)/(1000/OS_HZ)) > 0 ? ((_time)/(1000/OS_HZ)) : 1;\
 		wait_queue_head_t _wait; \
 		init_waitqueue_head(&_wait); \
 		for (_i=0; _i<(_loop); _i++) \

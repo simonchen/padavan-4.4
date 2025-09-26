@@ -4,7 +4,7 @@ This project is based on original rt-n56u with latest mtk 4.4.198 kernel, which 
 
 #### Extra functions / changes
 - Tune kernel configs (for NEWIFI / K2P only)
-- Decline the load average make more old apps running well.
+- Decline the load average over multiple-cores for compatiable with more old apps running well.
 - Revise the MTD storage partition for 16M flash, the firmware size must be less than 10MB as possible.
 - Revise the MTD storage partition for 32M flash, the firmware size has no change as before, but the storage size can have more than 15MB.
 - Adding user/chinadns-ng , and fix shadowsocks + chinadns-ng using local domain whitellist.
@@ -73,7 +73,7 @@ This project is based on original rt-n56u with latest mtk 4.4.198 kernel, which 
 - MI-R3P
 - R2100
 - XY-C1
-- NEWIFI (New added)
+- NEWIFI (New added, MT7621E HW_NAT has single thread issue on 5G wifi, it's not resolved yet)
 
 # Compilation steps
 
@@ -100,6 +100,22 @@ This project is based on original rt-n56u with latest mtk 4.4.198 kernel, which 
 
   # To build firmware for other devices, clean the tree after previous build
   make clean
+  ```
+  
+- Driver modulde compilation
+  
+  Copy / Paste the below codes then put it in the ending of the Makefile in the driver package folder (e.g, mt76x2_ap)
+  **Assume that /work is the root path with padavan-4.4**
+  ```
+  CROSS=/work/padavan-4.4/toolchain-mipsel/toolchain-4.4.x/bin/mipsel-linux-uclibc-
+  KERNEL=/work/padavan-4.4/trunk/linux-4.4.x/
+  STRIP=/work/padavan-4.4/toolchain-mipsel/toolchain-4.4.x/bin/mipsel-linux-uclibc-strip
+
+  all:
+        #make ARCH=mips CROSS_COMPILE=$(CROSS) -C $(KERNEL) SUBDIRS=$(PWD) modules
+        $(STRIP) $(PWD)/$(RT_DRV_NAME).ko
+  clean:
+        make -C $(KERNEL) SUBDIRS=$(PWD) clean
   ```
 
 # Package Development
