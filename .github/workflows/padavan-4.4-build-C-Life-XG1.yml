@@ -1,4 +1,4 @@
-name: padavan-4.4-build
+name: padavan-4.4-build-C-Life-XG1
 
 on: 
   workflow_dispatch:
