@@ -1,0 +1,125 @@
+name: padavan-4.4-build-C-Life-XG1
+
+on: 
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Test Version
+        default: v1.0.0
+        required: true
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        target: [C-Life-XG1]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: hendrikmuhs/ccache-action@v1.2
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '^1.18.6'
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-v1
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Prepare
+        run: |
+          sudo apt update
+          sudo apt -y install libtool-bin gperf python3-docutils autopoint gettext ccache
+          # https://github.com/actions/setup-go/issues/107
+          echo "${GOROOT}/bin" >> $GITHUB_PATH
+      - name: Build
+        run: |
+          TNAME=${{ matrix.target }}
+          echo "TNAME=$TNAME"
+          cd trunk
+          if [ ! -f configs/templates/$TNAME.config ] ; then
+          echo "configs/templates/$TNAME.config not found "
+          exit 1
+          fi
+          cp -f configs/templates/$TNAME.config .config
+          sed -i 's/CONFIG_FIRMWARE_INCLUDE_OPENSSL_EXE=n/CONFIG_FIRMWARE_INCLUDE_OPENSSL_EXE=y/g' .config
+          ################################################################################################
+          #因不同型号配置功能不一样，所以先把配置项删除，如果你自己要添加其他的，也要写上删除这一条，切记！！！
+          ################################################################################################
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_MENTOHUST/d' .config #删除配置项MENTOHUST
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_SCUTCLIENT/d' .config #删除配置项SCUTCLIENT
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS/d' .config #删除配置项SS plus+
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_SSSERVER/d' .config #删除配置项SS server
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_DNSFORWARDER/d' .config #删除配置项DNSFORWARDER
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_ADBYBY/d' .config #删除配置项adbyby plus+
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_FRPC/d' .config #删除配置项adbyby plus+
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_FRPS/d' .config #删除配置项adbyby plus+
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_TUNSAFE/d' .config #删除配置项adbyby plus+
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_SMARTDNS/d' .config
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_SRELAY/d' .config
+          sed -i 's/CONFIG_FIRMWARE_INCLUDE_OPENSSL_EXE=n/CONFIG_FIRMWARE_INCLUDE_OPENSSL_EXE=y/g' .config
+          sed -i '/CONFIG_FIRMWARE_ENABLE_FUSE/d' .config # 删除fuse
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_OPENVPN/d' .config # delete OPENVPN
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_HTOP/d' .config # delete HTOP
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_XUPNPD/d' .config # IPTV
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_OPENSSH/d' .config # delete OPENSSH
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_DROPBEAR/d' .config # delete DropBear SSH
+          sed -i '/CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS/d' .config # shadowsocks
+          ######################################################################
+          #以下选项是定义你需要的功能（y=集成,n=忽略），重新写入到.config文件
+          ######################################################################
+          echo "CONFIG_FIRMWARE_INCLUDE_MENTOHUST=n" >> .config #MENTOHUST
+          echo "CONFIG_FIRMWARE_INCLUDE_SCUTCLIENT=n" >> .config #SCUTCLIENT
+          echo "CONFIG_FIRMWARE_INCLUDE_SSOBFS=n" >> .config # simple-obfs混淆插件
+          echo "CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS=y" >> .config # SS plus+
+          echo "CONFIG_FIRMWARE_INCLUDE_SSSERVER=n" >> .config #SS server
+          echo "CONFIG_FIRMWARE_INCLUDE_DNSFORWARDER=n" >> .config #DNSFORWARDER
+          echo "CONFIG_FIRMWARE_INCLUDE_ADBYBY=n" >> .config #adbyby plus+
+          echo "CONFIG_FIRMWARE_INCLUDE_FRPC=y" >> .config #内网穿透FRPC
+          echo "CONFIG_FIRMWARE_INCLUDE_FRPS=n" >> .config #内网穿透FRPS
+          echo "CONFIG_FIRMWARE_INCLUDE_TUNSAFE=n" >> .config #TUNSAFE
+          echo "CONFIG_FIRMWARE_INCLUDE_V2RAY=n" >> .config #集成v2ray执行文件（3.8M左右)，如果不集成，会从网上下载下来执行，不影响正常使用
+          echo "CONFIG_FIRMWARE_INCLUDE_TROJAN=n" >> .config #集成trojan执行文件(1.1M左右)，如果不集成，会从网上下载下来执行，不影响正常使用
+          echo "CONFIG_FIRMWARE_INCLUDE_KOOLPROXY=n" >> .config #KP广告过滤
+          echo "CONFIG_FIRMWARE_INCLUDE_CADDY=n" >> .config #在线文件管理服务
+          echo "CONFIG_FIRMWARE_INCLUDE_CADDYBIN=n" >> .config #集成caddu执行文件，此文件有13M,请注意固件大小。如果不集成，会从网上下载下来执行，不影响正常使用
+          echo "CONFIG_FIRMWARE_INCLUDE_ADGUARDHOME=n" >> .config
+          echo "CONFIG_FIRMWARE_INCLUDE_SRELAY=n" >> .config #可以不集成
+          echo "CONFIG_FIRMWARE_INCLUDE_ZEROTIER=n" >> .config #zerotier ~1.3M
+          echo "CONFIG_FIRMWARE_ENABLE_FUSE=y" >> .config # fuse
+          echo "CONFIG_FIRMWARE_INCLUDE_OPENVPN=n" >> .config # openvpn
+          echo "CONFIG_FIRMWARE_INCLUDE_HTOP=n" >> .config # HTOP
+          echo "CONFIG_FIRMWARE_INCLUDE_XUPNPD=n" >> .config # IPTV
+          echo "CONFIG_FIRMWARE_INCLUDE_OPENSSH=n" >> .config # OPENSSH
+          echo "CONFIG_FIRMWARE_INCLUDE_DROPBEAR=y" >> .config # dropbear SSH
+          #########################################################################################
+          #自定义添加其它功能请参考源码configs/templates/目录下的config文件。按照上面的格式添加即可
+          #格式如下：
+          #sed -i '/自定义项/d' .config
+          #echo "自定义项=y" >> .config
+          #########################################################################################
+          #cp -f .config configs/templates/$TNAME.config
+          cd ..
+          make ${{ matrix.target }}
+          if [ "${{ matrix.target }}" = "K2P-NANO" ]; then
+            image=$(ls trunk/images/*.trx)
+            mv $image $(echo $image | sed 's/K2P/K2P-NANO/')
+          fi
+          echo "TAG_ANME=$(date +%Y%m%d)" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: images
+          path: trunk/images/*.trx
+      - uses: rickstaa/action-create-tag@v1
+        with:
+          tag: ${{ env.TAG_ANME }}
+          force_push_tag: true
+      - uses: ncipollo/release-action@v1
+        with:
+          commit: ${{ github.sha }}
+          tag: ${{ env.TAG_ANME }}
+          artifacts: trunk/images/*.trx
+          allowUpdates: true
