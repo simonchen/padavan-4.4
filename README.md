@@ -57,6 +57,7 @@ This project is based on original rt-n56u with latest mtk 4.4.198 kernel, which 
 
 # Supported devices
 
+- C-Life-XG1 (New added, overlock 1000MHZ by default)
 - CR660x
 - JCG-Q20
 - JCG-AC860M
